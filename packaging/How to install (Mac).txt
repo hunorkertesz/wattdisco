@@ -7,7 +7,7 @@ Required Notice: Copyright (c) 2026 Hunor Kertesz
 
 YOU NEED
 - A Mac with Apple silicon (M1 or newer). Apple menu > About This Mac: "Chip" says Apple M...
-- macOS 14 (Sonoma) or newer.
+- macOS 12 (Monterey) or newer.
 - A Bluetooth smart trainer or power meter. A heart rate strap is optional.
 Nothing else to install.
 
