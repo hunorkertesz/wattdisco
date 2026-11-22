@@ -6,24 +6,75 @@
 
 <p align="center">
   <b>Indoor cycling training, built with AI, by cyclists for cyclists.</b><br>
-  Connects your smart trainer, power meter and heart rate strap over Bluetooth, guides structured workouts in ERG
-  or free ride, records every sensor and sends the ride to Strava.
+  Your smart trainer, power meter and heart rate strap over Bluetooth. Structured workouts in ERG or free ride.<br>
+  Every sensor recorded, every ride on your own computer.
 </p>
 
 <p align="center">
-  <img src="docs/images/workout.jpg" alt="The training view during a VO2 max session, the whole workout in the chart: power in the VO2 zone colour, interval 3 of 5 with power and heart rate drawn so far, target, heart rate and cadence">
+  <a href="https://github.com/hunorkertesz/wattdisco/releases/latest/download/WattDisco-mac.dmg"><b>Download for Mac</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/hunorkertesz/wattdisco/releases/latest/download/WattDisco-windows.exe"><b>Download for Windows</b></a>
+  <br>
+  <sub>Free for noncommercial use · no account · no ads · <a href="#install">how to install</a></sub>
 </p>
 
 <p align="center">
+  <img src="docs/images/workout-nerd.jpg" alt="Nerd mode during a VO2 max workout: the current power in big numbers with its recent average, the workout chart with power and heart rate drawn so far, the target ring, time on target, heart rate, cadence and the difference between two power sources">
+</p>
+<p align="center"><sub>Nerd mode, in the middle of a VO2 max workout (all pictures show simulated rides)</sub></p>
+
+<p align="center">
+  <a href="#nerd-mode">Nerd mode</a> ·
   <a href="#features">Features</a> ·
   <a href="#install">Install</a> ·
-  <a href="#run-from-source">Run from source</a> ·
+  <a href="#while-riding">Keys</a> ·
   <a href="#strava">Strava</a> ·
   <a href="#your-data">Your data and privacy</a> ·
   <a href="#development">Development</a>
 </p>
 
 ---
+
+## Nerd mode
+
+The standard view stays calm: power, heart rate, cadence, target. Press **N** and the same screen answers the questions
+you have in the middle of an interval.
+
+**While you ride**
+
+| You see | It tells you |
+|---|---|
+| **Target ring** | A dot moves round as your power goes under or over the target; the ±5 % band is marked. Below it, the difference in watts and percent. |
+| **On target** | The share of this interval within ±5 % of the target, so far. |
+| **Recent averages** | Power and heart rate over the last 30 s, 1, 5 or 10 min, next to the live numbers. |
+| **Power source ring** | How far your trainer and your power meter are apart right now, with a ±2 % band. |
+| **Cadence target** | A line that moves as you pedal slower or faster than the interval asks for. |
+| **This interval ±5 W** | Make only the current interval harder or easier (**↑ ↓**), or skip to the next one (**S**). |
+
+**After the ride**
+
+<p align="center">
+  <img src="docs/images/summary-nerd.jpg" alt="The nerd view of a ride summary after a VO2 max workout: eight number tiles with their change and trend, the ride chart with a power minus target strip, time in power and heart rate zones, every interval against its target, the deviation from target, and the difference between two power sources with left/right balance">
+</p>
+<p align="center"><sub>The nerd view of a ride summary: one screen, no scrolling</sub></p>
+
+- **Eight tiles with their trend:** weighted power, intensity, training load, variability, time on target, heart rate
+  drift, watts per heartbeat and an aerobic threshold estimate, each with its change against a ride you choose.
+- **Power minus target** under the ride chart, so you see where you drifted off.
+- **Every interval:** target, average, difference, time on target and left/right balance.
+- **Deviation from target:** share under, within and over ±5 %, mean, spread, and the longest stretch off target.
+- **Two power sources:** their mean difference, lag and correlation over the ride.
+- **Aerobic threshold (DFA α1):** estimated from the beat-to-beat intervals of your strap, when the ride allows it, with a
+  plot that explains it. A training estimate, not a medical reading.
+
+Not sure what a number means? **?** explains them all.
+
+## A closer look
+
+| | |
+|---|---|
+| <img src="docs/images/compare.jpg" alt="A ride next to the last time the same workout was ridden: every number and its change, both power curves, interval by interval, and power and heart rate laid over each other"><br>**Compare** a ride with the last time you rode the same workout | <img src="docs/images/progress.jpg" alt="Progress: fitness, fatigue and form, the power curve, FTP history and the difference between two power sources across rides"><br>**Progress:** fitness, power curve, FTP and power sources over time |
+| <img src="docs/images/plan.jpg" alt="A six-week FTP Builder training plan with the next session lined up"><br>**Training plans** that fit your days and hours | <img src="docs/images/ready.jpg" alt="The ready screen: this week, form and last ride, the chosen workout and the ride options"><br>**Ready to ride:** pick a workout, start on your first pedal stroke |
 
 ## Features
 
@@ -59,13 +110,12 @@
 
 ## Install
 
-Each release has the app for your computer on the [Releases](../../releases) page (until the first one is out,
-[run it from source](#run-from-source)):
+Every version is on the [Releases](../../releases) page:
 
 | System | File | First start |
 |---|---|---|
-| macOS (Apple silicon) | `WattDisco-mac.dmg` | Drag Watt Disco to Applications. The app is not signed yet: System Settings → Privacy & Security → **Open Anyway**, then allow Bluetooth. |
-| Windows | `WattDisco-windows.exe` | SmartScreen: **More info** → **Run anyway**. |
+| macOS 12 or newer, Apple silicon (M1 or later) | [`WattDisco-mac.dmg`](https://github.com/hunorkertesz/wattdisco/releases/latest/download/WattDisco-mac.dmg) | Drag Watt Disco to Applications. The app is not signed yet: System Settings → Privacy & Security → **Open Anyway**, then allow Bluetooth. |
+| Windows, 64-bit | [`WattDisco-windows.exe`](https://github.com/hunorkertesz/wattdisco/releases/latest/download/WattDisco-windows.exe) | SmartScreen: **More info** → **Run anyway**. |
 
 Watt Disco opens in its own window, asks for your FTP, weight and max heart rate (or lines up a ramp test), finds
 your sensors and reconnects the ones you used last time. Metric or imperial units.
@@ -115,11 +165,14 @@ Move the mouse or tap the screen to show the controls; they fade away again on t
 
 ## Strava
 
-Press **Upload ride** after a ride, connect Strava once, and switch on automatic upload if you like. Simulated rides
+**In version 1.0:** save the ride's `.fit` file from its summary and upload it at `strava.com/upload`. It holds power, heart
+rate, cadence and the estimated speed and distance.
+
+**Planned:** press **Upload ride**, connect Strava once, and switch on automatic upload if you like. The sign-in will use a
+small relay (`relay/`, a Cloudflare Worker) that keeps the shared app's secret and never sees your rides. Simulated rides
 are never uploaded on their own.
 
-The sign-in uses a small relay (`relay/`, a Cloudflare Worker) that keeps the shared app's secret and never sees your
-rides. Until that relay is set up for a release, use your own Strava API app:
+The app can also use your own Strava API app:
 
 <details>
 <summary>Your own Strava API app</summary>
