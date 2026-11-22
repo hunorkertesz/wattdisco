@@ -389,8 +389,6 @@
 .stat[data-metric="load"] { --accent: var(--yellow); }
 .stat[data-metric="vi"] { --accent: var(--zone-6); }
 .stat--target { --accent: var(--yellow); }
-.stat__delta.is-good::before { content: "▲ "; font-size: 8px; vertical-align: 1px; }
-.stat__delta.is-bad::before { content: "▼ "; font-size: 8px; vertical-align: 1px; }
 
 /* panels: a coloured title with a glowing dot */
 .panel { --accent: var(--cyan); }
