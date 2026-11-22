@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Workout editor</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  /* One screen: the chart takes the spare height; the phase card keeps its buttons at the top. */
+  .page { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  .page main { flex: 1; min-height: 0; width: 100%; max-width: 1360px; margin: 0 auto; padding: clamp(8px, 2vh, 16px) var(--gutter) clamp(10px, 2.4vh, 24px); display: flex; flex-direction: column; gap: clamp(8px, 1.6vh, 14px); }
+  .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .top__left { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+  .name {
+    width: 100%; max-width: 720px; padding: 0; border: 0; border-bottom: 1.5px dashed transparent; background: transparent;
+    font-family: var(--font); font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--pink-soft); text-shadow: var(--glow-pink);
+  }
+  .name:hover, .name:focus { outline: none; border-bottom-color: var(--line-strong); }
+  .pickrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .top__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; flex: 1; min-height: 0; }
+  .left { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+  .palette { display: flex; gap: 6px; flex-wrap: wrap; }
+  .add {
+    height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px;
+    border: 1.5px solid var(--line-strong); border-radius: 22px; background: transparent; color: var(--white);
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; cursor: pointer;
+  }
+  .add:hover { border-color: var(--cyan); }
+  .add i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  .chart { width: 100%; flex: 1; min-height: 140px; display: block; cursor: pointer; border-radius: 8px; }
+  .chart:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
+  .totals { display: flex; gap: 12px 32px; flex-wrap: wrap; }
+  .card { width: auto; gap: clamp(8px, 1.5vh, 14px); padding: clamp(12px, 2vh, 20px) 20px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field select { width: 100%; border-radius: 10px; border-color: var(--line-strong); box-shadow: none; color: var(--white); font-family: var(--font); font-size: 16px; letter-spacing: 0; text-transform: none; height: 44px; }
+  .text {
+    width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px;
+    background: var(--row); color: var(--white); font-size: 16px; font-variant-numeric: tabular-nums;
+  }
+  .text:focus, .field select:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .text[aria-invalid="true"] { border-color: var(--pink); box-shadow: 0 0 8px var(--pink); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .phase-title { color: var(--c, var(--yellow)); }
+  .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .buttons .btn { height: 38px; }
+  .left .totals { flex: none; align-items: center; }
+  /* plain-words summary of the workout, in watts */
+  .describe { margin: 0; color: var(--white); font-size: clamp(15px, 2.2vh, 18px); line-height: 1.35; }
+  .describe b { color: var(--yellow-soft); font-weight: 700; }
+  .scale { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+  .scale__v { min-width: 4.5em; text-align: center; color: var(--white); }
+  .top .neon-title, .name { font-size: clamp(26px, min(4vw, 5.5vh), 44px); }
+  @media (max-height: 760px) and (min-width: 821px) {
+    .text, .nsel--field .nsel__button { height: 38px; }
+    .add { height: 32px; padding: 0 10px; gap: 6px; font-size: 11px; letter-spacing: .06em; }
+    .palette { gap: 5px; }
+    .describe { font-size: 14px; }
+  }
+  .status { min-height: 18px; }
+  .status.is-ok { color: var(--teal); }
+  .status.is-error { color: var(--pink); }
+  .status a { color: var(--cyan-soft); }
+  .linkish { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
+  [hidden] { display: none !important; }
+  @media (max-width: 1000px) and (min-width: 821px) { .body { grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; } }
+  @media (max-width: 820px) {
+    .page { height: auto; min-height: 100dvh; }
+    .body { grid-template-columns: 1fr; }
+    .chart { flex: none; height: 260px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <div class="top">
+      <div class="top__left">
+        <span class="mono" id="ftp-line">Workout editor</span>
+        <input class="name" id="name" aria-label="Workout name" maxlength="80" autocomplete="off">
+        <div class="pickrow">
+          <span id="choose"></span>
+          <button class="btn btn--sm" type="button" id="new">+ New</button>
+          <button class="btn btn--sm" type="button" id="import" title="Workout files from Zwift (.zwo), TrainerRoad or others (.erg, .mrc)">Import</button>
+          <input type="file" id="import-file" accept=".zwo,.erg,.mrc" multiple hidden>
+          <label class="mono" for="category">Category</label>
+          <span id="category"></span>
+          <span class="mono" id="builtin-note" hidden>Built-in · saving makes your own copy</span>
+        </div>
+      </div>
+      <div class="top__actions">
+        <a class="btn" href="/ready.html" id="cancel">Cancel</a>
+        <button class="btn btn--primary" type="button" id="save">Save workout</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <section class="left">
+        <div class="palette" id="palette" aria-label="Add a phase"></div>
+        <p class="describe" id="describe" aria-live="polite"></p>
+        <canvas class="chart" id="chart" tabindex="0" role="img"
+                aria-label="Workout phases. Click a phase to edit it; left and right arrows move between phases."></canvas>
+        <div class="totals">
+          <span class="mono" id="total"></span>
+          <span class="mono" id="count"></span>
+          <span class="mono" id="avg"></span>
+          <!-- all work intervals harder or easier together; warm-up, recoveries and cool-down stay -->
+          <span class="scale" role="group" aria-label="Interval power">
+            <span class="mono">Intervals</span>
+            <button class="btn btn--sm btn--icon" type="button" id="scale-down" aria-label="All intervals 5 W easier" title="All intervals 5 W easier">−</button>
+            <span class="mono scale__v" id="scale-v">±0 W</span>
+            <button class="btn btn--sm btn--icon" type="button" id="scale-up" aria-label="All intervals 5 W harder" title="All intervals 5 W harder">+</button>
+          </span>
+        </div>
+        <span class="mono status" id="status" role="status"></span>
+        <button class="linkish mono" type="button" id="delete-workout" hidden>Delete this workout</button>
+      </section>
+
+      <section class="card" aria-labelledby="phase-title">
+        <span class="mono phase-title" id="phase-title">Phase</span>
+        <div class="buttons">
+          <button class="btn" type="button" id="left" aria-label="Move phase earlier">◀ Move</button>
+          <button class="btn" type="button" id="right" aria-label="Move phase later">Move ▶</button>
+          <button class="btn" type="button" id="duplicate">Duplicate</button>
+          <button class="btn" type="button" id="delete">Delete</button>
+        </div>
+        <div class="field">
+          <span class="mono" id="kind-label">Type</span>
+          <span id="kind"></span>
+        </div>
+        <div class="field">
+          <label class="mono" for="duration">Duration · m:ss</label>
+          <input class="text" id="duration" inputmode="numeric" autocomplete="off">
+        </div>
+        <div class="pair">
+          <div class="field">
+            <label class="mono" for="watts">Power · W</label>
+            <input class="text" id="watts" type="number" inputmode="numeric" min="1">
+            <span class="mono" id="pct"></span>
+          </div>
+          <div class="field">
+            <label class="mono" for="watts-end">Ramp to · W</label>
+            <input class="text" id="watts-end" type="number" inputmode="numeric" min="1" placeholder="steady">
+            <span class="mono" id="pct-end"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label class="mono" for="cadence">Cadence target · rpm</label>
+          <input class="text" id="cadence" type="number" inputmode="numeric" min="30" max="160" placeholder="free">
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { PHASE_LABEL, el, fmtClock, neonSelect, renderStrip, setZoneTops, workoutOptions, zoneColor, zoneOf } from "/components.js";
+import { drawWorkoutPreview } from "/charts.js";
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "workouts" });
+
+async function api(url, options = {}) {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ?? `request failed (${r.status})`);
+  return body;
+}
+
+const settings = await api("/api/settings");
+setZoneTops(settings.zone_tops);
+const FTP = settings.ftp;
+let library = await api("/api/workouts");
+const DEFAULTS = library.phase_defaults;
+const KINDS = Object.keys(DEFAULTS);
+$("ftp-line").textContent = `Workout editor · FTP ${FTP} W`;
+
+// ---------- state ----------
+let current = null; // {id, builtin, name, phases: [{kind, seconds, pct, pct_end, cadence}]}
+let sel = 0;
+let dirty = false;
+let hits = [];
+let scaled = 0; // W added to every work interval since this workout was loaded
+const REST = ["warmup", "cooldown", "recovery"];
+const isWork = (p) => !REST.includes(p.kind);
+const STEP = 5;
+
+const watts = (pct) => Math.round(pct * FTP);
+const label = (k) => PHASE_LABEL[k] ?? k.toUpperCase();
+const parseDuration = (text) => {
+  const m = String(text).trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$|^(\d+)$/);
+  if (!m) return null;
+  if (m[4] !== undefined) return Number(m[4]) * 60; // plain minutes
+  return (Number(m[1] ?? 0) * 3600) + Number(m[2]) * 60 + Number(m[3]);
+};
+const fmtDuration = (s) => (s >= 3600 ? fmtClock(s) : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+
+function markDirty() {
+  dirty = true;
+  setStatus("");
+}
+addEventListener("beforeunload", (e) => { if (dirty) e.preventDefault(); });
+
+function setStatus(text, kind = "", link = null) {
+  const s = $("status");
+  s.className = `mono status${kind ? ` is-${kind}` : ""}`;
+  s.replaceChildren(text);
+  if (link) s.append(" · ", el("a", { href: link.href, text: link.text }));
+}
+
+// ---------- chooser ----------
+const chooser = neonSelect({
+  label: "Workout to edit",
+  onChange: (id) => {
+    if (dirty && !confirm("Discard your changes to this workout?")) { chooser.set(current.id); return; }
+    sel = 0;
+    load(library.workouts.find((w) => w.id === id));
+  },
+});
+$("choose").replaceWith(chooser);
+function renderChooser() {
+  chooser.setOptions(workoutOptions(library.workouts, library.categories));
+  chooser.set(current?.id ?? null);
+}
+const category = neonSelect({
+  label: "Category",
+  options: library.categories.map((c) => ({ value: c.id, label: c.label })),
+  value: "custom",
+  onChange: (v) => { current.category = v; markDirty(); },
+});
+$("category").replaceWith(category);
+
+function load(spec) {
+  current = { id: spec.id ?? null, builtin: !!spec.builtin, name: spec.name, category: spec.category ?? "custom",
+    phases: spec.phases.map((p) => ({ ...p })), test: spec.test ?? null, mode: spec.mode ?? null };
+  category.set(current.category);
+  sel = Math.min(sel, current.phases.length - 1);
+  dirty = false;
+  scaled = 0;
+  $("name").value = current.name;
+  $("builtin-note").hidden = !current.builtin;
+  $("delete-workout").hidden = !current.id || current.builtin;
+  $("cancel").href = current.id ? `/ready.html?workout=${current.id}` : "/ready.html";
+  history.replaceState(null, "", current.id ? `?id=${current.id}` : location.pathname);
+  renderChooser();
+  render();
+}
+
+
+$("new").addEventListener("click", () => {
+  if (dirty && !confirm("Discard your changes to this workout?")) return;
+  sel = 1;
+  load({ name: "New workout", category: "custom", phases: ["warmup", "sweetspot", "cooldown"].map(phaseOf) });
+  dirty = true;
+  $("name").select();
+});
+
+// ---------- import (.zwo, .erg, .mrc) ----------
+$("import").addEventListener("click", () => {
+  if (dirty && !confirm("Discard your changes to this workout?")) return;
+  $("import-file").click();
+});
+$("import-file").addEventListener("change", async () => {
+  const files = [...$("import-file").files];
+  $("import-file").value = "";
+  let last = null;
+  const done = [];
+  const failed = [];
+  for (const file of files) {
+    try {
+      const result = await api("/api/workouts/import", { method: "POST",
+        body: JSON.stringify({ filename: file.name, text: await file.text() }) });
+      last = result.workout;
+      done.push(result.notes.length ? `${last.name} (${result.notes.join("; ")})` : last.name);
+    } catch (e) {
+      failed.push(`${file.name}: ${e.message}`);
+    }
+  }
+  if (last) {
+    library = await api("/api/workouts");
+    sel = 0;
+    load(last);
+  }
+  const text = [done.length ? `Imported ${done.join(", ")}` : "", ...failed].filter(Boolean).join(" · ");
+  setStatus(text, failed.length ? "error" : "ok", last ? { href: `/ready.html?workout=${last.id}`, text: "Ride it ›" } : null);
+});
+
+$("name").addEventListener("input", () => { current.name = $("name").value; markDirty(); });
+
+// ---------- palette ----------
+function phaseOf(kind) {
+  const d = DEFAULTS[kind];
+  return { kind, seconds: d.seconds, pct: d.pct, pct_end: d.pct_end, cadence: d.cadence };
+}
+$("palette").replaceChildren(...KINDS.map((kind) => {
+  const c = zoneColor(zoneOf(DEFAULTS[kind].pct * FTP, FTP));
+  return el("button", { class: "add", type: "button", style: `--c:${c}`, title: `Add ${label(kind).toLowerCase()} after the selected phase`,
+    onclick: () => { current.phases.splice(sel + 1, 0, phaseOf(kind)); sel += 1; markDirty(); render(); } },
+    el("i"), label(kind));
+}));
+
+// ---------- chart ----------
+function inWatts() {
+  return { name: current.name, phases: current.phases.map((p) => ({ ...p, watts: watts(p.pct), watts_end: p.pct_end == null ? null : watts(p.pct_end) })) };
+}
+function drawChart() { hits = drawWorkoutPreview($("chart"), inWatts(), FTP, { selected: sel }); }
+$("chart").addEventListener("click", (e) => {
+  const x = e.clientX - $("chart").getBoundingClientRect().left;
+  const hit = hits.find((h) => x >= h.x0 && x < h.x1);
+  if (hit) { sel = hit.i; render(); }
+});
+$("chart").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowLeft" && sel > 0) { sel -= 1; render(); e.preventDefault(); }
+  if (e.key === "ArrowRight" && sel < current.phases.length - 1) { sel += 1; render(); e.preventDefault(); }
+});
+new ResizeObserver(() => current && drawChart()).observe($("chart"));
+
+// ---------- phase card ----------
+const kind = neonSelect({
+  label: "Phase type",
+  options: KINDS.map((k) => ({
+    value: k,
+    label: label(k).charAt(0) + label(k).slice(1).toLowerCase(),
+    color: zoneColor(zoneOf(DEFAULTS[k].pct * FTP, FTP)),
+  })),
+  value: "warmup",
+  onChange: (v) => { current.phases[sel].kind = v; markDirty(); render(); },
+});
+kind.classList.add("nsel--field");
+kind.button.setAttribute("aria-labelledby", "kind-label");
+$("kind").replaceWith(kind);
+
+function renderCard() {
+  const p = current.phases[sel];
+  const c = zoneColor(zoneOf(watts(Math.max(p.pct, p.pct_end ?? 0)), FTP));
+  $("phase-title").textContent = `Phase ${sel + 1} of ${current.phases.length} · ${label(p.kind)}`;
+  $("phase-title").style.setProperty("--c", c);
+  const keep = document.activeElement;
+  kind.set(p.kind);
+  if (keep !== $("duration")) $("duration").value = fmtDuration(p.seconds);
+  if (keep !== $("watts")) $("watts").value = watts(p.pct);
+  if (keep !== $("watts-end")) $("watts-end").value = p.pct_end == null ? "" : watts(p.pct_end);
+  if (keep !== $("cadence")) $("cadence").value = p.cadence ?? "";
+  $("pct").textContent = `${Math.round(p.pct * 100)} % FTP`;
+  $("pct-end").textContent = p.pct_end == null ? "" : `${Math.round(p.pct_end * 100)} % FTP`;
+  $("left").disabled = sel === 0;
+  $("right").disabled = sel === current.phases.length - 1;
+  $("delete").disabled = current.phases.length === 1;
+}
+
+// ---------- description ----------
+const same = (a, b) => a.kind === b.kind && a.seconds === b.seconds && a.pct === b.pct && (a.pct_end ?? null) === (b.pct_end ?? null);
+const power = (p) => (p.pct_end == null ? `${watts(p.pct)} W` : `${watts(p.pct)}–${watts(p.pct_end)} W`);
+const one = (p) => `${fmtDuration(p.seconds)} @ <b>${power(p)}</b>`;
+const word = (k) => ({ vo2: "VO2", test: "FTP test" }[k] ?? label(k).charAt(0) + label(k).slice(1).toLowerCase());
+const named = (p) => `${word(p.kind)} ${one(p)}`;
+const rest = (p) => one(p).replace(" @", " recovery @");
+
+/** A run of phases in words, folding repeats: "5 × 8:00 @ 297 W, 4:00 recovery @ 150 W". */
+function sequence(list, top = false) {
+  if (!list.length) return [];
+  // the repeating block that covers most of the run from its start (shortest block on a tie)
+  let best = { n: 1, reps: 1, covered: 1 };
+  for (let n = 1; n < list.length; n++) {
+    let reps = 1;
+    while ((reps + 1) * n <= list.length && list.slice(reps * n, (reps + 1) * n).every((p, i) => same(p, list[i]))) reps += 1;
+    let covered = reps * n;
+    const tail = list.slice(covered, covered + n);
+    if (n > 1 && tail.length === n - 1 && tail.every((p, i) => same(p, list[i])) && covered + tail.length === list.length) {
+      reps += 1; // the last repeat without its recovery
+      covered = list.length;
+    }
+    if (reps > 1 && covered > best.covered) best = { n, reps, covered };
+  }
+  if (best.reps === 1) {
+    const [p, ...more] = list;
+    return [top ? named(p) : isWork(p) ? one(p) : rest(p), ...sequence(more, top)];
+  }
+  const block = list.slice(0, best.n);
+  const inner = block.length === 1 ? one(block[0])
+    : block.length === 2 && isWork(block[0]) && !isWork(block[1]) ? `${one(block[0])}, ${rest(block[1])}`
+    : `(${sequence(block).join(" + ")})`;
+  return [`${best.reps} × ${inner}`, ...sequence(list.slice(best.covered), top)];
+}
+
+/** Plain words: "Warm-up 10:00 @ 120–190 W · 5 × 8:00 @ 297 W, 4:00 recovery @ 150 W · Cool-down …" */
+function describe(phases) {
+  const first = phases.findIndex(isWork);
+  if (first < 0) return phases.map(named).join(" · ");
+  let last = phases.length - 1 - [...phases].reverse().findIndex(isWork);
+  // recoveries straight after the last interval belong to the set
+  while (last + 1 < phases.length && phases[last + 1].kind === "recovery") last += 1;
+  const main = phases.slice(first, last + 1);
+  const parts = phases.slice(0, first).map(named);
+  const work = main.filter(isWork);
+  if (work.length > 6 && work.length === main.length && work.every((p) => p.seconds === work[0].seconds && p.pct_end == null)) {
+    parts.push(`${work.length} steps of ${fmtDuration(work[0].seconds)} from <b>${watts(work[0].pct)}</b> to <b>${watts(work.at(-1).pct)} W</b>`);
+  } else parts.push(...sequence(main, true));
+  parts.push(...phases.slice(last + 1).map(named));
+  return parts.join(" · ");
+}
+
+// ---------- scale all intervals ----------
+function scale(by) {
+  const shift = (pct) => Math.round(((watts(pct) + by) / FTP) * 10000) / 10000;
+  const work = current.phases.filter(isWork);
+  const lowest = Math.min(...work.map((p) => watts(Math.min(p.pct, p.pct_end ?? p.pct))));
+  if (!work.length || lowest + by < 0.2 * FTP) return; // same floor as a single phase
+  for (const p of work) {
+    p.pct = shift(p.pct);
+    if (p.pct_end != null) p.pct_end = shift(p.pct_end);
+  }
+  scaled += by;
+  markDirty();
+  render();
+}
+$("scale-up").addEventListener("click", () => scale(STEP));
+$("scale-down").addEventListener("click", () => scale(-STEP));
+
+function render() {
+  drawChart();
+  renderCard();
+  $("describe").innerHTML = describe(current.phases);
+  $("scale-v").textContent = `${scaled > 0 ? "+" : scaled < 0 ? "−" : "±"}${Math.abs(scaled)} W`;
+  $("scale-up").disabled = $("scale-down").disabled = !current.phases.some(isWork);
+  const total = current.phases.reduce((a, p) => a + p.seconds, 0);
+  const work = current.phases.filter(isWork).length;
+  const avg = current.phases.reduce((a, p) => a + p.seconds * (p.pct + (p.pct_end ?? p.pct)) / 2, 0) / total;
+  $("total").textContent = `Total ${fmtDuration(total)}`;
+  $("count").textContent = `${work} interval${work === 1 ? "" : "s"}`;
+  $("avg").textContent = `Avg ${watts(avg)} W · ${Math.round(avg * 100)} % FTP`;
+}
+
+function edit(field, value, valid) {
+  const input = $(field);
+  input.setAttribute("aria-invalid", String(!valid));
+  if (!valid) return;
+  value();
+  markDirty();
+  render();
+}
+$("duration").addEventListener("input", () => {
+  const s = parseDuration($("duration").value);
+  edit("duration", () => { current.phases[sel].seconds = s; }, s !== null && s >= 10 && s <= 4 * 3600);
+});
+$("duration").addEventListener("blur", renderCard);
+$("watts").addEventListener("input", () => {
+  const w = Number($("watts").value);
+  edit("watts", () => { current.phases[sel].pct = Math.round((w / FTP) * 10000) / 10000; }, w >= 0.2 * FTP && w <= 2.5 * FTP);
+});
+$("watts-end").addEventListener("input", () => {
+  const raw = $("watts-end").value.trim();
+  const w = Number(raw);
+  edit("watts-end", () => { current.phases[sel].pct_end = raw === "" ? null : Math.round((w / FTP) * 10000) / 10000; },
+    raw === "" || (w >= 0.2 * FTP && w <= 2.5 * FTP));
+});
+$("cadence").addEventListener("input", () => {
+  const raw = $("cadence").value.trim();
+  const c = Number(raw);
+  edit("cadence", () => { current.phases[sel].cadence = raw === "" ? null : c; }, raw === "" || (c >= 30 && c <= 160));
+});
+for (const id of ["watts", "watts-end", "cadence"]) $(id).addEventListener("blur", renderCard);
+
+const move = (by) => {
+  const [p] = current.phases.splice(sel, 1);
+  sel += by;
+  current.phases.splice(sel, 0, p);
+  markDirty(); render();
+};
+$("left").addEventListener("click", () => move(-1));
+$("right").addEventListener("click", () => move(1));
+$("duplicate").addEventListener("click", () => {
+  current.phases.splice(sel + 1, 0, { ...current.phases[sel] });
+  sel += 1; markDirty(); render();
+});
+$("delete").addEventListener("click", () => {
+  current.phases.splice(sel, 1);
+  sel = Math.max(0, sel - 1); markDirty(); render();
+});
+
+// ---------- save / delete ----------
+$("save").addEventListener("click", async () => {
+  const body = JSON.stringify({ name: current.name, category: current.category, phases: current.phases,
+    test: current.test, mode: current.mode });
+  $("save").disabled = true;
+  try {
+    const saved = current.id
+      ? await api(`/api/workouts/${current.id}`, { method: "PUT", body })
+      : await api("/api/workouts", { method: "POST", body });
+    library = await api("/api/workouts");
+    load(saved);
+    setStatus(saved.builtin ? "Saved" : "Saved", "ok", { href: `/ready.html?workout=${saved.id}`, text: "Ride it ›" });
+  } catch (e) {
+    setStatus(e.message, "error");
+  }
+  $("save").disabled = false;
+});
+
+$("delete-workout").addEventListener("click", async () => {
+  if (!confirm(`Delete "${current.name}"? This cannot be undone.`)) return;
+  try {
+    await api(`/api/workouts/${current.id}`, { method: "DELETE" });
+    library = await api("/api/workouts");
+    sel = 0;
+    load(library.workouts[0]);
+    setStatus("Workout deleted", "ok");
+  } catch (e) { setStatus(e.message, "error"); }
+});
+
+const wanted = new URLSearchParams(location.search).get("id");
+load(library.workouts.find((w) => w.id === wanted) ?? library.workouts.find((w) => w.id === library.selected) ?? library.workouts[0]);
+</script>
+</body>
+</html>

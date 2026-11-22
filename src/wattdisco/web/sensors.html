@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Sensors</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  .page { min-height: 100dvh; display: flex; flex-direction: column; }
+  .page main { flex: 1; display: flex; align-items: center; justify-content: center; padding: clamp(16px, 4vh, 40px) var(--gutter); }
+  .card { width: min(960px, 100%); gap: 16px; }
+  .groups { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .group { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .group[hidden] { display: none; }
+  .group--wide { grid-column: 1 / -1; }
+  .group--wide .picks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .picks { display: flex; flex-direction: column; gap: 10px; }
+  .group__title { color: var(--white); }
+  .note { font-size: 14px; color: var(--muted); line-height: 1.4; margin: 0; }
+  .footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  .footer__right { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pick.is-silent .pick__value { color: var(--warn); font-size: 14px; font-family: var(--font-mono); letter-spacing: .1em; }
+  @media (max-height: 700px) and (min-width: 601px) {
+    .page main { padding-top: 8px; padding-bottom: 8px; }
+    .card { padding: 14px 20px; gap: 10px; }
+    .pick { padding: 8px 14px; }
+    .groups { gap: 16px; }
+  }
+  @media (max-width: 600px) {
+    .groups, .group--wide .picks { grid-template-columns: 1fr; }
+    .footer, .footer__right { width: 100%; }
+    .footer__right > * { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <section class="card">
+      <div>
+        <h1 class="neon-title" id="title">Multiple sensors found</h1>
+        <span class="mono">Choose what the workout screen shows</span>
+      </div>
+
+      <div class="groups">
+        <div class="group" id="power-group">
+          <span class="mono group__title" id="power-label">Power source</span>
+          <div class="picks" role="radiogroup" aria-labelledby="power-label" id="power-picks"></div>
+        </div>
+        <div class="group" id="hr-group">
+          <span class="mono group__title" id="hr-label">Heart rate source</span>
+          <div class="picks" role="radiogroup" aria-labelledby="hr-label" id="hr-picks"></div>
+        </div>
+        <div class="group group--wide" id="cad-group" hidden>
+          <span class="mono group__title" id="cad-label">Cadence source</span>
+          <div class="picks" role="radiogroup" aria-labelledby="cad-label" id="cad-picks"></div>
+        </div>
+      </div>
+
+      <p class="note">The main sensors drive the big numbers and target tracking on the workout screen. All sensors are still recorded in the .FIT file.</p>
+
+      <div class="footer">
+        <a class="btn" href="/compare.html">Compare sensors</a>
+        <div class="footer__right">
+          <a class="btn" href="/connect.html" id="back">Back</a>
+          <a class="btn btn--primary" href="/ready.html">Use these &amp; continue</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import { el, renderDeviceChips, renderStrip } from "/components.js";
+import { connectLive } from "/live.js";
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "devices" });
+
+function kind(d) {
+  if (d.roles.includes("control")) return "TRAINER";
+  if (d.roles.includes("power")) return "POWER METER";
+  if (d.roles.includes("heart_rate")) return "HEART RATE";
+  return d.roles.join(" · ").toUpperCase();
+}
+
+// One radio group per value; cards are kept and updated so focus survives the 4 Hz refresh.
+const GROUPS = [
+  { role: "power", box: "power-picks", cmd: "set_main_power", main: (s) => s.main_power_id,
+    value: (d) => (d.watts == null ? "--" : `${d.watts} W`) },
+  { role: "heart_rate", box: "hr-picks", cmd: "set_main_hr", main: (s) => s.main_hr_id,
+    value: (d) => (d.bpm == null ? "--" : `${d.bpm} bpm`) },
+  { role: "cadence", box: "cad-picks", cmd: "set_main_cadence", main: (s) => s.main_cadence_id ?? s.main_power_id,
+    value: (d) => (d.cadence == null ? "--" : `${Math.round(d.cadence)} rpm`) },
+];
+const cards = {};
+
+function renderGroup(group, s) {
+  const box = $(group.box);
+  const devices = s.devices.filter((d) => d.roles.includes(group.role) && d.state !== "found" && d.state !== "disconnected");
+  const ids = devices.map((d) => d.id).join("|");
+  if (box.dataset.ids !== ids) {
+    box.replaceChildren(...devices.map((d) => {
+      const card = el("button", { class: "pick", type: "button", role: "radio",
+        onclick: () => { live.send({ cmd: group.cmd, device_id: d.id }); select(group, d.id); } },
+        el("span", { class: "pick__radio", "aria-hidden": "true" }),
+        el("span", { class: "pick__text" },
+          el("span", { class: "pick__name" }),
+          el("span", { class: "mono pick__sub" })),
+        el("span", { class: "mono pick__main", text: "MAIN" }),
+        el("span", { class: "pick__value" }));
+      cards[`${group.role}:${d.id}`] = card;
+      return card;
+    }));
+    box.dataset.ids = ids;
+  }
+  const main = group.main(s);
+  for (const d of devices) {
+    const card = cards[`${group.role}:${d.id}`];
+    const silent = d.no_data || d.state !== "connected";
+    card.querySelector(".pick__name").textContent = d.name.toUpperCase();
+    card.querySelector(".pick__sub").textContent = kind(d);
+    card.querySelector(".pick__value").textContent = silent ? "NO SIGNAL" : group.value(d);
+    card.setAttribute("aria-label", `${d.name}, ${kind(d).toLowerCase()}, ${silent ? "no signal" : group.value(d)}`);
+    card.classList.toggle("is-silent", silent);
+    card.dataset.id = d.id;
+  }
+  select(group, main);
+  return devices.length;
+}
+
+function select(group, id) {
+  for (const card of $(group.box).children) {
+    const on = card.dataset.id === id;
+    card.setAttribute("aria-checked", String(on));
+    card.querySelector(".pick__main").hidden = !on;
+  }
+}
+
+function render(store) {
+  const s = store.state;
+  if (!s) return;
+  renderDeviceChips(strip.devices, s.devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+  const [power, hr, cadence] = GROUPS.map((g) => renderGroup(g, s));
+  $("cad-group").hidden = cadence < 2;
+  $("title").textContent = power > 1 || hr > 1 ? "Multiple sensors found" : "Main sensors";
+}
+
+const live = connectLive(render);
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Sensor comparison</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  /* Full screen: power fills the top half, heart rate the bottom half.
+     Each card: current values on the left, the chart in the middle, means on the right. */
+  .page { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  .head {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding: clamp(6px, 1.4vh, 12px) var(--gutter);
+  }
+  .head .neon-title { font-size: clamp(28px, 3.4vw, 40px); }
+  .head__right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .timer { display: flex; flex-direction: column; align-items: flex-end; margin-right: 8px; }
+  .timer b { font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .timer .rec::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%;
+    background: var(--pink); box-shadow: 0 0 8px var(--pink); vertical-align: middle; animation: rec 1.2s ease-in-out infinite;
+  }
+  .timer .rec.is-stopped::before { background: var(--muted); box-shadow: none; animation: none; }
+  @keyframes rec { 50% { opacity: .25; } }
+  .cards { flex: 1; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 2vh, 20px); padding: 0 var(--gutter) clamp(10px, 2vh, 20px); }
+  .card { width: auto; min-width: 0; min-height: 0; padding: clamp(10px, 1.8vh, 16px) 22px; gap: 8px; }
+  .body {
+    flex: 1; min-height: 0; display: grid; gap: 6px 20px;
+    grid-template-columns: minmax(170px, 21%) minmax(0, 1fr) minmax(170px, 21%);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas: "now chart mean" "now strip mean" "now diffs mean";
+  }
+  .body[hidden] { display: none; }
+  .card__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .card__top .mono:first-child { color: var(--white); font-size: 14px; }
+  .tiles { display: grid; grid-auto-rows: minmax(0, 1fr); gap: 8px; min-height: 0; }
+  .tiles--now { grid-area: now; }
+  .tiles--mean { grid-area: mean; }
+  .tile {
+    display: flex; flex-direction: column; justify-content: center; gap: 0; padding: 4px 14px; min-width: 0; min-height: 0;
+    background: var(--row); border: 1px solid var(--line); border-radius: 12px; color: inherit; font: inherit; text-align: left;
+  }
+  button.tile { cursor: pointer; }
+  button.tile:hover { border-color: var(--c); }
+  button.tile:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+  .tile.is-ref { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+  .tile__name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tile__name i { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  .tile__name .mono { color: var(--white); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tile__v { display: flex; align-items: baseline; gap: 8px; color: var(--c); }
+  .tile__v b { font-size: clamp(28px, min(4vw, 6vh), 60px); line-height: 1.05; font-weight: 700; text-shadow: 0 0 12px color-mix(in srgb, var(--c) 40%, transparent); font-variant-numeric: tabular-nums; }
+  .tile__v span { font-size: 18px; }
+  .tiles[data-n="3"] .tile__v b { font-size: clamp(20px, min(2.8vw, 3.6vh), 40px); }
+  .tiles[data-n="3"] .tile .state { display: none; }
+  .tile .state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart { grid-area: chart; width: 100%; height: 100%; min-height: 0; display: block; }
+  .strip-chart { grid-area: strip; width: 100%; height: clamp(30px, 5vh, 50px); display: block; }
+  .diffs { grid-area: diffs; display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: 0 14px; align-items: baseline; }
+  .diffs.is-finished { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+  .diffs.is-finished .col-now { display: none; }
+  .diffs .mono { font-size: 11px; letter-spacing: .06em; white-space: nowrap; }
+  .diffs b { font-size: clamp(15px, 2.4vh, 20px); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .diffs .pair { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--white); white-space: nowrap; }
+  .diffs .pair i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+  .empty { margin: auto 0; padding: 24px 0; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .empty a { color: var(--cyan-soft); }
+  [hidden] { display: none !important; }
+  @media (max-height: 700px) and (min-width: 601px) {
+    .head { gap: 8px; }
+    .head .neon-title { font-size: 24px; }
+    .head .btn { height: 36px; padding: 0 14px; font-size: 13px; }
+    .timer b { font-size: 20px; }
+    .card { padding: 8px 18px; gap: 4px; }
+    .cards { gap: 8px; padding-bottom: 8px; }
+    .tiles { gap: 5px; }
+    .tile__name .mono, .tile .state { font-size: 11px; }
+  }
+  @media (max-width: 1000px) and (min-width: 601px) {
+    .body { grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) minmax(140px, 22%); gap: 6px 12px; }
+    .diffs { gap: 0 8px; }
+  }
+  @media (max-width: 600px) {
+    .page { height: auto; min-height: 100dvh; }
+    .cards { grid-template-rows: none; }
+    .body {
+      grid-template-columns: 1fr 1fr; grid-template-rows: none;
+      grid-template-areas: "now mean" "chart chart" "strip strip" "diffs diffs";
+    }
+    .chart { height: 180px; }
+    .diffs { grid-template-columns: auto repeat(5, auto); overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <div class="head">
+    <div>
+      <h1 class="neon-title">Sensor comparison</h1>
+      <span class="mono" id="sub"></span>
+    </div>
+    <div class="head__right">
+      <div class="timer" id="timer" hidden><span class="mono rec" id="rec">Recording</span><b id="elapsed">0:00</b></div>
+      <a class="btn" id="back" href="/train">Back to workout</a>
+      <a class="btn btn--primary" id="csv" href="/api/compare/export.csv" download hidden>Export CSV</a>
+    </div>
+  </div>
+
+  <main class="cards">
+    <section class="card" id="power-card" aria-labelledby="power-title"></section>
+    <section class="card" id="hr-card" aria-labelledby="hr-title"></section>
+  </main>
+</div>
+
+<template id="card-template">
+  <div class="card__top">
+    <span class="mono card-title"></span>
+    <span class="mono hint">Tap a source to compare the others against it</span>
+  </div>
+  <div class="body">
+    <div class="tiles tiles--now"></div>
+    <canvas class="chart" aria-hidden="true"></canvas>
+    <canvas class="strip-chart" aria-hidden="true"></canvas>
+    <div class="diffs"></div>
+    <div class="tiles tiles--mean"></div>
+  </div>
+  <div class="empty" hidden>
+    <span class="mono need"></span>
+    <a class="mono link"></a>
+  </div>
+</template>
+
+<script type="module">
+import { fmtClock, renderDeviceChips, renderStrip, holdScreen } from "/components.js";
+import { drawCompareChart, drawDiffStrip } from "/charts.js";
+import { connectLive } from "/live.js";
+import { addSoundButton, rideCues, unlockSound } from "/sound.js";
+const soundCues = rideCues();
+unlockSound();
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "compare" });
+addSoundButton($("strip"));
+const params = new URLSearchParams(location.search);
+
+const KINDS = {
+  power: { card: "power-card", title: "Power · W", unit: "W", colors: ["#FFC93C", "#3DD9FF", "#36E3C4"], one: "power source", second: "a second power source" },
+  hr: { card: "hr-card", title: "Heart rate · bpm", unit: "bpm", colors: ["#FF3D81", "#C77DFF", "#FF9F68"], one: "heart rate sensor", second: "a second heart rate sensor" },
+};
+const signed = (v, digits = 1, unit = "") => (v == null ? "--" : `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(digits)}${unit}`);
+const el = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text != null ? { textContent: text } : {});
+
+// "live": the running ride, pushed over the WebSocket. "finished": a ride's recording. "idle": nothing yet.
+let mode = "idle";
+let rideId = null;
+const refs = { power: params.get("power"), hr: params.get("hr") };
+let devices = [];
+
+for (const [kind, k] of Object.entries(KINDS)) {
+  const card = $(k.card);
+  card.append($("card-template").content.cloneNode(true));
+  card.querySelector(".card-title").textContent = k.title;
+  card.querySelector(".card-title").id = `${kind}-title`;
+}
+
+// ---------- rendering ----------
+
+function tile(source, color, value, unit, state, clickable) {
+  const t = el(clickable ? "button" : "div", "tile");
+  if (clickable) {
+    t.type = "button";
+    t.title = source.label === "A" ? "Reference source" : `Compare against ${source.name}`;
+  }
+  t.style.setProperty("--c", color);
+  const name = el("div", "tile__name");
+  name.append(el("i"), el("span", "mono name", `${source.label} · ${source.name}`));
+  if (!clickable) name.title = source.name; // the full name when it does not fit
+  const v = el("div", "tile__v");
+  v.append(el("b", "", value == null ? "--" : Math.round(value)), el("span", "", unit));
+  t.append(name, v, el("span", "mono state", state));
+  return t;
+}
+
+function deviceState(id) {
+  const dev = devices.find((x) => x.id === id);
+  if (!dev) return "";
+  if (dev.state !== "connected") return dev.state;
+  if (dev.no_data) return "Connected · no signal";
+  return `Connected · ${id.startsWith("sim-") ? "SIM" : "BLE"}`;
+}
+
+function diffRow(table, d, color, unit) {
+  const pair = el("span", "pair");
+  pair.style.setProperty("--c", color);
+  pair.append(el("i"), d.label);
+  const lag = el("b", "", d.lag_s == null ? "--" : `${Math.abs(d.lag_s).toFixed(1)} s`);
+  lag.title = d.lag_s == null ? "Needs about 30 s of data" : `${d.lag_s >= 0 ? d.label.slice(-1) : "A"} reports later`;
+  table.append(
+    pair,
+    el("b", "col-now", d.diff_now == null ? "--" : `${signed(d.diff_now, 0)} ${unit}`),
+    el("b", "", d.mean_diff == null ? "--" : `${signed(d.mean_diff)} ${unit}`),
+    el("b", "", d.mean_diff_pct == null ? "--" : `${signed(d.mean_diff_pct)} %`),
+    lag,
+    el("b", "", d.correlation == null ? "--" : d.correlation.toFixed(3)),
+  );
+}
+
+function renderCard(kind, data) {
+  const k = KINDS[kind];
+  const card = $(k.card);
+  const sources = data?.sources ?? [];
+  const ok = sources.length >= 2;
+  card.querySelector(".body").hidden = !ok;
+  card.querySelector(".hint").hidden = !ok;
+  card.querySelector(".empty").hidden = ok;
+  if (!ok) {
+    const link = card.querySelector(".link");
+    if (mode === "idle") {
+      card.querySelector(".need").textContent = "The comparison starts on its own with your next workout";
+      Object.assign(link, { href: "/train", textContent: "Start a workout" });
+    } else if (mode === "finished") {
+      card.querySelector(".need").textContent = sources.length ? `Only one ${k.one} in this ride` : `No ${k.one} in this ride`;
+      link.hidden = true;
+    } else {
+      card.querySelector(".need").textContent = `Connect ${k.second} to compare`;
+      Object.assign(link, { href: "/connect.html", textContent: "Connect devices", hidden: false });
+    }
+    return;
+  }
+  const finished = mode === "finished";
+  const now = card.querySelector(".tiles--now");
+  const mean = card.querySelector(".tiles--mean");
+  now.dataset.n = mean.dataset.n = sources.length;
+  now.replaceChildren(...sources.map((s, i) => {
+    const t = tile(s, k.colors[i], finished ? s.max : s.now, k.unit, finished ? "Max over the ride" : deviceState(s.id), true);
+    t.classList.toggle("is-ref", i === 0);
+    t.addEventListener("click", () => i > 0 && setReference(kind, s.id));
+    return t;
+  }));
+  mean.replaceChildren(...sources.map((s, i) =>
+    tile(s, k.colors[i], s.mean, k.unit, finished ? "Mean over the ride" : "Mean so far", false)));
+
+  const table = card.querySelector(".diffs");
+  table.classList.toggle("is-finished", finished);
+  table.replaceChildren(el("span"), el("span", "mono col-now", "Now"), el("span", "mono", "Mean Δ"),
+    el("span", "mono", "Mean Δ %"), el("span", "mono", "Lag"), el("span", "mono", "Corr."));
+  data.diffs.forEach((d, i) => diffRow(table, d, k.colors[i + 1], k.unit));
+
+  const span = finished ? data.series.t.length : 120;
+  const labels = finished ? ["0:00", fmtClock(data.series.t.length)] : ["−2:00", "NOW"];
+  drawCompareChart(card.querySelector(".chart"), data.series, k.colors, span);
+  drawDiffStrip(card.querySelector(".strip-chart"), data.series, k.colors, span, labels);
+}
+
+function render(c) {
+  const count = (kind) => c?.[kind]?.sources.length ?? 0;
+  const sim = ["power", "hr"].some((kind) => c?.[kind]?.sources.some((s) => s.id.startsWith("sim-")));
+  const np = count("power");
+  const nh = count("hr");
+  $("sub").textContent = mode === "idle" ? "Runs with every workout"
+    : `${np} power source${np === 1 ? "" : "s"} · ${nh} heart rate sensor${nh === 1 ? "" : "s"}${sim ? " · simulated" : ""}`
+      + (mode === "finished" ? ` · ride ${rideLabel(rideId)}` : "");
+  $("timer").hidden = mode === "idle";
+  $("elapsed").textContent = fmtClock(c?.elapsed ?? 0);
+  $("rec").textContent = mode === "finished" ? "Finished" : c?.paused ? "Paused" : "Recording";
+  $("rec").classList.toggle("is-stopped", mode === "finished" || !!c?.paused);
+  $("csv").hidden = mode === "idle";
+  $("csv").href = mode === "finished" ? `/api/rides/${rideId}/compare.csv${refQuery()}` : "/api/compare/export.csv";
+  Object.assign($("back"), mode === "finished"
+    ? { href: `/summary.html?ride=${rideId}`, textContent: "Back to summary" }
+    : { href: "/train", textContent: "Back to workout" });
+  renderCard("power", c?.power);
+  renderCard("hr", c?.hr);
+}
+
+const rideLabel = (id) => (id ? `${id.slice(6, 8)}.${id.slice(4, 6)}. ${id.slice(9, 11)}:${id.slice(11, 13)}` : "");
+const refQuery = () => {
+  const q = new URLSearchParams(Object.entries(refs).filter(([, v]) => v));
+  return q.size ? `?${q}` : "";
+};
+
+// ---------- reference source (A) ----------
+
+async function setReference(kind, id) {
+  if (mode === "live") {
+    const r = await fetch("/api/compare/reference", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind, id }) });
+    if (r.ok) render(await r.json());
+  } else if (mode === "finished") {
+    refs[kind] = id;
+    await showFinished(rideId);
+  }
+}
+
+// ---------- modes ----------
+
+async function showFinished(id) {
+  mode = "finished";
+  rideId = id;
+  history.replaceState(null, "", `/compare.html?ride=${id}${refQuery().replace("?", "&")}`);
+  const r = await fetch(`/api/rides/${id}/compare${refQuery()}`);
+  if (!r.ok) { mode = "idle"; render(null); return; }
+  render(await r.json());
+}
+
+function onLive(store) {
+  if (store.state) {
+    soundCues(store);
+    holdScreen(store.state.ride?.active);
+    devices = store.state.devices;
+    renderDeviceChips(strip.devices, devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+    const ride = store.state.ride;
+    // the workout ended: show the whole ride from its recording (CSV stays available)
+    if (mode === "live" && !ride.active && ride.last_id) showFinished(ride.last_id);
+    // a workout started while this page shows nothing or an old ride without a chosen one
+    if (mode === "idle" && ride.active) location.href = "/compare.html";
+  }
+  if (mode === "live" && store.compare) render(store.compare);
+}
+
+connectLive(onLive, { onOpen: (l) => l.send({ cmd: "watch_compare", value: true }) });
+
+if (params.get("ride")) {
+  await showFinished(params.get("ride"));
+} else {
+  const c = await (await fetch("/api/compare")).json();
+  if (c.running) {
+    mode = "live";
+    render(c);
+  } else {
+    const last = (await (await fetch("/api/rides?include_sim=true")).json())[0]?.id;
+    if (last) await showFinished(last);
+    else render(null);
+  }
+}
+</script>
+</body>
+</html>

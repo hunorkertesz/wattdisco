@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Upload ride</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  .page { min-height: 100dvh; display: flex; flex-direction: column; }
+  .page main { flex: 1; display: flex; align-items: center; justify-content: center; padding: clamp(16px, 4vh, 40px) var(--gutter); }
+  .wrap { width: min(760px, 100%); display: flex; flex-direction: column; gap: 16px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .head .neon-title { font-size: clamp(32px, 5vw, 52px); }
+  .close {
+    flex: none; display: grid; place-items: center; width: 44px; height: 44px;
+    border: 1.5px solid var(--line-strong); border-radius: 22px; color: var(--white); font-size: 22px; text-decoration: none;
+  }
+  .card { gap: 14px; padding: 24px; }
+  .card__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .card__title { margin: 0; font-size: 18px; font-weight: 600; }
+  .tag {
+    padding: 4px 10px; border-radius: 12px; border: 1px solid var(--line-strong); color: var(--muted);
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em;
+  }
+  .tag--on { border-color: var(--teal); color: #B8FFF0; box-shadow: 0 0 6px var(--teal); text-shadow: 0 0 6px var(--teal); }
+  #form { display: flex; flex-direction: column; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field-row { display: flex; flex-wrap: wrap; gap: 9px 32px; }
+  .account { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .text {
+    width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px;
+    background: var(--row); color: var(--white); font-size: 16px;
+  }
+  textarea.text { height: 76px; padding: 10px 12px; resize: vertical; }
+  .text:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .chip-group .chip { height: 40px; padding: 0 16px; border-radius: 20px; }
+  .row-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .hint { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); }
+  .hint code { color: var(--cyan-soft); font-family: var(--font-mono); font-size: 13px; }
+  .sim-warn { padding: 12px 14px; border: 1.5px solid var(--yellow); border-radius: 12px; box-shadow: 0 0 8px rgba(255, 201, 60, .4); }
+  .sim-warn label { display: flex; gap: 10px; align-items: center; margin-top: 8px; color: var(--yellow-soft); font-size: 14px; }
+  .sim-warn input { width: 18px; height: 18px; accent-color: var(--yellow); }
+  .status { min-height: 20px; }
+  .status.is-ok { color: var(--teal); }
+  .status.is-error { color: var(--pink); }
+  .linkish { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
+  .footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .footer__left, .footer__right { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .footer .btn--primary { height: 52px; padding: 0 28px; font-size: 16px; }
+  .tagline {
+    height: 64px; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 18px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--cyan-soft); text-shadow: var(--glow-cyan);
+  }
+  [hidden] { display: none !important; }
+  /* Laptop screens: tighter form so it fits without scrolling. */
+  @media (max-height: 940px) and (min-width: 561px) {
+    .page main { padding-top: 10px; padding-bottom: 10px; }
+    .wrap { gap: 10px; }
+    .head .neon-title { font-size: clamp(28px, 3.4vw, 38px); }
+    .card { padding: 16px 22px; gap: 9px; }
+    #form { gap: 9px; }
+    .text { height: 38px; }
+    textarea.text { height: 54px; }
+    .chip-group .chip { height: 34px; }
+    .hint { font-size: 13px; }
+    .footer .btn--primary { height: 46px; }
+    .tagline { height: 40px; font-size: 15px; }
+  }
+  @media (max-height: 700px) and (min-width: 561px) {
+    .page main { padding-top: 6px; padding-bottom: 6px; }
+    .wrap { gap: 8px; }
+    .card { padding: 12px 20px; gap: 7px; }
+    #form { gap: 7px; }
+    textarea.text { height: 48px; }
+    .tagline { height: 30px; font-size: 14px; }
+    /* simulated-ride note on one line */
+    .sim-warn:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; column-gap: 18px; padding: 8px 14px; }
+    .sim-warn label { margin-top: 0; }
+  }
+  @media (max-width: 560px) {
+    .footer, .footer__left, .footer__right { width: 100%; }
+    .footer__left > *, .footer__right > * { flex: 1; }
+    .tagline { font-size: 14px; letter-spacing: .14em; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <div class="wrap">
+      <div class="head">
+        <div>
+          <h1 class="neon-title">Upload ride</h1>
+          <span class="mono" id="ride-line"></span>
+        </div>
+        <a class="close" id="close" href="/summary.html" aria-label="Close">×</a>
+      </div>
+
+      <section class="card">
+        <div class="card__top">
+          <h2 class="card__title">Strava</h2>
+          <span class="tag" id="tag">NOT CONNECTED</span>
+        </div>
+
+        <!-- no shared sign-in in this version and no own keys -->
+        <div id="no-keys" hidden>
+          <p class="hint">Strava sign-in isn't available in this version. Save the .fit file and upload it at
+            <code>strava.com/upload</code>, or use your own Strava API app: create one at
+            <code>strava.com/settings/api</code> with <code>localhost</code> as authorization callback domain,
+            then put its keys in the <code>.env</code> file next to the app and restart it:</p>
+          <p class="hint"><code>STRAVA_CLIENT_ID=12345</code><br><code>STRAVA_CLIENT_SECRET=…</code></p>
+        </div>
+
+        <!-- keys there, not signed in yet -->
+        <div id="signin" hidden>
+          <p class="hint">Sign in once with your Strava account, nothing else to set up. Watt Disco asks to upload
+            activities; after that, rides go up with one tap, or on their own after every ride if you switch that on.</p>
+          <p class="hint" id="own-app" hidden>Using your own Strava API app from <code>.env</code>.</p>
+        </div>
+
+        <!-- signed in -->
+        <form id="form" hidden>
+          <div class="field">
+            <label class="mono" for="name">Title</label>
+            <input class="text" id="name" maxlength="200" required>
+          </div>
+          <div class="field">
+            <label class="mono" for="description">Description</label>
+            <textarea class="text" id="description" rows="2" maxlength="2000"></textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <span class="mono">Activity type</span>
+              <div id="sport"></div>
+            </div>
+            <div class="field">
+              <span class="mono">Visibility</span>
+              <div id="visibility"></div>
+            </div>
+          </div>
+          <p class="hint">Strava's upload API only knows "only me" or not. "Strava default" uses the visibility set in your Strava account.</p>
+          <div class="row-switch">
+            <span id="auto-label">Upload automatically after every ride</span>
+            <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="auto-label" id="auto"></button>
+          </div>
+          <div class="sim-warn" id="sim-warn" hidden>
+            <span class="mono" style="color: var(--yellow-soft)">Simulated ride</span>
+            <label><input type="checkbox" id="allow-sim"> Upload it anyway (test data, not a real ride)</label>
+          </div>
+          <div class="account">
+            <span class="mono" id="athlete"></span>
+            <button class="linkish mono" type="button" id="disconnect" hidden>Disconnect Strava</button>
+          </div>
+        </form>
+
+        <span class="mono status" id="status" role="status"></span>
+      </section>
+
+      <div class="footer">
+        <div class="footer__left">
+          <a class="btn" id="save-fit" href="#" download>Save .fit file</a>
+          <a class="btn" id="compare" href="/compare.html">Compare sensors</a>
+        </div>
+        <div class="footer__right">
+          <a class="btn" id="skip" href="/summary.html">Skip</a>
+          <a class="btn btn--primary" id="connect" href="#" hidden>Connect to Strava</a>
+          <button class="btn btn--primary" type="submit" form="form" id="upload" hidden>Upload to Strava</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div class="tagline">Built with AI, by cyclists for cyclists</div>
+</div>
+
+<script type="module">
+import { chipGroup, fmtClock, renderStrip } from "/components.js";
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "train" });
+const params = new URLSearchParams(location.search);
+
+async function json(url, options) {
+  const r = await fetch(url, options);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ?? `request failed (${r.status})`);
+  return body;
+}
+
+function setStatus(text, kind = "", link = null) {
+  const box = $("status");
+  box.className = `mono status${kind ? ` is-${kind}` : ""}`;
+  box.replaceChildren(text);
+  if (link) {
+    const a = Object.assign(document.createElement("a"), { className: "strava-link", href: link, target: "_blank", rel: "noopener", textContent: "View on Strava" });
+    box.append(" ", a);
+  }
+}
+
+// ---------- which ride ----------
+let rideId = params.get("ride");
+if (!rideId) rideId = (await json("/api/rides?include_sim=true"))[0]?.id;
+if (!rideId) { setStatus("No ride to upload yet", "error"); }
+
+let summary = null;
+if (rideId) {
+  try { summary = await json(`/api/rides/${encodeURIComponent(rideId)}/summary`); }
+  catch (e) { setStatus(e.message === "ride is still running" ? "This ride is still running. End it first." : e.message, "error"); }
+}
+if (summary) {
+  const b = summary.basic;
+  const parts = [summary.name, fmtClock(summary.duration)];
+  if (b.avg_power != null) parts.push(`${Math.round(b.avg_power)} W avg`);
+  if (b.avg_hr != null) parts.push(`${Math.round(b.avg_hr)} bpm avg`);
+  $("ride-line").textContent = parts.join(" · ").toUpperCase();
+  $("save-fit").href = `/api/rides/${summary.id}/export.fit`;
+  $("compare").href = `/compare.html?ride=${summary.id}`;
+  $("close").href = $("skip").href = `/summary.html?ride=${summary.id}`;
+  $("sim-warn").hidden = !summary.sim;
+  const d = await json(`/api/rides/${summary.id}/description`);
+  $("name").value = d.name;
+  $("description").value = d.description;
+} else {
+  $("save-fit").hidden = $("compare").hidden = true;
+}
+
+// ---------- Strava state ----------
+let status = await json("/api/strava/status");
+const sport = chipGroup([{ value: "VirtualRide", label: "Virtual ride" }, { value: "Ride", label: "Ride" }],
+  { value: status.sport_type, label: "Activity type" });
+const visibility = chipGroup([{ value: "private", label: "Only me" }, { value: "default", label: "Strava default" }],
+  { value: status.private ? "private" : "default", label: "Visibility" });
+$("sport").replaceWith(sport);
+$("visibility").replaceWith(visibility);
+const pressed = (group) => group.querySelector('[aria-pressed="true"]')?.dataset.value;
+
+function renderStatus() {
+  const { configured, connected, athlete } = status;
+  $("tag").textContent = connected ? "CONNECTED" : configured ? "NOT CONNECTED" : "NOT SET UP";
+  $("tag").classList.toggle("tag--on", connected);
+  $("no-keys").hidden = configured;
+  $("signin").hidden = !configured || connected;
+  $("own-app").hidden = status.mode !== "own";
+  $("form").hidden = !connected;
+  $("connect").hidden = !configured || connected;
+  $("upload").hidden = !connected || !summary;
+  $("disconnect").hidden = !connected;
+  $("athlete").textContent = athlete ? `Signed in as ${athlete}` : "";
+  $("auto").setAttribute("aria-checked", String(status.auto_upload));
+  const back = `/upload.html${rideId ? `?ride=${rideId}` : ""}`;
+  $("connect").href = `/api/strava/connect?return_to=${encodeURIComponent(back)}`;
+}
+renderStatus();
+
+const result = params.get("strava");
+if (result === "connected") setStatus("Strava connected", "ok");
+else if (result === "denied") setStatus("Strava sign-in was cancelled", "error");
+else if (result === "error") setStatus(params.get("message") || "Strava sign-in failed", "error");
+if (result) history.replaceState(null, "", `${location.pathname}${rideId ? `?ride=${rideId}` : ""}`);
+
+$("auto").addEventListener("click", async () => {
+  const on = $("auto").getAttribute("aria-checked") !== "true";
+  try { status = await json("/api/strava/options", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auto_upload: on }) }); }
+  catch (e) { setStatus(e.message, "error"); }
+  renderStatus();
+});
+
+$("disconnect").addEventListener("click", async () => {
+  status = await json("/api/strava/disconnect", { method: "POST" });
+  renderStatus();
+  setStatus("Strava disconnected");
+});
+
+// ---------- upload ----------
+async function poll() {
+  const s = await json(`/api/rides/${rideId}/upload`);
+  if (s.state === "uploading") { setStatus("Uploading… Strava is processing the file"); setTimeout(poll, 2000); return; }
+  $("upload").disabled = false;
+  if (s.state === "done") { setStatus("On Strava.", "ok", s.url); $("upload").textContent = "Upload again"; }
+  else if (s.state === "duplicate") setStatus("Already on Strava.", "ok", s.url);
+  else if (s.state === "error") setStatus(s.message, "error");
+}
+
+$("form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!$("name").value.trim()) { setStatus("Give the ride a title", "error"); return; }
+  if (summary.sim && !$("allow-sim").checked) { setStatus("Tick the box to upload a simulated ride", "error"); return; }
+  $("upload").disabled = true;
+  try {
+    await json(`/api/rides/${rideId}/upload`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: $("name").value.trim(),
+        description: $("description").value.trim(),
+        sport_type: pressed(sport),
+        private: pressed(visibility) === "private",
+        allow_sim: $("allow-sim").checked,
+      }),
+    });
+    poll();
+  } catch (e) {
+    $("upload").disabled = false;
+    setStatus(e.message, "error");
+  }
+});
+
+if (rideId && status.connected) poll().catch(() => {});
+</script>
+</body>
+</html>

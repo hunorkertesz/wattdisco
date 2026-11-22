@@ -1,0 +1,42 @@
+[project]
+name = "wattdisco"
+version = "0.1.0"
+description = "Indoor cycling training app: smart trainer, power meter and heart rate over Bluetooth"
+readme = "README.md"
+license = "PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "src/wattdisco/web/fonts/*.txt"]
+authors = [
+    { name = "Hunor Kertesz", email = "34186421+hunorkertesz@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "bleak>=3.0.2",
+    "fastapi>=0.162.0",
+    "fit-tool>=0.9.17",
+    "platformdirs>=4.3",
+    "python-dotenv>=1.0",
+    "pywebview>=6.1",
+    "stravalib>=2.6.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+wattdisco = "wattdisco.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+build = [
+    "pillow>=11",
+    "pyinstaller>=6.10",
+]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+]
+
+[tool.uv.build-backend]
+# Concept screens are a design reference for development, not part of the app or its source download.
+source-exclude = ["design", "**/.DS_Store"]

@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Ready to ride</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  /* One screen, always: the preview takes the spare height, Start is pinned at the bottom right. */
+  .page { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+  .page main {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); gap: clamp(20px, 3vw, 40px);
+    width: 100%; max-width: 1360px; margin: 0 auto; padding: clamp(10px, 2.4vh, 24px) var(--gutter) clamp(12px, 2.6vh, 28px);
+  }
+  .left, .right { display: flex; flex-direction: column; gap: clamp(8px, 1.8vh, 18px); min-width: 0; min-height: 0; }
+  .right__scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); scrollbar-width: thin; }
+  .pick-workout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .title .neon-title { font-size: clamp(28px, min(4.4vw, 6vh), 52px); }
+  .preview { width: 100%; flex: 1; min-height: 110px; max-height: 300px; display: block; }
+  .stats { display: flex; flex-wrap: wrap; gap: 16px 48px; }
+  .stats div { display: flex; flex-direction: column; gap: 2px; }
+  .stats b { font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .pick { align-items: flex-start; }
+  .pick__desc { font-size: 14px; color: var(--muted); line-height: 1.35; }
+  .chip-group .chip { height: 40px; padding: 0 16px; border-radius: 20px; }
+  .plan-next { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 14px; color: var(--white); }
+  .plan-next .mono { color: var(--pink-soft); }
+  .plan-next a { color: var(--cyan-soft); }
+  .hint { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.35; }
+  .hint a { color: var(--cyan-soft); }
+  .fav { font-size: 18px; }
+  .fav[aria-pressed="true"] { color: var(--yellow); border-color: var(--yellow); box-shadow: 0 0 8px rgba(255, 201, 60, .6); }
+  .pick-workout .chip-group .chip { height: 32px; padding: 0 12px; font-size: 11px; }
+  .home { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .home__item { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 8px 14px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--card); color: var(--white); text-decoration: none; }
+  .home__item:hover { border-color: var(--cyan); }
+  .home__item .mono { font-size: 10px; }
+  .home__item b { font-size: clamp(15px, 2.2vh, 19px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .home__item small { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #home-form b { color: var(--form-color, var(--white)); }
+  @media (max-height: 700px) and (min-width: 601px) { .home { display: none; } }
+  .resume-card { border-color: var(--yellow); box-shadow: 0 0 12px rgba(255, 201, 60, .4); }
+  .resume-card .panel__title { color: var(--yellow-soft); }
+  .resume-card__actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .countin { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; background: rgba(10, 6, 18, .82); backdrop-filter: blur(4px); cursor: pointer; }
+  .countin b { font: 700 clamp(120px, 30vh, 260px)/1 var(--font); color: var(--pink);
+    text-shadow: 0 0 24px var(--pink), 0 0 60px rgba(255, 61, 129, .5); animation: countin .9s ease-out; }
+  .countin .mono { color: var(--muted); }
+  @keyframes countin { from { transform: scale(1.35); opacity: .2; } to { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .countin b { animation: none; } }
+  .start { flex: none; height: clamp(48px, 7vh, 58px); border-radius: 29px; font-size: 18px; }
+  @media (max-height: 760px) and (min-width: 601px) {
+    .panel { padding: 10px 16px; gap: 8px; }
+    .pick { padding: 9px 14px; }
+    .pick__desc { font-size: 13px; }
+    .chip-group .chip { height: 34px; }
+    .stats b { font-size: 22px; }
+  }
+  .ease { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ease .mono { color: var(--muted); }
+  .ease.is-off { opacity: .4; }
+  .info {
+    width: 26px; height: 26px; flex: none; padding: 0; border: 1.5px solid var(--cyan); border-radius: 50%;
+    background: transparent; color: var(--cyan-soft); font: 700 14px/1 var(--font); cursor: pointer;
+    box-shadow: 0 0 6px var(--cyan);
+  }
+  .info[aria-expanded="true"] { background: var(--cyan); color: var(--bg); }
+  #ease-help b { color: var(--white); }
+  /* small, short windows: the mode descriptions give way to the interval-change row (they stay as tooltips) */
+  @media (max-height: 700px) and (max-width: 1100px) and (min-width: 601px) {
+    .pick__desc { display: none; }
+  }
+  .notice { padding: 12px 16px; border: 1.5px solid var(--yellow); border-radius: 12px; color: var(--yellow-soft); box-shadow: 0 0 8px rgba(255, 201, 60, .4); }
+  .notice a { color: var(--cyan-soft); }
+  [hidden] { display: none !important; }
+  @media (max-width: 600px) {
+    .page { height: auto; min-height: 100dvh; }
+    .page main { grid-template-columns: 1fr; gap: 24px; }
+    .right__scroll { overflow: visible; }
+    .preview { flex: none; height: 220px; }
+    .stats { gap: 12px 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <section class="left">
+      <!-- home band: where you are this week, how fresh you are, the last ride -->
+      <div class="home" id="home" hidden>
+        <a class="home__item" id="home-week" href="/plan.html"><span class="mono">This week</span><b></b><small></small></a>
+        <a class="home__item" id="home-form" href="/progress.html"><span class="mono">Form</span><b></b><small></small></a>
+        <a class="home__item" id="home-last" href="/history.html"><span class="mono">Last ride</span><b></b><small></small></a>
+      </div>
+      <div class="pick-workout">
+        <label class="mono" for="workout">Workout</label>
+        <span id="workout"></span>
+        <button class="btn btn--sm btn--icon fav" type="button" id="fav" aria-pressed="false" title="Favourite: listed first">☆</button>
+        <a class="btn btn--sm" id="edit" href="/editor.html">Edit</a>
+        <span id="length"></span>
+      </div>
+      <div class="plan-next" id="plan-next" hidden>
+        <span class="mono" id="plan-where">Plan</span>
+        <span id="plan-what"></span>
+      </div>
+      <div class="title">
+        <span class="mono">Ready to ride</span>
+        <h1 class="neon-title" id="title">Workout</h1>
+        <span class="mono" id="desc"></span>
+      </div>
+      <canvas class="preview" id="preview" role="img" aria-label="Workout preview"></canvas>
+      <div class="stats">
+        <div><span class="mono">Duration</span><b id="duration">--</b></div>
+        <div><span class="mono">Avg power</span><b id="avg">--</b></div>
+        <div><span class="mono">Intervals</span><b id="intervals">--</b></div>
+        <div><span class="mono">FTP</span><b id="ftp">--</b></div>
+        <div title="Hours × intensity² × 100: one hour at FTP is 100"><span class="mono">Load (est.)</span><b id="load">--</b></div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="right__scroll">
+      <!-- the app closed during a ride (crash, power cut): pick it up where it stopped, or keep it as it is -->
+      <div class="panel resume-card" id="interrupted" hidden role="alert">
+        <span class="mono panel__title">Your last ride stopped unexpectedly</span>
+        <p class="hint" id="interrupted-text"></p>
+        <div class="resume-card__actions">
+          <button class="btn btn--sm" type="button" id="interrupted-save">Save it as it is</button>
+          <button class="btn btn--sm btn--primary" type="button" id="interrupted-go">Continue ride</button>
+        </div>
+      </div>
+      <div class="notice" id="running" hidden>A ride is running · <a href="/workout.html">back to the ride</a></div>
+      <div class="notice" id="no-sensors" hidden>No sensors connected · <a href="/connect.html">connect devices</a></div>
+      <div class="notice" id="low-battery" hidden></div>
+
+      <div class="panel">
+        <span class="mono panel__title" id="mode-label">Target mode</span>
+        <div role="radiogroup" aria-labelledby="mode-label" style="display: flex; flex-direction: column; gap: 10px">
+          <button class="pick" type="button" role="radio" data-mode="erg" title="Trainer holds the target power. Pedal at any cadence.">
+            <span class="pick__radio" aria-hidden="true"></span>
+            <span class="pick__text"><span class="pick__name">ERG</span>
+              <span class="pick__desc">Trainer holds the target power. Pedal at any cadence.</span></span>
+          </button>
+          <button class="pick" type="button" role="radio" data-mode="free" title="Trainer resistance stays as it is. Follow the target on screen.">
+            <span class="pick__radio" aria-hidden="true"></span>
+            <span class="pick__text"><span class="pick__name">Free ride</span>
+              <span class="pick__desc">Trainer resistance stays as it is. Follow the target on screen.</span></span>
+          </button>
+        </div>
+        <p class="hint" id="no-trainer" hidden>No trainer with control connected, so ERG has nothing to steer.</p>
+        <!-- ERG only: how the trainer moves to a new interval's power -->
+        <div class="ease" id="ease-row">
+          <span class="mono" id="ease-label">Interval changes</span>
+          <div id="ease"></div>
+          <button class="info" type="button" id="ease-info" aria-expanded="false" aria-controls="ease-help"
+                  aria-label="What do step and ease mean?">i</button>
+        </div>
+        <p class="hint" id="ease-help" hidden>
+          When an interval starts or ends, ERG has to change the trainer's power.
+          <b>Step</b> sends the new power at once, so you are on target as the interval begins
+          (the trainer still takes about a second to get there).
+          <b>Ease</b> moves it there gradually over 3 seconds, which feels softer on the legs, but each interval
+          starts a few seconds late and those seconds count as off target.
+          After ERG lets go at low cadence it always eases back in.
+        </p>
+      </div>
+
+      <div class="panel">
+        <span class="mono panel__title">Start and stops</span>
+        <div class="ease"><span class="mono" id="begin-label">Start</span><div id="begin"></div></div>
+        <div class="ease"><span class="mono" id="autopause-label">Auto-pause</span><div id="autopause"></div></div>
+        <p class="hint" id="autopause-hint">Stop pedalling for 5 s and the ride pauses; pedal again and it goes on. FTP tests never pause on their own.</p>
+        <div class="ease" title="Beeps before each phase ends, and the count-in. M or the speaker at the top does the same."><span class="mono" id="sound-label">Sound</span><div id="sound"></div></div>
+      </div>
+
+      <div class="panel">
+        <span class="mono panel__title">Power source</span>
+        <div id="power"></div>
+        <p class="hint">Used for the big number and target tracking. Every source is recorded.</p>
+      </div>
+
+      <div class="panel">
+        <span class="mono panel__title">Power display smoothing</span>
+        <div id="smoothing"></div>
+      </div>
+
+      <div class="panel">
+        <span class="mono panel__title" id="text-label">Ride numbers size</span>
+        <div id="ride-text"></div>
+        <p class="hint">Larger when the screen is a metre or two away; the chart gets a little smaller.</p>
+      </div>
+
+      <span class="mono" id="status" role="status" style="color: var(--pink)"></span>
+      </div>
+      <button class="btn btn--primary start" type="button" id="start">Start workout</button>
+    </section>
+    <!-- 3-2-1 before the ride starts; a tap or Escape cancels -->
+    <div class="countin" id="countin" hidden role="status" aria-live="assertive">
+      <b id="countin-n">3</b><span class="mono">Get ready · tap to cancel</span>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { LENGTHS, LOW_BATTERY, chipGroup, el, fmtClock, neonSelect, renderDeviceChips, renderStrip, setZoneTops, workoutOptions } from "/components.js";
+import { drawWorkoutPreview } from "/charts.js";
+import { connectLive } from "/live.js";
+import { addSoundButton, cue, setSound, soundOn, syncSound, unlockSound } from "/sound.js";
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "train" });
+addSoundButton($("strip"));
+const params = new URLSearchParams(location.search);
+
+const library = await (await fetch(`/api/workouts${params.get("workout") ? `?include=${encodeURIComponent(params.get("workout"))}` : ""}`)).json();
+const settings = await (await fetch("/api/settings")).json();
+setZoneTops(settings.zone_tops);
+syncSound(settings);
+let workouts = library.workouts;
+let selected = workouts.find((w) => w.id === params.get("workout")) ?? workouts.find((w) => w.id === library.selected) ?? workouts[0];
+
+const planNext = await (await fetch("/api/plan/next")).json().catch(() => null);
+
+// Home band: this week (the plan's week if one runs), form (yesterday's fitness − fatigue), the last ride.
+fetch("/api/home").then((r) => r.json()).then((h) => {
+  const set = (id, big, small) => { $(id).querySelector("b").textContent = big; $(id).querySelector("small").textContent = small; };
+  const hours = (sec) => `${Math.floor(sec / 3600)}:${String(Math.round((sec % 3600) / 60)).padStart(2, "0")} h`;
+  if (h.plan && !h.plan.finished) set("home-week", `${h.plan.week_done} of ${h.plan.week_sessions} sessions`, `${h.plan.name} · week ${h.plan.week} of ${h.plan.weeks}`);
+  else set("home-week", `${h.week.rides} ride${h.week.rides === 1 ? "" : "s"} · ${hours(h.week.seconds)}`, h.plan?.finished ? `${h.plan.name} finished · pick a new plan` : `Last 7 days · load ${h.week.load} · no plan`);
+  const f = h.form;
+  if (f) {
+    set("home-form", `${f.form > 0 ? "+" : ""}${Math.round(f.form)} · ${f.label}`, `Fitness ${Math.round(f.fitness)} · fatigue ${Math.round(f.fatigue)}`);
+    $("home-form").style.setProperty("--form-color", f.form < -30 ? "var(--pink)" : f.form < -10 ? "var(--yellow)" : f.form > 5 ? "var(--teal)" : "var(--cyan-soft)");
+  } else set("home-form", "--", "Ride to see your form");
+  if (h.last) {
+    const when = new Date(h.last.started).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    set("home-last", h.last.name, `${when} · ${fmtClock(h.last.duration)} · load ${Math.round(h.last.load ?? 0)}`);
+    $("home-last").href = `/summary.html?ride=${h.last.id}`;
+  } else set("home-last", "--", "No rides yet");
+  $("home").hidden = false;
+}).catch(() => {});
+const pickWorkout = (id) => { picker.set?.(id); choose(id); };
+
+let favourites = settings.favourites ?? [];
+let length = "all";
+try { length = localStorage.getItem("wd.length") ?? "all"; } catch {}
+const options = () => workoutOptions(workouts, library.categories, { favourites, length, keep: selected?.id });
+const picker = neonSelect({
+  label: "Workout",
+  options: options(),
+  value: selected.id,
+  onChange: (id) => choose(id),
+});
+$("workout").replaceWith(picker);
+const lengthGroup = chipGroup(LENGTHS.map(({ value, label }) => ({ value, label })), {
+  value: length, label: "Workout length",
+  onChange: (v) => { length = v; try { localStorage.setItem("wd.length", v); } catch {} picker.setOptions(options()); },
+});
+$("length").replaceWith(lengthGroup);
+function showFav() {
+  const on = favourites.includes(selected.id);
+  $("fav").setAttribute("aria-pressed", String(on));
+  $("fav").textContent = on ? "★\uFE0E" : "☆\uFE0E"; // text style, never an emoji
+  $("fav").setAttribute("aria-label", on ? "Remove from favourites" : "Add to favourites");
+}
+$("fav").addEventListener("click", async () => {
+  favourites = favourites.includes(selected.id) ? favourites.filter((id) => id !== selected.id) : [...favourites, selected.id];
+  showFav();
+  picker.setOptions(options());
+  picker.set(selected.id);
+  await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ favourites }) });
+});
+
+function choose(id) {
+  selected = workouts.find((w) => w.id === id);
+  showFav();
+  history.replaceState(null, "", `?workout=${selected.id}`);
+  renderWorkout();
+  suggestMode();
+}
+
+// The training plan's next session: say so when it is picked, offer it when another workout is.
+function renderPlanNext() {
+  $("plan-next").hidden = !planNext;
+  if (!planNext) return;
+  $("plan-where").textContent = `Plan · week ${planNext.week} of ${planNext.weeks}`;
+  if (selected.id === planNext.workout_id) {
+    $("plan-what").textContent = `Session ${planNext.session} of ${planNext.sessions} · ${planNext.focus}`;
+  } else {
+    $("plan-what").replaceChildren(`Next session: ${planNext.name} · `,
+      el("a", { href: `?workout=${planNext.workout_id}`, text: "ride that instead",
+        onclick: (e) => { e.preventDefault(); pickWorkout(planNext.workout_id); } }));
+  }
+}
+
+// the library is in % FTP; the preview needs watts
+const inWatts = (w) => ({
+  name: w.name,
+  phases: w.phases.map((p) => ({ ...p, watts: Math.round(p.pct * w.ftp), watts_end: p.pct_end == null ? null : Math.round(p.pct_end * w.ftp) })),
+});
+
+function renderWorkout() {
+  $("title").textContent = selected.name;
+  document.title = `Watt Disco – ${selected.name}`;
+  $("desc").textContent = selected.text;
+  $("duration").textContent = fmtClock(selected.seconds);
+  $("avg").textContent = `${Math.round(selected.avg_power)} W`;
+  $("intervals").textContent = selected.intervals;
+  $("ftp").textContent = `${selected.ftp} W`;
+  $("load").textContent = Math.round(selected.load);
+  $("edit").href = `/editor.html?id=${selected.id}`;
+  drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp);
+  renderPlanNext();
+}
+showFav();
+renderWorkout();
+new ResizeObserver(() => drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp)).observe($("preview"));
+
+// ---------- choices ----------
+let mode = "erg";
+let modeTouched = false;
+// FTP tests suggest their mode: the ramp in ERG, the 20 min test in free ride (you pace it).
+function suggestMode() {
+  if (selected.mode) { setMode(selected.mode); modeTouched = true; }
+}
+function setMode(m) {
+  mode = m;
+  $("ease-row").classList.toggle("is-off", m !== "erg"); // free ride: the trainer is not steered
+  for (const b of document.querySelectorAll("[data-mode]")) b.setAttribute("aria-checked", String(b.dataset.mode === m));
+}
+for (const b of document.querySelectorAll("[data-mode]")) b.addEventListener("click", () => { modeTouched = true; setMode(b.dataset.mode); });
+setMode("erg");
+suggestMode();
+
+// ERG interval changes: a step (default) or a 3 s ease. Remembered per browser.
+let easeChoice = "step";
+try { easeChoice = localStorage.getItem("wd.ease") === "ease" ? "ease" : "step"; } catch {}
+const ease = chipGroup([{ value: "step", label: "STEP" }, { value: "ease", label: "EASE 3 S" }],
+  { value: easeChoice, label: "Interval changes in ERG",
+    onChange: (v) => { easeChoice = v; try { localStorage.setItem("wd.ease", v); } catch {} } });
+ease.setAttribute("aria-labelledby", "ease-label");
+$("ease").replaceWith(ease);
+$("ease-info").addEventListener("click", () => {
+  const open = $("ease-info").getAttribute("aria-expanded") !== "true";
+  $("ease-info").setAttribute("aria-expanded", String(open));
+  $("ease-help").hidden = !open;
+});
+
+// Start: now (after the 3-2-1) or when the rider pedals; remembered per browser. Auto-pause is a setting.
+let begin = "now";
+try { begin = localStorage.getItem("wd.begin") === "pedal" ? "pedal" : "now"; } catch {}
+const beginGroup = chipGroup([{ value: "now", label: "NOW" }, { value: "pedal", label: "WHEN I PEDAL" }],
+  { value: begin, label: "Start", onChange: (v) => { begin = v; try { localStorage.setItem("wd.begin", v); } catch {} } });
+beginGroup.setAttribute("aria-labelledby", "begin-label");
+$("begin").replaceWith(beginGroup);
+const autoGroup = chipGroup([{ value: "on", label: "ON" }, { value: "off", label: "OFF" }],
+  { value: settings.auto_pause === false ? "off" : "on", label: "Auto-pause",
+    onChange: (v) => fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto_pause: v === "on" }) }) });
+autoGroup.setAttribute("aria-labelledby", "autopause-label");
+$("autopause").replaceWith(autoGroup);
+const soundGroup = chipGroup([{ value: "on", label: "ON" }, { value: "off", label: "OFF" }],
+  { value: soundOn() ? "on" : "off", label: "Sound", onChange: (v) => setSound(v === "on") });
+soundGroup.setAttribute("aria-labelledby", "sound-label");
+$("sound").replaceWith(soundGroup);
+unlockSound(() => soundGroup.set(soundOn() ? "on" : "off")); // also when M or the speaker changes it
+
+let rideText = "normal";
+try { rideText = localStorage.getItem("wd.rideText") ?? "normal"; } catch {}
+const textGroup = chipGroup([{ value: "normal", label: "NORMAL" }, { value: "large", label: "LARGE" }, { value: "xl", label: "EXTRA LARGE" }],
+  { value: rideText, label: "Ride numbers size", onChange: (v) => { try { localStorage.setItem("wd.rideText", v); } catch {} } });
+textGroup.setAttribute("aria-labelledby", "text-label");
+$("ride-text").replaceWith(textGroup);
+
+let powerSource = null;
+const smoothing = chipGroup([{ value: "raw", label: "RAW" }, { value: "3s", label: "3 S" }, { value: "10s", label: "10 S" }],
+  { value: "3s", label: "Power display smoothing" });
+$("smoothing").replaceWith(smoothing);
+const pressed = (group) => group.querySelector('[aria-pressed="true"]')?.dataset.value;
+
+let powerGroup = null;
+function renderPower(s) {
+  const sources = s.devices.filter((d) => d.state === "connected" && d.roles.includes("power"));
+  const signature = sources.map((d) => d.id).join("|");
+  if (!powerGroup || powerGroup.dataset.signature !== signature) {
+    powerGroup = chipGroup(sources.map((d) => ({ value: d.id, label: d.name })),
+      { value: powerSource ?? s.main_power_id, label: "Power source", onChange: (v) => { powerSource = v; } });
+    powerGroup.dataset.signature = signature;
+    $("power").replaceChildren(sources.length ? powerGroup : el("p", { class: "hint", text: "No power source connected." }));
+  }
+  if (!powerSource) powerGroup.set(s.main_power_id);
+}
+
+let smoothingTouched = false;
+smoothing.addEventListener("click", () => { smoothingTouched = true; });
+
+function render(store) {
+  const s = store.state;
+  if (!s) return;
+  syncSound(store.settings, store.speed);
+  renderDeviceChips(strip.devices, s.devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+  renderPower(s);
+  if (!smoothingTouched) smoothing.set(s.smoothing);
+  const connected = s.devices.filter((d) => d.state === "connected");
+  const trainer = connected.some((d) => d.roles.includes("control"));
+  $("no-trainer").hidden = trainer || mode !== "erg";
+  if (!trainer && !modeTouched) setMode("free"); // nothing to steer: suggest free ride
+  $("no-sensors").hidden = connected.length > 0;
+  // a sensor that may not last the ride: say so before it starts
+  const low = connected.filter((d) => d.battery != null && d.battery <= LOW_BATTERY);
+  $("low-battery").hidden = !low.length;
+  $("low-battery").textContent = low.length
+    ? `Battery low: ${low.map((d) => `${d.name} ${d.battery} %`).join(", ")} · charge or swap it before a long ride` : "";
+  $("running").hidden = !s.ride.active;
+  const lost = s.ride.interrupted;
+  $("interrupted").hidden = !lost || s.ride.active;
+  if (lost) {
+    const at = new Date(lost.started).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    $("interrupted-text").textContent = `${lost.name}, started ${at}, stopped at ${fmtClock(Math.round(lost.elapsed))}`
+      + `${lost.seconds ? ` of ${fmtClock(lost.seconds)}` : ""}. Continue where it was (the clock starts when you pedal),`
+      + " or keep it as it is in your history. Starting another workout keeps it as it is.";
+  }
+  $("start").disabled = s.ride.active;
+}
+connectLive(render);
+
+$("interrupted-go").addEventListener("click", async () => {
+  const r = await fetch("/api/ride/continue", { method: "POST" });
+  if (r.ok) { location.href = "/workout.html"; return; }
+  $("status").textContent = (await r.json().catch(() => ({}))).detail ?? "Could not continue the ride";
+});
+$("interrupted-save").addEventListener("click", async () => {
+  const r = await fetch("/api/ride/interrupted/save", { method: "POST" });
+  if (r.ok) location.href = `/summary.html?ride=${(await r.json()).id}`;
+});
+
+// A 3-2-1 count-in with ticks, then the ride starts with the "go" tone.
+function countIn() {
+  return new Promise((resolve) => {
+    const box = $("countin");
+    let n = 3;
+    let timer = null;
+    const stop = (ok) => {
+      clearTimeout(timer);
+      box.hidden = true;
+      box.removeEventListener("click", cancel);
+      removeEventListener("keydown", onKey, true);
+      resolve(ok);
+    };
+    const cancel = () => stop(false);
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); cancel(); } };
+    const step = () => {
+      if (n === 0) { cue.go(); stop(true); return; }
+      $("countin-n").textContent = String(n);
+      $("countin-n").style.animation = "none"; void $("countin-n").offsetWidth; $("countin-n").style.animation = "";
+      cue.tick();
+      n -= 1;
+      timer = setTimeout(step, 1000);
+    };
+    box.hidden = false;
+    box.addEventListener("click", cancel);
+    addEventListener("keydown", onKey, true);
+    step();
+  });
+}
+
+$("start").addEventListener("click", async () => {
+  $("start").disabled = true;
+  if (begin === "now" && !(await countIn())) { $("start").disabled = false; return; }
+  const body = { workout_id: selected.id, mode, smoothing: pressed(smoothing), ease: easeChoice === "ease",
+    wait_for_pedal: begin === "pedal" };
+  const source = powerGroup ? pressed(powerGroup) : null;
+  if (source) body.power_source = source;
+  const r = await fetch("/api/ride/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.ok) { location.href = "/workout.html"; return; }
+  $("status").textContent = (await r.json().catch(() => ({}))).detail ?? "Could not start the ride";
+  $("start").disabled = false;
+});
+</script>
+</body>
+</html>

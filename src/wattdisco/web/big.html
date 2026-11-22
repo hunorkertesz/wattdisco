@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Big numbers</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/workout.css">
+<style>
+  .big-head {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding: 12px var(--gutter); min-height: 112px;
+  }
+  .big-head__left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .big-head__left .neon-title { font-size: clamp(24px, 3.2vw, 40px); }
+  .phase-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .big-head__right { display: flex; align-items: center; gap: 24px; }
+  .big-head__right .mono { font-size: 14px; }
+  .big-countdown { font-size: clamp(44px, min(6vw, 9vh), 72px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .is-alert .big-countdown { color: var(--alert); animation: alert-pulse 1s ease-in-out infinite; }
+
+  .big-numbers { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); padding: 0 var(--gutter); border-top: 1px solid var(--clean-line); }
+  .big { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; text-align: center; }
+  .big > .mono:first-child { font-size: 16px; }
+  .big__v { font-size: clamp(80px, min(16vw, 30vh), 220px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .big__u { font-size: 26px; margin-top: -4px; }
+  .big__sub { font-size: 14px; margin-top: 10px; }
+  .big--power { color: var(--power); }
+  .big--hr { color: var(--hr); }
+  .big--cad { color: var(--cadence); }
+  .big--power > .mono:first-child { color: var(--clean-text); }
+  .big--hr > .mono:first-child { color: var(--hr); }
+  .big--cad > .mono:first-child { color: var(--cadence); }
+  .target-bar { width: min(320px, 90%); height: 22px; margin-top: 12px; display: block; }
+
+  .big-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 72px; padding: 8px var(--gutter); border-top: 1px solid var(--clean-line); }
+  .progress { flex: 1; min-width: 0; height: 44px; display: block; }
+  .idle { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 600px) {
+    .big-numbers { grid-template-columns: 1fr 1fr; grid-template-areas: "power power" "hr cad"; row-gap: 16px; padding-top: 12px; padding-bottom: 12px; }
+    .big--power { grid-area: power; }
+    .big--hr { grid-area: hr; }
+    .big--cad { grid-area: cad; }
+    .big--hr .big__v, .big--cad .big__v { font-size: clamp(64px, 22vw, 120px); }
+    .big-foot { flex-wrap: wrap; }
+    .big-foot .btn { flex: 1; }
+  }
+</style>
+</head>
+<body class="clean">
+<div class="app" id="app">
+  <header class="strip" id="strip"></header>
+
+  <div class="big-head">
+    <div class="big-head__left">
+      <h1 class="neon-title" id="title">Workout</h1>
+      <div class="phase-row">
+        <span class="phase-badge" id="badge">--</span>
+        <span class="mono" id="progress"></span>
+      </div>
+    </div>
+    <div class="big-head__right">
+      <span class="mono" id="next"></span>
+      <span class="big-countdown" id="countdown" aria-label="Time left in this phase">--:--</span>
+    </div>
+  </div>
+
+  <main class="big-numbers" id="numbers">
+    <nav class="dock" id="dock" aria-label="Ride controls">
+      <div class="dock__group" role="group" aria-label="View">
+        <a class="chip" href="/workout.html" data-view="standard">Standard</a>
+        <a class="chip" href="/workout.html" data-view="nerd">Nerd <kbd>N</kbd></a>
+        <button class="chip" type="button" data-view="big" aria-pressed="true">Big <kbd>B</kbd></button>
+      </div>
+      <a class="btn btn--sm" href="/compare.html">Compare <kbd>C</kbd></a>
+      <button class="btn btn--sm btn--pink" type="button" id="pause">Pause <kbd>Space</kbd></button>
+      <button class="btn btn--sm btn--pink" type="button" id="end-ride">End ride</button>
+    </nav>
+    <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show ride controls"></button></div>
+    <div class="big big--power" id="power-box">
+      <span class="mono">Power</span>
+      <span class="big__v" id="power">--</span>
+      <span class="big__u">W</span>
+      <canvas class="target-bar" id="target-bar" aria-hidden="true"></canvas>
+      <span class="mono big__sub" id="target-line"></span>
+    </div>
+    <div class="big big--hr">
+      <span class="mono" id="hr-label">Heart rate</span>
+      <span class="big__v" id="hr">--</span>
+      <span class="big__u">bpm</span>
+      <span class="mono big__sub" id="hr-sub"></span>
+    </div>
+    <div class="big big--cad">
+      <span class="mono">Cadence</span>
+      <span class="big__v" id="cadence">--</span>
+      <span class="big__u">rpm</span>
+      <span class="mono big__sub" id="cad-sub"></span>
+    </div>
+  </main>
+
+  <div class="idle" id="idle" hidden>
+    <h2 class="neon-title">No ride running</h2>
+    <a class="btn btn--primary" href="/ready.html">Get ready</a>
+  </div>
+
+  <footer class="big-foot">
+    <canvas class="progress" id="progress-strip" role="img" aria-label="Workout progress"></canvas>
+  </footer>
+
+  <div class="ride-over" id="paused" hidden>
+    <div class="card ride-over__card" role="dialog" aria-labelledby="paused-title">
+      <h2 class="neon-title" id="paused-title">Paused</h2>
+      <span class="mono" id="paused-why">Workout clock stopped · trainer released · nothing is recorded</span>
+      <div class="ride-over__actions">
+        <button class="btn" type="button" id="paused-end">End ride</button>
+        <button class="btn btn--primary" type="button" id="resume">Resume <kbd>Space</kbd></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { PHASE_LABEL, fmtClock, fmtNum, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen } from "/components.js";
+import { drawProgressStrip, drawTargetBar } from "/charts.js";
+import { confirmTwice, endRide, setupDock } from "/dock.js";
+import { connectLive } from "/live.js";
+import { addSoundButton, rideCues, unlockSound } from "/sound.js";
+const soundCues = rideCues();
+unlockSound();
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "train" });
+addSoundButton($("strip"));
+const label = (k) => PHASE_LABEL[k] ?? String(k ?? "").toUpperCase();
+const signed = (v) => (v == null ? "--" : `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(Math.round(v))}`);
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let lastHr = null;
+
+// Views: standard and nerd live on the workout screen; remember which one to open.
+const openWorkout = (nerdOn) => {
+  try { localStorage.setItem("wd.nerd", nerdOn ? "1" : "0"); } catch {}
+  location.href = "/workout.html";
+};
+for (const view of ["standard", "nerd"]) {
+  document.querySelector(`[data-view="${view}"]`).addEventListener("click", (e) => { e.preventDefault(); openWorkout(view === "nerd"); });
+}
+
+let paused = false;
+let rideDone = false;
+const togglePause = () => live.send({ cmd: paused ? "resume" : "pause" });
+$("pause").onclick = togglePause;
+$("resume").onclick = togglePause;
+const end = { label: "End ride", confirm: "Tap again to end", busy: "Saving…", action: endRide };
+confirmTwice($("end-ride"), end);
+confirmTwice($("paused-end"), end);
+const dock = setupDock({
+  app: $("app"),
+  docks: [{ dock: $("dock"), zone: $("zone-top"), pinned: () => rideDone }], // workout over: keep End ride in view
+  keys: {
+    space: togglePause,
+    n: () => openWorkout(true),
+    b: () => { location.href = "/workout.html"; },
+    c: () => { location.href = "/compare.html"; },
+  },
+});
+
+function render(store) {
+  const s = store.state;
+  if (!s || !store.workout) return;
+  const w = s.workout;
+  soundCues(store);
+  holdScreen(s.ride?.active);
+  const ftp = store.settings?.ftp ?? store.workout.ftp;
+  setZoneTops(store.settings?.zone_tops);
+  renderDeviceChips(strip.devices, s.devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+
+  const active = s.ride.active;
+  $("numbers").hidden = !active;
+  $("idle").hidden = active;
+  if (!active) return;
+  paused = !!s.ride.paused;
+  $("paused").hidden = !paused;
+  const why = s.ride.auto_paused;
+  $("paused-title").textContent = why === "waiting" ? "Pedal to start" : why === "stopped" ? "Paused · pedal to go on" : "Paused";
+  $("paused-why").textContent = why === "waiting" ? "The workout clock starts with your first pedal strokes"
+    : why === "stopped" ? "You stopped pedalling · nothing is recorded · auto-pause can be switched off on the ready screen"
+    : "Workout clock stopped · trainer released · nothing is recorded";
+  $("resume").firstChild.textContent = why === "waiting" ? "Start now " : "Resume ";
+  $("pause").firstChild.textContent = paused ? "Resume " : "Pause ";
+  const wasDone = rideDone;
+  rideDone = w.done;
+  if (rideDone && !wasDone) dock.show();
+  $("end-ride").classList.toggle("btn--primary", rideDone);
+
+  $("title").textContent = store.workout.name;
+  const parts = [];
+  if (w.interval?.n > 0 && !w.done) parts.push(`Interval ${w.interval.n} / ${w.interval.of}`);
+  parts.push(`${fmtClock(Math.min(w.elapsed, w.total))} / ${fmtClock(w.total)}`);
+  $("progress").textContent = parts.join(" · ");
+
+  if (w.done) {
+    $("badge").textContent = "DONE";
+    $("badge").style.background = "";
+    $("countdown").textContent = "00:00";
+    $("next").textContent = "Workout complete";
+  } else {
+    $("badge").textContent = w.target_zone ? `Z${w.target_zone} · ${label(w.kind)}` : label(w.kind);
+    $("badge").style.background = zoneColor(w.target_zone);
+    $("countdown").textContent = fmtClock(Math.ceil(w.seconds_left));
+    $("next").textContent = w.next ? `Next · ${label(w.next.kind)} ${w.next.watts} W` : "Last phase";
+  }
+  $("app").classList.toggle("is-alert", !w.done && !!w.next && w.seconds_left <= 10);
+
+  // power in the colour of its own zone, like the workout screen
+  const powerColor = s.power_zone ? zoneColor(s.power_zone) : css("--power");
+  $("power-box").style.color = powerColor;
+  $("power").textContent = fmtNum(s.power);
+  $("target-line").textContent = w.target == null ? "" : `Target ${w.target} W · ${signed(w.diff)} W`;
+  drawTargetBar($("target-bar"), s.power, w.target, ftp);
+
+  if (s.hr != null) lastHr = s.hr;
+  $("hr").textContent = fmtNum(s.hr ?? lastHr);
+  $("hr").style.opacity = s.hr == null ? 0.4 : 1;
+  $("hr-label").textContent = s.hr == null && s.main_hr_id ? "Heart rate · no signal" : "Heart rate";
+  const hrParts = [];
+  if (s.hr != null && s.hr_zone) hrParts.push(`Zone ${s.hr_zone}`);
+  if (s.nerd?.hr_avg30 != null) hrParts.push(`30 s avg ${Math.round(s.nerd.hr_avg30)} bpm`);
+  $("hr-sub").textContent = hrParts.join(" · ");
+
+  $("cadence").textContent = fmtNum(s.cadence);
+  const phase = w.index == null ? null : store.workout.phases[w.index];
+  $("cad-sub").textContent = phase?.cadence ? `Target ${phase.cadence} rpm` : "";
+
+  drawProgressStrip($("progress-strip"), store.workout, ftp, w.elapsed);
+}
+
+const live = connectLive(render);
+new ResizeObserver(() => render(live.store)).observe($("app"));
+</script>
+</body>
+</html>

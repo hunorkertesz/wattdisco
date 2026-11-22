@@ -1,0 +1,59 @@
+/* Progress: fitness, power curve, FTP history and power sources across rides. Neon screen, one page. */
+
+.page { height: 100dvh; display: flex; flex-direction: column; }
+.page main { flex: 1; min-height: 0; display: flex; justify-content: center; padding: clamp(10px, 2.4vh, 28px) var(--gutter); }
+.prog { width: min(1360px, 100%); min-height: 0; display: flex; flex-direction: column; gap: clamp(8px, 1.6vh, 16px); }
+.prog [hidden] { display: none !important; }
+.prog__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; }
+.prog__title { display: flex; flex-direction: column; gap: 2px; }
+.prog__title .neon-title { font-size: clamp(28px, 4vw, 44px); }
+.prog .chip-group .chip { height: 32px; padding: 0 14px; border-radius: 16px; }
+
+.grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: clamp(10px, 1.6vw, 20px); }
+.tile { min-height: 0; gap: 8px; padding: clamp(10px, 1.6vh, 16px) clamp(12px, 1.4vw, 20px); }
+.tile__head { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; min-height: 32px; }
+.readout { font-size: 11px; letter-spacing: .06em; text-transform: none; color: var(--white); }
+.link { color: var(--cyan-soft); text-decoration: none; }
+.link:hover { text-shadow: 0 0 6px var(--cyan); }
+
+.nums { display: flex; flex-wrap: wrap; gap: 6px clamp(16px, 2.4vw, 36px); }
+.num { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.num b { font-size: clamp(20px, 2.1vw, 28px); line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--white); white-space: nowrap; }
+.num b small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+.num > small { font-size: 11px; color: var(--muted); font-family: var(--font-mono); letter-spacing: .06em; white-space: nowrap; }
+.num--fit b { color: var(--cyan-soft); text-shadow: 0 0 8px rgba(61, 217, 255, .6); }
+.num--fat b { color: var(--pink-soft); text-shadow: 0 0 8px rgba(255, 61, 129, .6); }
+.num--form b { color: var(--yellow-soft); text-shadow: 0 0 8px rgba(255, 201, 60, .5); }
+.num a { color: inherit; text-decoration: none; display: flex; flex-direction: column; gap: 1px; }
+.num a:hover b { text-shadow: 0 0 10px var(--cyan); }
+
+.chart { flex: 1; min-height: 90px; width: 100%; display: block; }
+
+.ftp { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(200px, 1fr); gap: 14px; }
+.ftp .chart { min-height: 0; height: 100%; }
+.ftp__list { min-height: 0; overflow-y: auto; margin: 0; padding: 0 4px 0 0; list-style: none; display: flex; flex-direction: column; gap: 4px; scrollbar-color: var(--line-strong) transparent; }
+.ftp__list li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 10px; padding: 6px 10px; background: var(--row); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.ftp__list b { font-size: 15px; color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ftp__list .up { color: var(--teal); }
+.ftp__list .down { color: var(--pink-soft); }
+.ftp__list .when { color: var(--muted); font-size: 11px; font-family: var(--font-mono); grid-column: 1 / -1; }
+.ftp__list a { color: var(--cyan-soft); text-decoration: none; }
+.src-tag {
+  padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--muted);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+}
+.src-tag--test { border-color: var(--yellow); color: var(--yellow-soft); }
+.src-tag--best20 { border-color: var(--teal); color: var(--teal); }
+
+.empty { margin: auto; max-width: 420px; text-align: center; text-transform: none; letter-spacing: .04em; line-height: 1.5; }
+
+/* half a screen and phones: one column, the page scrolls */
+@media (max-width: 900px) {
+  .page { height: auto; min-height: 100dvh; }
+  .grid { grid-template-columns: 1fr; grid-template-rows: none; }
+  .tile { min-height: 300px; }
+  .chart { min-height: 180px; }
+  .ftp { grid-template-columns: 1fr; }
+  .ftp .chart { height: 180px; }
+  .ftp__list { max-height: 220px; }
+}

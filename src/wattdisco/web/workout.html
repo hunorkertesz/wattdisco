@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Workout</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/workout.css">
+</head>
+<body class="clean">
+<div class="app" id="app">
+  <header class="strip" id="strip"></header>
+
+  <section class="hud">
+    <div class="hud__title">
+      <h1 class="neon-title" id="title">Workout</h1>
+      <span class="mono" id="progress"></span>
+    </div>
+    <div class="hud__power">
+      <div class="power-head">
+        <span class="mono power-label">Power</span>
+        <span class="avg30 nerd-only" id="avg30-box" title="Average power over the last 30 seconds"><span id="avg-pick"></span><b id="avg30">--</b><span class="mono">W</span></span>
+      </div>
+      <div class="num" id="power-num"><span id="power">--</span><span class="num__u">W</span></div>
+      <canvas class="trace--power" id="power-trace" aria-hidden="true"></canvas>
+    </div>
+    <div class="hud__right">
+      <!-- Extra metric tiles sit between power and the interval info, only when some are chosen. -->
+      <div class="extras" id="extras" aria-label="Extra metrics" hidden></div>
+      <div class="hud__phase">
+        <span class="phase-badge" id="phase-badge">--</span>
+        <span class="countdown" id="countdown" aria-label="Time left in this phase">--:--</span>
+        <span class="mono" id="next"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="chart-area">
+
+    <!-- Controls: hidden while riding, back on mouse move, tap or any key. View and chart on top. -->
+    <nav class="dock" id="dock" aria-label="View controls">
+      <div class="dock__group" role="group" aria-label="View">
+        <button class="chip" type="button" data-view="standard">Standard</button>
+        <button class="chip" type="button" data-view="nerd">Nerd <kbd>N</kbd></button>
+        <a class="chip" href="/big.html" data-view="big">Big <kbd>B</kbd></a>
+      </div>
+      <a class="btn btn--sm" href="/compare.html">Compare <kbd>C</kbd></a>
+      <button class="btn btn--sm btn--icon" type="button" id="help" aria-label="What the numbers mean" title="What the numbers mean">?</button>
+      <span id="add-metric"></span>
+      <div class="dock__group" role="group" aria-label="Chart zoom">
+        <button class="btn btn--sm btn--icon" type="button" id="zoom-out" aria-label="Zoom out">−</button>
+        <span class="zoom-label" id="zoom-label">10 MIN</span>
+        <button class="btn btn--sm btn--icon" type="button" id="zoom-in" aria-label="Zoom in">+</button>
+        <button class="btn btn--sm" type="button" id="zoom-fit" aria-pressed="false">Fit</button>
+      </div>
+    </nav>
+    <!-- This interval and the ride: a second dock at the bottom of the chart, shown and hidden with the top one. -->
+    <nav class="dock dock--bottom" id="dock-ride" aria-label="Interval and ride">
+      <div class="dock__group nerd-only" role="group" aria-label="This interval">
+        <span class="zoom-label">INTERVAL</span>
+        <button class="btn btn--sm btn--icon btn--pink" type="button" id="easier" aria-label="Easier by 5 W" title="Easier by 5 W (↓)">−</button>
+        <span class="zoom-label adjust-label" id="adjust-label">±0 W</span>
+        <button class="btn btn--sm btn--icon btn--pink" type="button" id="harder" aria-label="Harder by 5 W" title="Harder by 5 W (↑)">+</button>
+        <button class="btn btn--sm btn--pink" type="button" id="skip">Skip <kbd>S</kbd></button>
+      </div>
+      <button class="btn btn--sm btn--pink" type="button" id="pause">Pause <kbd>Space</kbd></button>
+      <button class="btn btn--sm btn--pink" type="button" id="end-ride">End ride</button>
+    </nav>
+    <!-- Where each dock appears on hover; the handle is the hint that it is there. -->
+    <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show view controls"></button></div>
+    <div class="dock-zone dock-zone--bottom" id="zone-ride"><button class="dock-handle" type="button" aria-label="Show interval and ride controls"></button></div>
+    <div class="chart-wrap">
+      <canvas id="chart" role="img" aria-label="Workout chart with target power, power and heart rate"></canvas>
+      <div class="phase-pill" id="pill" hidden></div>
+      <button class="sound-hint" type="button" id="sound-hint" hidden>Tap for sound cues</button>
+    </div>
+  </section>
+
+  <section class="numbers">
+    <div class="metric metric--target" id="target-box">
+      <div class="metric__head">
+        <span class="mono target-label basic-only">Target</span>
+        <div id="mode"></div>
+      </div>
+      <div class="num basic-only"><span id="target">--</span><span class="num__u">W</span></div>
+      <span class="mono target-diff basic-only" id="target-diff">±5 %</span>
+      <div class="nerd-target nerd-only">
+        <!-- Target ring: the dot runs round the ring as power goes under or over the target. -->
+        <svg class="ring" id="ring" viewBox="0 0 120 120" role="img" aria-label="Power against target"></svg>
+        <div class="stat stat--target"><span class="mono">On target · this interval</span>
+          <div class="num"><span id="n-on-target">--</span><span class="num__u">%</span></div></div>
+      </div>
+      <span class="mono trainer-status" id="trainer-status" role="status"></span>
+    </div>
+    <div class="metric metric--hr">
+      <span class="mono" id="hr-label">HEART RATE</span>
+      <div class="num" id="hr-num"><span id="hr">--</span><span class="num__u">bpm</span></div>
+      <canvas class="trace--hr" id="hr-trace" aria-hidden="true"></canvas>
+      <span class="avg30 avg30--hr nerd-only" id="hr-avg30-box" title="Average heart rate over the last 30 seconds"><span id="hr-avg-pick"></span><b id="hr-avg30">--</b><span class="mono">bpm</span></span>
+    </div>
+    <div class="metric metric--cadence">
+      <span class="mono cadence-label basic-only">Cadence</span>
+      <div class="num basic-only" id="cad-num"><span id="cadence">--</span><span class="num__u">rpm</span></div>
+      <canvas class="trace--cadence basic-only" id="cad-trace" aria-hidden="true"></canvas>
+      <div class="cad-bar basic-only" id="cad-bar"></div>
+      <div class="nerd-cadence nerd-only">
+        <div class="nerd-cadence__main">
+          <span class="mono cadence-label">Cadence</span>
+          <div class="num cad-big"><span id="n-cadence">--</span><span class="num__u">rpm</span></div>
+          <div class="cad-bar" id="n-cad-bar"></div>
+        </div>
+        <!-- Power source difference: the dot moves left when A reads lower than B, right when higher. -->
+        <div class="nerd-source">
+          <svg class="ring ring--source" id="src-ring" viewBox="0 0 120 120" role="img" aria-label="Difference between power sources"></svg>
+          <span class="mono src-label" id="n-src-label">Power sources</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ride-over" id="paused" hidden>
+    <div class="card ride-over__card" role="dialog" aria-labelledby="paused-title">
+      <h2 class="neon-title" id="paused-title">Paused</h2>
+      <span class="mono" id="paused-why">Workout clock stopped · trainer released · nothing is recorded</span>
+      <div class="ride-over__actions">
+        <button class="btn" type="button" id="paused-end">End ride</button>
+        <button class="btn btn--primary" type="button" id="resume">Resume <kbd>Space</kbd></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ride-over" id="ride-over" hidden>
+    <div class="card ride-over__card" role="dialog" aria-labelledby="ride-over-title">
+      <h2 class="neon-title" id="ride-over-title">Ride saved</h2>
+      <span class="mono" id="ride-over-text">Sensors stay connected. Start again whenever you are ready.</span>
+      <div class="ride-over__actions">
+        <a class="btn" id="new-ride" href="/ready.html">Start new ride</a>
+        <a class="btn btn--primary" id="view-summary" href="/summary.html">View summary</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="conn-banner" id="conn" role="status" hidden>Connection to Watt Disco lost · reconnecting…</div>
+</div>
+
+<script type="module">
+import { PHASE_LABEL, chipGroup, effortColor, el, fmtClock, fmtNum, neonSelect, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen, helpCard } from "/components.js";
+import { Trace, drawWorkoutChart } from "/charts.js";
+import { confirmTwice, endRide, setupDock } from "/dock.js";
+import { connectLive } from "/live.js";
+import { metricInUnits } from "/units.js";
+import { addSoundButton, blocked as soundBlocked, rideCues, unlockSound } from "/sound.js";
+
+const $ = (id) => document.getElementById(id);
+const ALERT_SECONDS = 10;
+const ZOOMS = [300, 600, 1200, 1800];
+
+const strip = renderStrip($("strip"), { active: "train" });
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const traces = {
+  hr: new Trace($("hr-trace"), { color: css("--hr"), kind: "pulse", onBeat: () => {
+    $("hr-num").classList.add("beat");
+    setTimeout(() => $("hr-num").classList.remove("beat"), 120);
+  } }),
+  power: new Trace($("power-trace"), { color: css("--power"), kind: "line" }),
+  cadence: new Trace($("cad-trace"), { color: css("--cadence"), kind: "wave" }),
+};
+
+// Bigger numbers for riding further from the screen (picked on the ready screen, per browser).
+try {
+  const scale = { large: 1.2, xl: 1.4 }[localStorage.getItem("wd.rideText")];
+  if (scale) { $("app").style.setProperty("--ride-text", scale); $("app").dataset.rideText = String(scale); }
+} catch {}
+
+// Zoom is a view setting, remembered per browser. Every new ride starts with the whole workout in the chart
+// (fitted); a zoom chosen during the ride stays for that ride only (back from Big numbers or Compare).
+let zoom = { span: 600, fit: true, ride: null };
+try { zoom = { ...zoom, ...JSON.parse(localStorage.getItem("wd.zoom") || "{}") }; } catch {}
+function fitNewRide(rideId) {
+  if (rideId && rideId !== zoom.ride) setZoom({ ...zoom, fit: true, ride: rideId });
+}
+function setZoom(next) {
+  zoom = next;
+  try { localStorage.setItem("wd.zoom", JSON.stringify(zoom)); } catch {}
+  $("zoom-label").textContent = zoom.fit ? "WHOLE" : `${zoom.span / 60} MIN`;
+  $("zoom-fit").setAttribute("aria-pressed", String(zoom.fit));
+  $("zoom-in").disabled = !zoom.fit && zoom.span === ZOOMS[0];
+  $("zoom-out").disabled = !zoom.fit && zoom.span === ZOOMS[ZOOMS.length - 1];
+  render(live.store);
+}
+$("zoom-in").onclick = () => setZoom({ ...zoom, fit: false, span: zoom.fit ? zoom.span : ZOOMS[Math.max(0, ZOOMS.indexOf(zoom.span) - 1)] });
+$("zoom-out").onclick = () => setZoom({ ...zoom, fit: false, span: zoom.fit ? zoom.span : ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom.span) + 1)] });
+$("zoom-fit").onclick = () => setZoom({ ...zoom, fit: !zoom.fit });
+
+// Nerd mode: more numbers around the power, remembered per browser.
+let nerd = false;
+try { nerd = localStorage.getItem("wd.nerd") === "1"; } catch {}
+const nerdHelp = helpCard("workout-nerd", {
+  title: "Nerd mode · what you see",
+  items: [
+    ["Target ring", "The dot moves round as your power goes under (left) or over (right) the target. The marked band is ±5 %."],
+    ["On target", "The share of this interval's seconds you rode within ±5 % of the target."],
+    ["Teal ring", "How far your two power sources (trainer and power meter) read apart. The band is ±2 %."],
+    ["Average pills", "Power and heart rate averaged over the last 30 s; tap the pill to pick 1, 5 or 10 minutes."],
+    ["Cadence bar", "The line moves left or right of the mark as you pedal slower or faster than this phase's cadence target."],
+    ["Interval − / +", "This interval only, 5 W easier or harder (↓ / ↑ keys). Skip goes to the next phase (S, tap twice)."],
+  ],
+  note: "Shown once. The ? button in the top controls brings it back.",
+});
+$("help").onclick = () => nerdHelp.open();
+
+function setNerd(on) {
+  nerd = on;
+  if (on) nerdHelp.maybeOpen();
+  try { localStorage.setItem("wd.nerd", on ? "1" : "0"); } catch {}
+  $("app").classList.toggle("is-nerd", on);
+  for (const b of document.querySelectorAll("[data-view]")) {
+    b.setAttribute("aria-pressed", String(b.dataset.view === (on ? "nerd" : "standard")));
+  }
+}
+document.querySelector('[data-view="standard"]').onclick = () => { setNerd(false); render(live.store); };
+document.querySelector('[data-view="nerd"]').onclick = () => { setNerd(true); render(live.store); };
+setNerd(nerd);
+
+// Nerd-mode averages: power and heart rate each over 30 s, 1, 5 or 10 min, remembered per browser (default 30 s).
+const AVG_CHOICES = [
+  { value: "30", label: "30 s", words: "30 seconds" },
+  { value: "60", label: "1 min", words: "minute" },
+  { value: "300", label: "5 min", words: "5 minutes" },
+  { value: "600", label: "10 min", words: "10 minutes" },
+];
+let avgWindow = { power: "30", hr: "30" };
+try { avgWindow = { ...avgWindow, ...JSON.parse(localStorage.getItem("wd.avgWindow") || "{}") }; } catch {}
+for (const [key, pick, box, what] of [["power", "avg-pick", "avg30-box", "power"], ["hr", "hr-avg-pick", "hr-avg30-box", "heart rate"]]) {
+  if (!AVG_CHOICES.some((c) => c.value === avgWindow[key])) avgWindow[key] = "30";
+  const describe = () => {
+    $(box).title = `Average ${what} over the last ${AVG_CHOICES.find((c) => c.value === avgWindow[key]).words}`;
+  };
+  $(pick).replaceWith(Object.assign(neonSelect({
+    label: `Average ${what} over`, options: AVG_CHOICES, value: avgWindow[key], compact: true,
+    onChange: (v) => {
+      avgWindow = { ...avgWindow, [key]: v };
+      try { localStorage.setItem("wd.avgWindow", JSON.stringify(avgWindow)); } catch {}
+      describe();
+      render(live.store);
+    },
+  }), { id: pick }));
+  $(pick).classList.add("nsel--pill");
+  describe();
+}
+
+// Sound cues: a tick in each of the last 3 s of a phase, a tone as the next starts, three notes at the end.
+function showSound() {
+  $("sound-hint").hidden = !soundBlocked();
+}
+$("sound-hint").onclick = () => showSound(); // the tap itself unlocks audio
+unlockSound(showSound);
+addSoundButton($("strip"));
+showSound();
+const soundCues = rideCues();
+
+// Pause stops everything on the server; the paused card offers resume and end.
+let paused = false;
+let rideDone = false;
+const togglePause = () => live.send({ cmd: paused ? "resume" : "pause" });
+$("pause").onclick = togglePause;
+$("resume").onclick = togglePause;
+const end = { label: "End ride", confirm: "Tap again to end", busy: "Saving…", action: endRide };
+confirmTwice($("end-ride"), end);
+confirmTwice($("paused-end"), end);
+
+// Nerd mode: this interval harder or easier in 5 W steps (only this phase), or skip to the next one.
+const adjust = (steps) => live.send({ cmd: "adjust_phase", steps });
+$("harder").onclick = () => adjust(1);
+$("easier").onclick = () => adjust(-1);
+confirmTwice($("skip"), { label: "Skip", confirm: "Tap again to skip", busy: "Skipping…",
+  action: () => live.send({ cmd: "skip_phase" }) });
+
+const zoomIn = () => $("zoom-in").disabled || $("zoom-in").click();
+const zoomOut = () => $("zoom-out").disabled || $("zoom-out").click();
+const dock = setupDock({
+  app: $("app"),
+  docks: [
+    { dock: $("dock"), zone: $("zone-top") },
+    { dock: $("dock-ride"), zone: $("zone-ride"), pinned: () => rideDone }, // workout over: keep End ride in view
+  ],
+  keys: {
+    space: togglePause,
+    n: () => { setNerd(!nerd); render(live.store); },
+    b: () => { location.href = "/big.html"; },
+    c: () => { location.href = "/compare.html"; },
+    "+": zoomIn,
+    "=": zoomIn,
+    "-": zoomOut,
+    f: () => $("zoom-fit").click(),
+    arrowup: () => !nerd || $("harder").disabled || adjust(1),
+    arrowdown: () => !nerd || $("easier").disabled || adjust(-1),
+    s: () => !nerd || $("skip").disabled || $("skip").click(), // twice to skip, like the button
+  },
+});
+
+// ERG: the trainer holds the target. FREE: the trainer rides like a flat road.
+const mode = chipGroup(
+  [{ value: "erg", label: "ERG" }, { value: "free", label: "FREE" }],
+  { value: "erg", label: "Trainer mode", onChange: (v) => live.send({ cmd: "set_mode", value: v }) },
+);
+$("mode").replaceWith(mode);
+
+// Extra metric tiles (core temperature, W/kg, …). Which ones are shown is a per-browser choice.
+let shown = [];
+try { shown = JSON.parse(localStorage.getItem("wd.metrics") || "[]"); } catch {}
+const saveShown = () => { try { localStorage.setItem("wd.metrics", JSON.stringify(shown)); } catch {} };
+const tiles = {};
+
+const addMetric = neonSelect({
+  label: "Add a metric",
+  placeholder: "+ Metric",
+  compact: true,
+  onChange: (key) => {
+    if (key && !shown.includes(key)) { shown.push(key); saveShown(); render(live.store); }
+  },
+});
+$("add-metric").replaceWith(addMetric);
+
+function renderExtras(s) {
+  const byKey = Object.fromEntries(s.metrics.map((m) => [m.key, m]));
+
+  // menu: metrics a source provides that are not on screen yet
+  const addable = s.metrics.filter((m) => !shown.includes(m.key));
+  addMetric.setOptions(addable.map((m) => ({ value: m.key, label: m.label })));
+  addMetric.hidden = addable.length === 0;
+
+  const box = $("extras");
+  for (const key of Object.keys(tiles)) {
+    if (!shown.includes(key)) { tiles[key].remove(); delete tiles[key]; }
+  }
+  for (const key of shown) {
+    const m = byKey[key];
+    if (!tiles[key]) {
+      tiles[key] = el("div", { class: "extra" },
+        el("span", { class: "mono extra__label" }),
+        el("div", { class: "num" }, el("span", { class: "extra__v" }), el("span", { class: "num__u extra__u" })),
+        el("button", { class: "extra__x", type: "button", "aria-label": "Remove", text: "×",
+          onclick: () => { shown = shown.filter((k) => k !== key); saveShown(); render(live.store); } }),
+      );
+      box.append(tiles[key]);
+    }
+    const tile = tiles[key];
+    const silent = !m || m.value == null;
+    tile.querySelector(".extra__label").textContent = m ? (silent ? `${m.label} · NO SIGNAL` : m.label) : key.replace("_", " ");
+    tile.querySelector(".extra__label").classList.toggle("is-warn", silent);
+    const shown = m ? metricInUnits(m.key, m.value, m.unit) : null;
+    tile.querySelector(".extra__v").textContent = silent ? "--" : shown.value.toFixed(m.decimals);
+    tile.querySelector(".extra__u").textContent = shown?.unit ?? "";
+    tile.querySelector(".extra__x").setAttribute("aria-label", `Remove ${m?.label ?? key}`);
+  }
+  box.hidden = shown.length === 0;
+}
+
+const fmtDuration = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const label = (kind) => PHASE_LABEL[kind] ?? String(kind).toUpperCase();
+let lastHr = null;
+let lastPowerT = -1;
+
+function renderHud(store, s, w) {
+  const workout = store.workout;
+  $("title").textContent = workout.name;
+  document.title = `Watt Disco – ${workout.name}`;
+  const parts = [];
+  if (w.interval && w.interval.n > 0 && !w.done) parts.push(`INTERVAL ${w.interval.n} / ${w.interval.of}`);
+  parts.push(`${fmtClock(Math.min(w.elapsed, w.total))} / ${fmtClock(w.total)}`);
+  if (store.speed !== 1) parts.push(`SIM ×${store.speed}`);
+  $("progress").textContent = parts.join(" · ");
+
+  // Heart rate keeps the last value, dimmed, while the strap is silent.
+  const mainHr = s.devices.find((d) => d.id === s.main_hr_id);
+  const silent = !mainHr || mainHr.no_data || mainHr.state !== "connected";
+  if (s.hr != null) lastHr = s.hr;
+  $("hr").textContent = fmtNum(s.hr ?? lastHr);
+  $("hr-num").classList.toggle("is-stale", s.hr == null);
+  $("hr-label").textContent = silent && s.main_hr_id ? "HEART RATE · NO SIGNAL" : "HEART RATE";
+  $("hr-label").classList.toggle("is-warn", silent && !!s.main_hr_id);
+  traces.hr.setRate(s.hr);
+
+  const badge = $("phase-badge");
+  if (w.done) {
+    badge.textContent = "DONE";
+    badge.style.background = "";
+    $("countdown").textContent = "00:00";
+    $("next").textContent = "WORKOUT COMPLETE";
+  } else {
+    badge.textContent = w.target_zone ? `Z${w.target_zone} · ${label(w.kind)}` : label(w.kind); // the zone in words too, not only colour
+    badge.style.background = zoneColor(w.target_zone);
+    $("countdown").textContent = fmtClock(Math.ceil(w.seconds_left));
+    $("next").textContent = w.next
+      ? `NEXT · ${label(w.next.kind)} ${w.next.watts} W · ${fmtDuration(w.next.seconds)}`
+      : "LAST PHASE";
+  }
+}
+
+function renderNumbers(store, s, w) {
+  // Power takes the colour of its own zone, whatever the workout asks for.
+  const powerColor = s.power_zone ? zoneColor(s.power_zone) : css("--power");
+  $("power").textContent = fmtNum(s.power);
+  $("power-num").style.color = powerColor;
+  document.querySelector(".power-label").textContent = s.power_zone ? `Power · Z${s.power_zone}` : "Power";
+  $("app").style.setProperty("--live-zone", s.power_zone ? powerColor : "");
+  $("power-num").classList.toggle("is-stale", s.power == null);
+  traces.power.color = powerColor;
+  if (s.t !== lastPowerT) { traces.power.push(s.power); lastPowerT = s.t; }
+
+  $("cadence").textContent = fmtNum(s.cadence);
+  traces.cadence.setRate(s.cadence);
+  const phase = w.index == null ? null : store.workout.phases[w.index];
+  for (const bar of cadBars) bar(s.cadence, w.done ? null : phase?.cadence);
+
+  const box = $("target-box");
+  const adjusted = w.adjust ? ` · ${w.adjust > 0 ? "+" : "−"}${Math.abs(w.adjust)} W` : "";
+  document.querySelector(".target-label").textContent = `Target${adjusted}`;
+  $("adjust-label").textContent = `${w.adjust > 0 ? "+" : w.adjust < 0 ? "−" : "±"}${Math.abs(w.adjust ?? 0)} W`;
+  for (const id of ["harder", "easier", "skip"]) $(id).disabled = w.done || !s.ride.active;
+  if (w.done || w.target == null) {
+    $("target").textContent = "--";
+    $("target-diff").textContent = "±5 %";
+    box.style.removeProperty("--effort-color");
+  } else {
+    $("target").textContent = w.target;
+    box.style.setProperty("--effort-color", zoneColor(w.target_zone));
+    const diff = w.diff == null ? "--" : `${w.diff > 0 ? "+" : w.diff < 0 ? "−" : "±"}${Math.abs(w.diff)} W`;
+    $("target-diff").textContent = `${diff} · ±5 %`;
+    $("target-diff").classList.toggle("is-off", w.on_target === false);
+  }
+  // Recent average (30 s … 10 min, picked in the pill) beside the label, in the zone of that average
+  const avg30 = s.nerd?.avg?.[avgWindow.power];
+  $("avg30").textContent = fmtNum(avg30);
+  $("hr-avg30").textContent = fmtNum(s.nerd?.hr_avg?.[avgWindow.hr]);
+  $("avg30-box").style.setProperty("--avg-color", avg30 == null ? "" : effortColor(avg30, store.settings?.ftp));
+
+  renderTrainer(s, w);
+  if (nerd) renderNerd(s, w);
+}
+
+const signed = (v, d = 0) => (v == null ? "--" : `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(d)}`);
+
+// A ring gauge: 270° of arc for −range … +range %, with a band around zero at the top.
+// The dot runs round the ring with the value; the big number and two lines sit inside.
+function makeRing(svg, { range, band, unit }) {
+  const NS = "http://www.w3.org/2000/svg";
+  const R = 48.5;
+  const SPAN = 135;
+  const point = (deg) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return [60 + R * Math.cos(a), 60 + R * Math.sin(a)];
+  };
+  const arc = (from, to) => {
+    const [x0, y0] = point(from);
+    const [x1, y1] = point(to);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${R} ${R} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  };
+  const add = (tag, attrs, text) => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text != null) node.textContent = text;
+    svg.append(node);
+    return node;
+  };
+  add("path", { class: "ring__track", d: arc(-SPAN, SPAN) });
+  add("path", { class: "ring__band", d: arc((-band / range) * SPAN, (band / range) * SPAN) });
+  add("line", { class: "ring__tick", x1: 60, y1: 6, x2: 60, y2: 17 });
+  const dot = add("circle", { class: "ring__dot", r: 6, cx: 60, cy: 11.5 });
+  const big = add("text", { class: "ring__target", x: 60, y: 62, "text-anchor": "middle" }, "--");
+  const unitText = add("text", { class: "ring__unit", x: 60, y: 77, "text-anchor": "middle" }, unit);
+  const sub = add("text", { class: "ring__diff", x: 60, y: 94, "text-anchor": "middle" }, "");
+  return ({ value, pct, text, off, unit: u }) => {
+    big.textContent = value;
+    unitText.textContent = u ?? unit;
+    sub.textContent = text ?? "";
+    const [x, y] = point(Math.max(-1, Math.min(1, (pct ?? 0) / range)) * SPAN);
+    dot.setAttribute("cx", x.toFixed(2));
+    dot.setAttribute("cy", y.toFixed(2));
+    svg.classList.toggle("is-off", !!off);
+    svg.classList.toggle("is-empty", pct == null);
+  };
+}
+// Target: ±5 % counts as on target. Sources: within ±2 % they agree.
+const targetRing = makeRing($("ring"), { range: 20, band: 5, unit: "W TARGET" });
+const sourceRing = makeRing($("src-ring"), { range: 10, band: 2, unit: "W  A − B" });
+
+// Cadence against the phase's target: the line moves along the bar, ±20 rpm end to end.
+function makeCadenceBar(box) {
+  box.append(el("span", { class: "cad-bar__band" }), el("span", { class: "cad-bar__tick" }),
+    el("span", { class: "cad-bar__line" }), el("span", { class: "mono cad-bar__label" }));
+  return (cadence, target) => {
+    box.classList.toggle("is-free", !target);
+    box.querySelector(".cad-bar__label").textContent = target ? `Target ${target} rpm` : "Free cadence";
+    if (!target) return;
+    const pos = cadence == null ? 50 : 50 + Math.max(-1, Math.min(1, (cadence - target) / 20)) * 50;
+    box.querySelector(".cad-bar__line").style.left = `${pos}%`;
+    box.classList.toggle("is-off", cadence != null && Math.abs(cadence - target) > 5);
+  };
+}
+const cadBars = [makeCadenceBar($("cad-bar")), makeCadenceBar($("n-cad-bar"))];
+
+function renderNerd(s, w) {
+  const n = s.nerd ?? {};
+  targetRing({
+    value: w.target ?? "--",
+    unit: w.adjust ? `W TARGET ${w.adjust > 0 ? "+" : "−"}${Math.abs(w.adjust)}` : "W TARGET",
+    pct: w.diff == null ? null : n.diff_pct,
+    text: w.diff == null ? "" : `${signed(w.diff)} W · ${signed(n.diff_pct, 1)} %`,
+    off: w.on_target === false,
+  });
+  $("n-on-target").textContent = fmtNum(n.on_target_interval_pct);
+  $("n-cadence").textContent = fmtNum(s.cadence);
+  const src = n.source_diff;
+  sourceRing({
+    value: src ? signed(src.diff) : "--",
+    pct: src?.diff_pct ?? null,
+    text: src?.diff_pct == null ? "" : `${signed(src.diff_pct, 1)} %`,
+    off: src?.diff_pct != null && Math.abs(src.diff_pct) > 2,
+  });
+  $("n-src-label").textContent = src ? `${src.a_name} − ${src.b_name}` : "Second power source needed";
+}
+
+function renderTrainer(s, w) {
+  mode.set(w.mode);
+  const trainerUp = s.devices.some((d) => d.roles.includes("control") && d.state === "connected");
+  const t = s.trainer;
+  let text;
+  let warn = false;
+  if (w.paused) text = "PAUSED · TRAINER RELEASED";
+  else if (w.mode === "free") text = "FREE RIDE · FOLLOW THE TARGET";
+  else if (!trainerUp) { text = "ERG · NO TRAINER CONNECTED"; warn = true; }
+  else if (t && !t.ok) { text = `ERG · ${t.message.toUpperCase()}`; warn = true; }
+  else if (w.erg === "released") { text = "ERG RELEASED · CADENCE LOW · PEDAL TO RESUME"; warn = true; }
+  else if (w.erg === "easing" && t?.watts != null) text = `ERG · EASING TO ${w.target ?? t.watts} W`;
+  else if (t && t.mode === "erg" && t.watts != null) text = `ERG · TRAINER HOLDS ${t.watts} W`;
+  else text = "ERG · TALKING TO TRAINER…";
+  $("trainer-status").textContent = text;
+  $("trainer-status").classList.toggle("is-warn", warn);
+}
+
+function render(store) {
+  $("conn").hidden = store.connected || !store.workout;
+  const s = store.state;
+  if (!s || !store.workout) return;
+  const w = s.workout;
+  if (s.ride?.active && s.ride.id !== zoom.ride) return fitNewRide(s.ride.id); // setZoom renders again
+  setZoneTops(store.settings?.zone_tops);
+
+  renderDeviceChips(strip.devices, s.devices);
+  renderExtras(s);
+  renderHud(store, s, w);
+  renderNumbers(store, s, w);
+  renderRide(s, w);
+
+  soundCues(store);
+  holdScreen(s.ride?.active);
+  const alert = !w.done && w.next && w.seconds_left <= ALERT_SECONDS;
+  $("app").classList.toggle("is-alert", !!alert);
+
+  const nowX = drawWorkoutChart($("chart"), {
+    workout: adjustedWorkout(store.workout, w.adjustments),
+    history: store.history,
+    t: w.elapsed,
+    span: zoom.fit ? null : zoom.span,
+    ftp: store.settings?.ftp,
+  });
+  const pill = $("pill");
+  pill.hidden = !alert;
+  if (alert) {
+    pill.textContent = `${label(w.next.kind)} IN ${Math.ceil(w.seconds_left)} S · ${w.next.watts} W`;
+    const wrap = pill.parentElement.clientWidth;
+    const half = pill.offsetWidth / 2;
+    pill.style.left = `${Math.min(wrap - half, Math.max(half, nowX))}px`;
+  }
+}
+
+// The workout as it is being ridden: phases the rider made harder or easier drawn at their new power.
+function adjustedWorkout(workout, adjustments) {
+  if (!adjustments || !Object.keys(adjustments).length) return workout;
+  const at = (watts, i) => Math.max(20, watts + (adjustments[i] ?? 0));
+  return { ...workout, phases: workout.phases.map((p, i) => adjustments[i] == null ? p
+    : { ...p, watts: at(p.watts, i), watts_end: p.watts_end == null ? null : at(p.watts_end, i) }) };
+}
+
+function renderRide(s, w) {
+  const ride = s.ride;
+  $("ride-over").hidden = ride.active;
+  $("view-summary").hidden = !ride.last_id;
+  if (ride.last_id) $("view-summary").href = `/summary.html?ride=${ride.last_id}`;
+  // No ride yet: the way in is the ready screen.
+  $("ride-over-title").textContent = ride.last_id ? "Ride saved" : "Ready when you are";
+  $("ride-over-text").textContent = ride.last_id
+    ? "Sensors stay connected. Start again whenever you are ready."
+    : "Pick a workout, ERG or free ride, then start.";
+  $("new-ride").textContent = ride.last_id ? "Start new ride" : "Get ready";
+  $("new-ride").onclick = async (e) => { // done with the last ride: TRAIN goes to the ready screen again
+    e.preventDefault();
+    await fetch("/api/ride/review/done", { method: "POST" }).catch(() => null);
+    location.href = "/ready.html";
+  };
+  $("new-ride").classList.toggle("btn--primary", !ride.last_id);
+  // Once the workout is over, ending the ride becomes the main action and the dock stays open.
+  const wasDone = rideDone;
+  rideDone = ride.active && w.done;
+  if (rideDone && !wasDone) dock.show();
+  $("end-ride").classList.toggle("btn--primary", rideDone);
+  paused = !!ride.paused;
+  $("paused").hidden = !paused;
+  const why = ride.auto_paused;
+  $("paused-title").textContent = why === "waiting" ? "Pedal to start" : why === "stopped" ? "Paused · pedal to go on" : "Paused";
+  $("paused-why").textContent = why === "waiting" ? "The workout clock starts with your first pedal strokes"
+    : why === "stopped" ? "You stopped pedalling · nothing is recorded · auto-pause can be switched off on the ready screen"
+    : "Workout clock stopped · trainer released · nothing is recorded";
+  $("resume").firstChild.textContent = why === "waiting" ? "Start now " : "Resume ";
+  $("pause").firstChild.textContent = paused ? "Resume " : "Pause ";
+  $("app").classList.toggle("is-paused", paused);
+}
+
+const live = connectLive(render);
+setZoom(zoom);
+new ResizeObserver(() => render(live.store)).observe($("chart"));
+</script>
+</body>
+</html>

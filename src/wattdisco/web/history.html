@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – History</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/history.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <section class="card hist" aria-labelledby="title">
+      <div class="hist__head">
+        <div class="hist__title">
+          <h1 class="neon-title" id="title">History</h1>
+          <span class="mono">Your rides, newest first · kept on this computer</span>
+        </div>
+        <div class="hist__filters">
+          <span id="period"></span>
+        </div>
+      </div>
+
+      <div class="totals" aria-label="Totals">
+        <div class="total"><span class="mono">Rides</span><b id="t-rides">--</b></div>
+        <div class="total"><span class="mono">Time</span><b id="t-time">--</b></div>
+        <div class="total" title="Estimated for a flat road with no wind, from power and your weight">
+          <span class="mono">Distance (est.)</span><b id="t-dist">--</b></div>
+        <div class="total"><span class="mono">Work</span><b id="t-work">--</b></div>
+        <div class="total"><span class="mono">Training load</span><b id="t-load">--</b></div>
+      </div>
+
+      <div class="rides-wrap">
+        <div class="ride ride--head mono" aria-hidden="true">
+          <span>Date</span><span>Ride</span><span class="num">Time</span><span class="num">Avg W</span>
+          <span class="num col-wp">Weighted</span><span class="num">Load</span><span class="num">Avg HR</span>
+          <span class="num col-dist" id="dist-head">km</span><span class="col-strava">Strava</span><span class="col-del"></span>
+        </div>
+        <ol class="rides" id="rides" aria-label="Rides"></ol>
+        <div class="empty" id="empty" hidden>
+          <p class="mono" id="empty-text">No rides yet.</p>
+          <a class="btn btn--primary" href="/train" id="empty-ride">Ride now</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import { chipGroup, effortColor, el, fmtClock, renderStrip, rpeColor, toast } from "/components.js";
+import { distance, distanceUnit } from "/units.js";
+document.getElementById("dist-head").textContent = distanceUnit();
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "history" });
+
+const DAY = 86400e3;
+const PERIODS = [
+  { value: "7", label: "7 days" },
+  { value: "28", label: "28 days" },
+  { value: "all", label: "All" },
+];
+const pref = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
+
+let period = pref("wd.history.period", "all");
+let rides = [];
+let planRides = new Set(); // rides that ticked off a session of the training plan
+
+const periodGroup = chipGroup(PERIODS, { value: period, label: "Period", onChange: (v) => { period = v; keep("wd.history.period", v); render(); } });
+$("period").replaceWith(periodGroup);
+
+const num = (v, digits = 0) => (v == null ? "--" : Number(v).toFixed(digits));
+const sameYear = (d) => d.getFullYear() === new Date().getFullYear();
+const dateText = (d) => d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", ...(sameYear(d) ? {} : { year: "numeric" }) });
+const timeText = (d) => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+const hours = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}` : `${Math.floor(s / 60)} min`);
+
+function visible() {
+  const since = period === "all" ? -Infinity : Date.now() - Number(period) * DAY;
+  return rides.filter((r) => new Date(r.started).getTime() >= since); // the server lists real rides only
+}
+
+function renderTotals(list) {
+  const sum = (k) => list.reduce((a, r) => a + (r[k] || 0), 0);
+  $("t-rides").textContent = list.length;
+  $("t-time").textContent = list.length ? hours(sum("duration")) : "--";
+  $("t-dist").textContent = list.length ? `${distance(sum("distance_km")).toFixed(0)} ${distanceUnit()}` : "--";
+  $("t-work").textContent = list.length ? `${Math.round(sum("work_kj")).toLocaleString()} kJ` : "--";
+  $("t-load").textContent = list.length ? Math.round(sum("load")) : "--";
+}
+
+function stravaCell(r) {
+  if (r.strava?.url && ["done", "duplicate"].includes(r.strava.state)) {
+    return el("a", { class: "strava-link", href: r.strava.url, target: "_blank", rel: "noopener", text: "View on Strava" });
+  }
+  if (r.strava?.state === "uploading") return el("span", { class: "muted", text: "Uploading…" });
+  if (r.strava?.state === "error") {
+    return el("a", { class: "upload-link is-failed", href: `/upload.html?ride=${r.id}`, title: r.strava.message ?? "", text: "Failed · retry" });
+  }
+  if (r.sim || !r.duration || !r.avg_power) return el("span", { class: "muted", text: "--" });
+  return el("a", { class: "upload-link", href: `/upload.html?ride=${r.id}`, text: "Upload" });
+}
+
+function row(r) {
+  const d = new Date(r.started);
+  const avg = el("span", { class: "num ride__w", text: num(r.avg_power) });
+  if (r.avg_power && r.ftp) avg.style.setProperty("--zone", effortColor(r.avg_power, r.ftp));
+  return el("li", { class: "ride" },
+    el("span", { class: "ride__date" }, el("b", { text: dateText(d) }), el("span", { class: "mono", text: timeText(d) })),
+    el("span", { class: "ride__name" },
+      el("a", { class: "ride__link", href: `/summary.html?ride=${r.id}`, text: r.name || "Ride" }),
+      r.test ? el("span", { class: "tag tag--test", text: "FTP test" }) : null,
+      planRides.has(r.id) ? el("span", { class: "tag tag--plan", text: "Plan" }) : null,
+      r.rpe ? el("span", { class: "tag tag--rpe", style: `--rpe:${rpeColor(r.rpe)}`, text: `Feel ${r.rpe}`,
+        title: r.note ? `Felt ${r.rpe} of 10 · ${r.note}` : `Felt ${r.rpe} of 10` }) : null,
+      !r.rpe && r.note ? el("span", { class: "tag tag--rpe", text: "Note", title: r.note }) : null),
+    el("span", { class: "num", text: fmtClock(r.duration || 0) }),
+    avg,
+    el("span", { class: "num col-wp", text: num(r.wp) }),
+    el("span", { class: "num", text: num(r.load) }),
+    el("span", { class: "num ride__hr", text: num(r.avg_hr) }),
+    el("span", { class: "num col-dist", text: num(distance(r.distance_km), 1) }),
+    el("span", { class: "col-strava" }, stravaCell(r)),
+    el("span", { class: "col-del" }, deleteButton(r)),
+  );
+}
+
+// Delete at once; the ride waits in deleted/ for a week, and the toast offers Undo.
+function deleteButton(r) {
+  const b = el("button", { class: "del", type: "button", "aria-label": `Delete ${r.name || "ride"}`, title: "Delete ride (undo for a few seconds)", text: "×" });
+  b.addEventListener("click", async () => {
+    b.disabled = true;
+    const res = await fetch(`/api/rides/${encodeURIComponent(r.id)}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      b.disabled = false;
+      b.textContent = "!";
+      b.title = (await res?.json().catch(() => null))?.detail ?? "Could not delete the ride";
+      return;
+    }
+    const wasPlan = planRides.has(r.id);
+    rides = rides.filter((x) => x.id !== r.id);
+    planRides.delete(r.id);
+    render();
+    toast(`Deleted · ${r.name || "Ride"}`, { ms: 8000, action: { label: "Undo", onClick: async () => {
+      const back = await fetch(`/api/rides/${encodeURIComponent(r.id)}/restore`, { method: "POST" }).catch(() => null);
+      if (!back?.ok) { toast("Could not bring it back", { warn: true }); return; }
+      rides = [...rides, r].sort((a, b2) => (a.id < b2.id ? 1 : -1));
+      if (wasPlan) planRides.add(r.id);
+      render();
+    } } });
+  });
+  return b;
+}
+
+function render() {
+  const list = visible();
+  renderTotals(list);
+  $("rides").replaceChildren(...list.map(row));
+  $("empty").hidden = list.length > 0;
+  $("empty-ride").hidden = rides.length > 0;
+  $("empty-text").textContent = !rides.length ? "No rides yet. Your first ride shows up here when it ends."
+    : period !== "all" ? `No rides in the last ${period} days.`
+    : "No rides yet.";
+}
+
+try {
+  const r = await fetch("/api/rides");
+  rides = r.ok ? await r.json() : [];
+} catch { rides = []; }
+try { planRides = new Set((await (await fetch("/api/plans")).json()).active?.rides ?? []); } catch { /* no plan */ }
+render();
+</script>
+</body>
+</html>

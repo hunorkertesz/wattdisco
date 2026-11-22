@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Welcome</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  .page { min-height: 100dvh; display: flex; flex-direction: column; }
+  .page main { flex: 1; display: flex; justify-content: center; align-items: center; padding: clamp(16px, 4vh, 48px) var(--gutter); }
+  .card { width: min(760px, 100%); display: flex; flex-direction: column; gap: clamp(12px, 2.2vh, 22px); }
+  .card .neon-title { font-size: clamp(28px, 4vw, 44px); }
+  .lead { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
+  .rows { display: flex; flex-direction: column; gap: clamp(10px, 1.8vh, 18px); }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 8px 24px; align-items: center; }
+  .row__text { display: flex; flex-direction: column; gap: 2px; }
+  .row__text b { font-size: 17px; font-weight: 600; color: var(--white); }
+  .row__text span { font-size: 14px; color: var(--muted); line-height: 1.35; }
+  .row__input { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .row .input { width: 100%; }
+  .dunno { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--cyan-soft); cursor: pointer; }
+  .dunno input { accent-color: var(--cyan); width: 16px; height: 16px; }
+  .actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .actions .mono { margin-right: auto; color: var(--pink); }
+  @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <main>
+    <form class="card" id="form" novalidate>
+      <div>
+        <span class="mono">Welcome to Watt Disco</span>
+        <h1 class="neon-title">A few questions first</h1>
+      </div>
+      <p class="lead">Your zones, targets and training load come from these numbers. You can change them any time on the
+        Zones screen.</p>
+
+      <div class="rows">
+        <div class="row">
+          <div class="row__text"><b>Units</b><span>Speed, distance and weight. Power is always in watts.</span></div>
+          <div class="row__input"><div id="units"></div></div>
+        </div>
+        <div class="row">
+          <div class="row__text"><b>FTP</b><span>The power you can hold for about an hour. Every workout is set from it.</span></div>
+          <div class="row__input">
+            <span class="input-wrap"><input class="input" id="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" aria-label="FTP in watts"><span class="input__unit">W</span></span>
+            <label class="dunno"><input type="checkbox" id="ftp-dunno"> I don't know yet: start with a ramp test</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row__text"><b>Weight</b><span>For W/kg and the estimated speed and distance.</span></div>
+          <div class="row__input">
+            <span class="input-wrap"><input class="input" id="weight" type="number" inputmode="decimal" step="0.1" aria-label="Weight"><span class="input__unit" id="weight-unit">KG</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row__text"><b>Max heart rate</b><span>The highest heart rate you have seen on a hard effort. Sets the heart rate zones.</span></div>
+          <div class="row__input">
+            <span class="input-wrap"><input class="input" id="maxhr" type="number" inputmode="numeric" min="120" max="230" step="1" aria-label="Max heart rate"><span class="input__unit">BPM</span></span>
+            <label class="dunno"><input type="checkbox" id="hr-dunno"> I don't know: use 190 for now</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <span class="mono" id="status" role="status"></span>
+        <button class="btn" type="button" id="skip">Skip for now</button>
+        <button class="btn btn--primary" type="submit" id="save">Save and connect devices</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script type="module">
+import { chipGroup } from "/components.js";
+import { KG_PER_LB } from "/units.js";
+
+const $ = (id) => document.getElementById(id);
+const settings = await (await fetch("/api/settings")).json();
+let units = settings.units ?? "metric";
+
+const unitGroup = chipGroup([{ value: "metric", label: "KM · KG" }, { value: "imperial", label: "MI · LB" }],
+  { value: units, label: "Units", onChange: (v) => { const kg = weightKg(); units = v; showWeight(kg); } });
+$("units").replaceWith(unitGroup);
+
+const weightKg = () => {
+  const v = Number($("weight").value);
+  return units === "imperial" ? v * KG_PER_LB : v;
+};
+function showWeight(kg) {
+  $("weight-unit").textContent = units === "imperial" ? "LB" : "KG";
+  $("weight").value = units === "imperial" ? (kg / KG_PER_LB).toFixed(0) : String(Math.round(kg * 10) / 10);
+}
+$("ftp").value = settings.ftp;
+$("maxhr").value = settings.max_hr;
+showWeight(settings.weight_kg);
+$("ftp-dunno").addEventListener("change", () => { $("ftp").disabled = $("ftp-dunno").checked; });
+$("hr-dunno").addEventListener("change", () => { $("maxhr").disabled = $("hr-dunno").checked; });
+
+async function put(body) {
+  const r = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? "Could not save");
+}
+
+$("skip").addEventListener("click", async () => {
+  await put({ setup_done: true, units }).catch(() => {});
+  location.replace("/connect.html");
+});
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("status").textContent = "";
+  const body = { setup_done: true, units, weight_kg: Math.round(weightKg() * 10) / 10, hr_method: "max" };
+  if (!$("ftp-dunno").checked) body.ftp = Number($("ftp").value);
+  body.max_hr = $("hr-dunno").checked ? 190 : Number($("maxhr").value);
+  try {
+    await put(body);
+    if ($("ftp-dunno").checked) await fetch("/api/workouts/ftp-ramp-test/select", { method: "POST" });
+    location.replace("/connect.html");
+  } catch (err) {
+    $("status").textContent = err.message;
+  }
+});
+</script>
+</body>
+</html>

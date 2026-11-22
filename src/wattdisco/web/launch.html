@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  body { overflow: hidden; }
+  .launch { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; padding: 0 var(--gutter); }
+  .hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .hero svg.ball { width: clamp(140px, 26vh, 220px); height: auto; }
+  .words { display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 0 .25em; margin-top: -6px; }
+  .words .watt {
+    font-family: var(--font-script); font-size: clamp(72px, 15vh, 132px); line-height: 1.1;
+    color: var(--pink-soft); text-shadow: var(--glow-pink);
+  }
+  .words .disco {
+    font-size: clamp(46px, 9.5vh, 84px); line-height: 1; font-weight: 700; letter-spacing: .08em;
+    color: var(--cyan-soft); text-shadow: var(--glow-cyan);
+  }
+  /* heartbeat rings: a dot that swells and sends out fading rings, in time with a resting pulse */
+  .pulse { width: min(520px, 90vw); height: 50px; margin-top: 6px; overflow: visible; }
+  .pulse .ring { transform-box: fill-box; transform-origin: center; opacity: 0; animation: ring 1.8s ease-out infinite; }
+  .pulse .ring--2 { animation-delay: .9s; }
+  .pulse .dot { transform-box: fill-box; transform-origin: center; animation: beat .9s ease-out infinite; }
+  @keyframes ring { 0% { transform: scale(.05); opacity: .9; } 50% { opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+  @keyframes beat { 0% { transform: scale(1.5); } 30%, 100% { transform: scale(1); } }
+  .sub { margin-top: 14px; letter-spacing: .3em; }
+  .foot { height: 170px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+  .tagline {
+    font-size: clamp(15px, 2.4vw, 22px); font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--cyan-soft); text-shadow: var(--glow-cyan);
+  }
+  .progress { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+  .bar { width: 180px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .bar span { display: block; height: 3px; width: 0; border-radius: 2px; background: var(--pink); box-shadow: 0 0 8px var(--pink); transition: width .3s; }
+  .skip { color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .pulse .ring, .pulse .dot { animation: none; } .pulse .ring--1 { opacity: .5; transform: scale(.35); } }
+</style>
+</head>
+<body>
+<main class="launch">
+  <div class="hero">
+    <span id="ball"></span>
+    <h1 class="words" aria-label="Watt Disco"><span class="watt">Watt</span><span class="disco">DISCO</span></h1>
+    <svg class="pulse" viewBox="0 0 520 50" aria-hidden="true">
+      <defs>
+        <linearGradient id="pulse-line" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="520" y2="0">
+          <stop offset="0" stop-color="#FFC93C" stop-opacity="0"/>
+          <stop offset=".5" stop-color="#FFC93C" stop-opacity=".35"/>
+          <stop offset="1" stop-color="#FFC93C" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="pulse-glow" x="-10%" y="-60%" width="120%" height="220%">
+          <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <line x1="0" y1="25" x2="520" y2="25" stroke="url(#pulse-line)" stroke-width="1.5"/>
+      <g fill="none" stroke="#FFC93C" stroke-width="2.5" filter="url(#pulse-glow)">
+        <ellipse class="ring ring--1" cx="260" cy="25" rx="220" ry="22"/>
+        <ellipse class="ring ring--2" cx="260" cy="25" rx="220" ry="22"/>
+      </g>
+      <circle class="dot" cx="260" cy="25" r="6" fill="#FFC93C" filter="url(#pulse-glow)"/>
+    </svg>
+    <span class="mono sub">Indoor cycling training</span>
+  </div>
+  <div class="foot">
+    <span class="tagline">Built with AI, by cyclists for cyclists</span>
+    <div class="progress">
+      <div class="bar" role="progressbar" aria-label="Starting up" aria-valuemin="0" aria-valuemax="100" id="bar"><span id="fill"></span></div>
+      <span class="mono" id="status" role="status">Looking for devices…</span>
+    </div>
+    <a class="mono skip" href="/connect.html" id="skip-link">Skip</a>
+  </div>
+</main>
+
+<script type="module">
+import { logoSvg } from "/components.js";
+
+const $ = (id) => document.getElementById(id);
+const ball = logoSvg(220, { detailed: true });
+ball.classList.add("ball");
+$("ball").replaceWith(ball);
+
+// Python is already scanning and reconnecting the last devices. Show it, then move on.
+const MIN_MS = 2200;
+const MAX_MS = 8000;
+const started = performance.now();
+
+function setProgress(fraction, text) {
+  const pct = Math.round(Math.min(1, fraction) * 100);
+  $("fill").style.width = `${pct}%`;
+  $("bar").setAttribute("aria-valuenow", String(pct));
+  if (text) $("status").textContent = text;
+}
+
+async function tick() {
+  const elapsed = performance.now() - started;
+  let devices = null;
+  try { devices = await (await fetch("/api/devices")).json(); } catch {}
+  let done = false;
+  if (devices) {
+    const wanted = devices.remembered.length;
+    const back = devices.remembered.filter((d) => d.connected).length;
+    if (devices.auto_connect && wanted) {
+      setProgress(Math.max(elapsed / MAX_MS, back / wanted), `Reconnecting ${back} of ${wanted} last devices…`);
+      done = back === wanted;
+    } else {
+      setProgress(elapsed / MIN_MS, devices.scanning ? "Looking for devices…" : `${devices.devices.length} devices found`);
+      done = !devices.scanning;
+    }
+  }
+  if ((done && elapsed >= MIN_MS) || elapsed >= MAX_MS) {
+    setProgress(1);
+    // the very first start asks for FTP, weight and heart rate before anything else
+    const settings = await fetch("/api/settings").then((r) => r.json()).catch(() => null);
+    location.replace(settings && settings.setup_done === false ? "/setup.html" : "/connect.html");
+    return;
+  }
+  setTimeout(tick, 300);
+}
+tick();
+fetch("/api/settings").then((r) => r.json()).then((st) => {
+  if (st.setup_done === false) document.getElementById("skip-link").href = "/setup.html";
+}).catch(() => {});
+</script>
+</body>
+</html>

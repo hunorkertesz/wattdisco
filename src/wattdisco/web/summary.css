@@ -1,0 +1,441 @@
+/* Ride summary, basic and nerd. Neon screen. */
+
+.page { min-height: 100dvh; display: flex; flex-direction: column; }
+.page main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 20px var(--gutter) 28px;
+}
+
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.head .neon-title { font-size: clamp(28px, 4vw, 48px); }
+.head .chip { height: 40px; padding: 0 16px; border-radius: 20px; }
+
+/* training plan line under the kicker */
+.plan-line { display: block; margin-top: 2px; color: var(--muted); }
+.plan-line[hidden] { display: none; }
+.plan-line b { color: var(--teal); font-weight: 400; text-shadow: 0 0 6px rgba(54, 227, 196, .6); }
+.plan-line a { color: var(--cyan-soft); }
+
+/* FTP note: between the title and the mode chips */
+.ftp-note {
+  flex: 1 1 360px;
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 8px 10px 8px 16px;
+  border: 1.5px solid var(--yellow);
+  border-radius: 14px;
+  box-shadow: 0 0 10px rgba(255, 201, 60, .45), inset 0 0 10px rgba(255, 201, 60, .1);
+}
+.ftp-note__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ftp-note__text .mono { color: var(--yellow-soft); }
+#ftp-text { font-size: 15px; color: var(--white); line-height: 1.3; }
+
+/* big numbers */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px 24px;
+  padding: 0 8px;
+}
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat__v {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--white);
+  text-shadow: 0 0 10px rgba(255, 246, 229, .5);
+  font-variant-numeric: tabular-nums;
+}
+.stat__v b { font-size: clamp(32px, 3.6vw, 44px); line-height: 1.1; font-weight: 700; }
+.stat__v span { font-size: 16px; }
+.stat--hr .stat__v { color: #FF7FAE; text-shadow: 0 0 10px rgba(255, 61, 129, .6); }
+.stat--cad .stat__v { color: #7FE6FF; text-shadow: 0 0 10px rgba(61, 217, 255, .6); }
+.stat--target .stat__v { color: var(--yellow-soft); text-shadow: 0 0 10px rgba(255, 201, 60, .6); }
+.stat--est .stat__v { color: #B9FFF0; text-shadow: 0 0 10px rgba(54, 227, 196, .55); }
+
+/* panels: base style in theme.css */
+.chart { width: 100%; display: block; }
+.chart--ride { height: clamp(200px, 34vh, 320px); }
+
+/* time in zones */
+/* aerobic threshold tile and its explanation */
+.stat--aet { position: relative; }
+.aet__label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-transform: none; }
+.aet__label .info-btn { width: 20px; height: 20px; font-size: 11px; }
+.aet__sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.aet__pop { position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; width: min(460px, 90vw); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); }
+@media (max-width: 860px) {
+  .aet__pop { position: fixed; left: 16px; right: 16px; top: 72px; width: auto; max-height: calc(100dvh - 96px); overflow-y: auto; }
+}
+.aet__chart { display: block; width: 100%; height: 130px; margin-top: 6px; }
+.aet__meta { display: block; margin-top: 4px; font-size: 10px; letter-spacing: .04em; text-transform: none; }
+.basic-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr) minmax(260px, .9fr); gap: 16px; }
+@media (max-width: 1100px) { .basic-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .basic-row .feel { grid-column: 1 / -1; } }
+.efforts__row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.efforts__more { float: right; color: var(--cyan-soft); text-decoration: none; letter-spacing: .1em; }
+.effort { display: flex; flex-direction: column; gap: 2px; }
+.effort b { font-size: 22px; color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.effort b span { font-size: 12px; font-weight: 400; color: var(--muted); }
+.effort--best .mono { color: var(--yellow-soft); }
+.effort--best b { color: var(--yellow-soft); text-shadow: 0 0 8px rgba(255, 201, 60, .6); }
+@media (max-width: 860px) { .basic-row { grid-template-columns: 1fr; } }
+.zonebar { display: flex; gap: 2px; border-radius: 4px; overflow: hidden; }
+.zonebar span { height: 18px; background: var(--zone); box-shadow: 0 0 10px var(--zone); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--zone); box-shadow: 0 0 8px var(--zone); }
+
+/* ---------- nerd dashboard ---------- */
+
+/* On a desktop window the dashboard fills exactly one screen; the cards share the height. */
+@media (min-width: 601px) {
+  .page { height: 100vh; height: 100dvh; }
+  .page main { min-height: 0; }
+  .panel--ride { flex: 1; min-height: 0; }
+  .chart--ride { flex: 1; min-height: 80px; height: auto; }
+  .page main.is-nerd { gap: clamp(8px, 1.4vh, 14px); padding-top: clamp(8px, 1.6vh, 20px); padding-bottom: clamp(10px, 1.8vh, 22px); }
+  .is-nerd .stats { gap: 4px 24px; }
+  .is-nerd .stat__v b { font-size: clamp(26px, min(3vw, 4.6vh), 40px); }
+  .dash { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); }
+  .dash__row { display: flex; gap: clamp(8px, 1.2vw, 14px); min-height: 0; }
+  .dash__row--top { flex: 1.15 1 0; }
+  .dash__row--bottom { flex: 1 1 0; }
+  .dash .panel { min-width: 0; min-height: 0; padding: clamp(8px, 1.4vh, 14px) 16px; gap: clamp(4px, .9vh, 10px); }
+  .dash__chart { flex: 1.9 1 0; }
+  .dash__zones { flex: 1 1 0; }
+  .dash__intervals { flex: 1.25 1 0; }
+  .dash__dev { flex: 1.1 1 0; }
+  .dash__sources { flex: .7 1 0; }
+  .chart--fill { flex: 1; min-height: 40px; height: auto; }
+  .dash__chart .chart--diff { flex: none; height: clamp(54px, 11vh, 120px); }
+  .dash__sub { margin-top: -2px; font-size: 11px; }
+  .dash .intervals { min-width: 0; }
+  .dash .intervals th, .dash .intervals td { padding: clamp(3px, .7vh, 7px) 4px; }
+  .dash .intervals td { font-size: clamp(14px, 2.2vh, 17px); }
+  .dash .intervals th { font-size: 11px; }
+  .dash .intervals .col-lr { padding-left: 10px; white-space: nowrap; }
+  .dash .intervals:has(.col-lr:not([hidden])) td { font-size: clamp(13px, 2vh, 16px); }
+  .dev__figs { flex: 1; align-content: space-evenly; }
+  .dash__intervals .table-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  .dash__intervals thead th { position: sticky; top: 0; background: var(--card); }
+}
+
+/* time in zones, power and heart rate side by side */
+.tiz { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.tiz__col { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; container-type: inline-size; }
+.tiz__head { color: var(--cyan-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tiz__col--hr .tiz__head { color: #FF7FAE; }
+.tiz__list { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.tiz__row { display: grid; grid-template-columns: 26px minmax(24px, 1fr) auto 36px; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.tiz__n { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; color: var(--zone); }
+.tiz__name { display: none; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+.tiz__track { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.tiz__fill { display: block; height: 100%; min-width: 2px; border-radius: 5px; background: var(--zone); box-shadow: 0 0 8px var(--zone); }
+.tiz__t { font-size: 15px; color: var(--white); text-align: right; }
+.tiz__pct { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: right; }
+/* zone names only where the column has room for them and a useful bar */
+@container (min-width: 320px) {
+  .tiz__row { grid-template-columns: 26px 96px minmax(40px, 1fr) auto 38px; }
+  .tiz__name { display: block; }
+}
+
+/* deviation: share under / within / over the band, then the figures */
+.dev__band { display: flex; height: 12px; gap: 2px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.dev__band span { min-width: 0; }
+.dev__band .is-below { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.dev__band .is-within { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+.dev__band .is-above { background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+.dev__legend { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; }
+.dev__legend b { font-family: var(--font); font-size: 15px; font-weight: 600; }
+.dev__legend .is-below b { color: var(--cyan-soft); }
+.dev__legend .is-within b { color: var(--teal); }
+.dev__legend .is-above b { color: #FF7FAE; }
+.dev__figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; margin: 0; }
+.dev__figs div { display: flex; flex-direction: column; min-width: 0; }
+.dev__figs dd { margin: 0; color: var(--white); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dev__figs b { font-size: clamp(17px, 2.6vh, 22px); font-weight: 600; }
+.dev__figs em { font-style: normal; color: var(--muted); }
+.dash__dev.is-empty > :not(.panel__title) { display: none; }
+.dash__dev.is-empty::after { content: "No target in this ride"; color: var(--muted); }
+
+.sources { display: flex; flex-direction: column; }
+
+.table-scroll { overflow-x: auto; }
+.intervals { width: 100%; min-width: 520px; border-collapse: collapse; }
+.intervals th, .intervals td { padding: 8px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.intervals th:first-child, .intervals td:first-child { text-align: left; }
+.intervals th { font-weight: 400; }
+.intervals td { font-size: 18px; color: var(--white); font-variant-numeric: tabular-nums; }
+.intervals td:first-child, .intervals td:last-child { color: var(--yellow-soft); }
+.intervals tr:last-child td { border-bottom: 0; }
+.intervals tr.all td:first-child { color: var(--white); }
+
+.sources__v { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sources__v b { font-size: 44px; line-height: 1.1; font-weight: 700; text-shadow: 0 0 10px rgba(255, 246, 229, .5); }
+.sources__v span { font-size: 16px; }
+.sources__v em { font-style: normal; font-size: 20px; color: var(--muted); }
+.sources__more { display: flex; gap: 28px; }
+.sources [hidden] { display: none !important; }
+.lr { display: flex; flex-direction: column; gap: 4px; margin-top: auto; padding-top: 8px; }
+.lr__bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 61, 129, .55); overflow: hidden; }
+.lr__bar i { position: absolute; inset: 0 auto 0 0; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.lr__bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--white); }
+.lr__v b { font-size: 20px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.lr__v small { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.sources__more div { display: flex; flex-direction: column; }
+.sources__more b { font-size: 20px; font-weight: 500; }
+
+/* actions */
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.actions .btn--primary { height: 48px; padding: 0 28px; font-size: 16px; }
+
+.empty { margin: 10vh auto; text-align: center; display: flex; flex-direction: column; gap: 18px; align-items: center; }
+[hidden] { display: none !important; }
+
+.dash__dev .dev__figs b { font-size: clamp(18px, 3vh, 26px); }
+.dev__figs dt, .dev__legend span, .intervals th, .intervals td { white-space: nowrap; }
+.dev__figs dt, .dash__sources #sources-names { overflow: hidden; text-overflow: ellipsis; }
+.is-nerd .stat > .mono { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Small windows (down to 900 × 640): one row of stats and smaller type so every card keeps its content. */
+@media (min-width: 601px) and (max-width: 1100px), (min-width: 601px) and (max-height: 720px) {
+  .page main { gap: 10px; padding-top: 10px; padding-bottom: 12px; }
+  .head .neon-title { font-size: clamp(24px, 3vw, 34px); }
+  .head .chip { height: 34px; padding: 0 12px; }
+  /* the last two (speed and distance, "est.") have the longest labels */
+  .stats { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.5fr) minmax(0, 1.4fr); gap: 2px 12px; padding: 0 4px; }
+  .stat > .mono { font-size: 11px; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat__v b { font-size: clamp(22px, 3.6vh, 30px); }
+  .panel { padding: 10px 14px; gap: 6px; }
+  .is-nerd .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px 12px; padding: 0 4px; }
+  .is-nerd .stat > .mono { font-size: 11px; }
+  .is-nerd .stat__v b { font-size: clamp(22px, 3.6vh, 30px); }
+  .dash .panel { padding: 8px 12px; gap: 4px; }
+  .dash .panel__title { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dash__chart .chart--diff { height: clamp(44px, 9vh, 80px); }
+  .tiz { gap: 10px; }
+  .tiz__row { grid-template-columns: 20px minmax(16px, 1fr) auto 28px; gap: 5px; }
+  .tiz__n, .tiz__pct, .tiz__head { font-size: 10px; }
+  .tiz__t { font-size: 13px; }
+  .tiz__track { height: 8px; }
+  .dash .intervals th { font-size: 10px; }
+  .dash .intervals td { font-size: 13px; }
+  .dash .intervals :is(th, td):nth-child(4) { display: none; } /* diff in W; diff % stays */
+  .dev__legend { font-size: 10px; }
+  .dev__legend b { font-size: 13px; }
+  .dev__figs { gap: 2px 8px; }
+  .dev__figs dt { font-size: 10px; }
+  .dash__dev .dev__figs b { font-size: clamp(15px, 2.6vh, 20px); }
+  .dev__figs dd { font-size: 11px; }
+  .sources__v b { font-size: clamp(24px, 4.4vh, 36px); }
+  .sources__v em { font-size: 14px; }
+  .sources__more { gap: 16px; }
+  .sources__more b { font-size: 16px; }
+  .actions .btn { height: 38px; }
+  .actions .btn--primary { height: 40px; padding: 0 20px; font-size: 14px; }
+}
+
+/* Half a screen (next to another window): the stats take two rows. */
+@media (min-width: 601px) and (max-width: 860px) {
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .is-nerd .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* the nerd dashboard is too dense for half a screen: it scrolls, and the interval table gets its own row */
+  .page:has(main.is-nerd) { height: auto; min-height: 100dvh; }
+  .is-nerd .dash { flex: none; }
+  .is-nerd .dash__row--top { flex: none; height: clamp(360px, 48vh, 460px); }
+  .is-nerd .dash__row--bottom { flex: none; flex-wrap: wrap; }
+  .is-nerd .dash__intervals { flex: 1 1 100%; }
+  .is-nerd .dash__dev, .is-nerd .dash__sources { flex: 1 1 0; min-height: 220px; }
+}
+
+@media (max-width: 600px) {
+  .dash, .dash__row { display: flex; flex-direction: column; gap: 16px; }
+  .chart--fill { height: 220px; }
+  .chart--diff { height: 150px; }
+  .tiz { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .actions { justify-content: stretch; }
+  .actions > * { flex: 1 1 100%; }
+}
+
+/* ---------- refreshed look: headline tiles as cards, compare with earlier rides ---------- */
+.head__right { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; justify-content: flex-end; }
+.cmp-pick { display: flex; align-items: center; gap: 8px; }
+.cmp-pick .mono { font-size: 11px; white-space: nowrap; }
+.cmp-pick .nsel { min-width: 220px; }
+
+.stats { padding: 0; gap: clamp(8px, 1vw, 12px); }
+.stat {
+  position: relative;
+  min-width: 0;
+  padding: clamp(8px, 1.2vh, 12px) 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  gap: 1px;
+  overflow: visible;
+}
+.stat::before { content: ""; position: absolute; inset: 0 12px auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(61, 217, 255, .5), transparent); }
+.stat > .mono { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat__delta { min-height: 1.2em; font-family: var(--font-mono); font-size: 11px; letter-spacing: .02em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat__delta.is-good, .cmp__d.is-good, td.is-good { color: var(--teal); }
+.stat__delta.is-bad, .cmp__d.is-bad, td.is-bad { color: #FF7FAE; }
+.spark { display: block; width: 100%; height: clamp(16px, 2.6vh, 24px); margin-top: 2px; }
+.stat--aet .aet__sub { min-height: 0; }
+
+/* the compare view: numbers side by side, both power curves, the rides laid over each other, intervals */
+.cmp { display: grid; gap: clamp(8px, 1.2vw, 14px); grid-template-columns: minmax(300px, 1fr) minmax(0, 1.6fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "table curve" "iv overlay"; }
+.cmp__table { grid-area: table; min-height: 0; }
+.cmp__curve { grid-area: curve; min-height: 0; }
+.cmp__overlay { grid-area: overlay; min-height: 0; }
+.cmp__intervals { grid-area: iv; min-height: 0; }
+.cmp .panel { min-width: 0; padding: clamp(8px, 1.4vh, 14px) 16px; gap: clamp(4px, .8vh, 8px); }
+.cmp__grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1.4fr) auto auto auto;
+  gap: 2px 14px; align-content: start; font-variant-numeric: tabular-nums; scrollbar-width: thin; }
+.cmp__grid > * { padding: 2px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.cmp__h { font-size: 10px; text-align: right; }
+.cmp__grid b, .cmp__o, .cmp__d { text-align: right; font-size: 14px; }
+.cmp__grid b { color: var(--white); font-weight: 600; }
+.cmp__l { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.cmp__o { color: var(--muted); }
+.cmp__d { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+.cmp__canvas { flex: 1; min-height: 60px; height: auto; }
+.cmp__legend { float: right; display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: .04em; }
+.cmp__legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--cyan); }
+.cmp__legend i.is-other { border-top: 2px dashed var(--muted); margin-left: 8px; }
+.cmp__none { margin: auto; text-transform: none; letter-spacing: .04em; text-align: center; }
+.cmp__ivtable { min-width: 0; }
+.cmp__ivtable td { font-size: 15px; }
+.cmp__ivtable td:last-child { color: var(--muted); }
+.cmp__ivtable td.is-good { color: var(--teal); }
+.cmp__ivtable td.is-bad { color: #FF7FAE; }
+.cmp__intervals .table-scroll { flex: 1; min-height: 0; overflow: auto; }
+@media (min-width: 601px) { .cmp { flex: 1; min-height: 0; } }
+@media (max-width: 860px) {
+  .cmp { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: "table" "curve" "overlay" "iv"; }
+  .cmp__canvas { height: 220px; flex: none; }
+  .head__right { justify-content: flex-start; }
+}
+
+/* nerd: one row of eight compact tiles, a smaller title, so the dashboard keeps one screen */
+@media (min-width: 1000px) {
+  .stats[data-view="nerd"] { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+@media (min-width: 601px) {
+  .is-nerd .head .neon-title, .is-compare .head .neon-title { font-size: clamp(22px, 2.8vw, 34px); }
+  .is-nerd .head, .is-compare .head { gap: 8px 16px; }
+  .is-nerd .stat { padding: clamp(6px, .9vh, 10px) 12px; }
+  .is-nerd .stat__v b { font-size: clamp(20px, min(2.2vw, 3.8vh), 32px); }
+  .is-nerd .stat__v span { font-size: 12px; }
+  .is-nerd .spark { height: clamp(12px, 2vh, 20px); }
+  .is-nerd .aet__sub { display: none; }
+}
+@media (max-width: 600px) {
+  .cmp-pick { width: 100%; }
+  .cmp-pick .nsel { min-width: 0; flex: 1; max-width: calc(100vw - 140px); }
+  .cmp__grid { grid-template-columns: minmax(96px, 1fr) auto auto auto; gap: 2px 10px; }
+  .cmp__grid b, .cmp__o, .cmp__d { font-size: 13px; }
+}
+
+/* resizing: the eight nerd tiles stay one row down to 861 px (smaller, units shortened), below that the page scrolls */
+@media (min-width: 861px) and (max-width: 999px) {
+  .stats[data-view="nerd"] { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+  .is-nerd .stat { padding: 6px 8px; }
+  .is-nerd .stat > .mono { font-size: 10px; letter-spacing: .08em; }
+  .is-nerd .stat__v b { font-size: clamp(17px, 2.1vw, 22px); }
+  .is-nerd .stat__v span { font-size: 10px; }
+  .is-nerd .stat__delta { font-size: 10px; }
+}
+@media (min-width: 601px) and (max-width: 860px) {
+  .page:has(main.is-nerd), .page:has(main.is-compare) { height: auto; min-height: 100dvh; }
+  .is-nerd .stats[data-view="nerd"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .is-nerd .dash { flex: none; }
+  .is-nerd .dash__row { flex-wrap: wrap; }
+  .is-nerd .dash__row > .panel { flex: 1 1 340px; min-height: 260px; }
+  .is-compare .cmp { flex: none; }
+}
+/* best efforts: label and number never wrap into each other */
+.effort .mono { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.effort b { font-size: clamp(17px, 1.9vw, 22px); }
+.efforts__row { gap: 6px; }
+
+/* ---------- colour: every tile and panel carries an accent ---------- */
+/* Tiles: the metric's colour on the glow line, a faint wash, the number and its sparkline. Power tiles get
+   the zone colour of their own number from summary.html; heart rate pink, cadence cyan, estimates teal. */
+.stat { --accent: var(--cyan);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 13%, var(--card)), var(--card) 75%);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); }
+.stat::before { inset: -1px 14px auto; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); box-shadow: 0 0 10px var(--accent); }
+.stat > .mono { color: color-mix(in srgb, var(--accent) 45%, var(--muted)); }
+.stat .stat__v { color: color-mix(in srgb, var(--accent) 55%, var(--white));
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent); }
+.stat[data-metric="duration"] { --accent: var(--cyan); }
+.stat[data-metric="avg_power"], .stat[data-metric="wp"], .stat[data-metric="intensity"] { --accent: var(--zone-2); }
+.stat--hr, .stat[data-metric="hr_drift"] { --accent: var(--pink); }
+.stat--cad { --accent: var(--cadence); }
+.stat--est, .stat[data-metric="ef"] { --accent: var(--teal); }
+.stat[data-metric="load"] { --accent: var(--yellow); }
+.stat[data-metric="vi"] { --accent: var(--zone-6); }
+.stat--target { --accent: var(--yellow); }
+.stat__delta.is-good::before { content: "▲ "; font-size: 8px; vertical-align: 1px; }
+.stat__delta.is-bad::before { content: "▼ "; font-size: 8px; vertical-align: 1px; }
+
+/* panels: a coloured title with a glowing dot */
+.panel { --accent: var(--cyan); }
+.panel > .panel__title::before, .panel > .panel__title:first-child::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; vertical-align: 1px;
+  background: var(--accent); box-shadow: 0 0 8px var(--accent);
+}
+.panel > .panel__title { color: color-mix(in srgb, var(--accent) 60%, var(--white)); }
+.panel--ride, .dash__chart, .cmp__overlay { --accent: var(--zone-2); }
+.basic-row .panel:first-child, .dash__zones { --accent: var(--zone-3); }
+.efforts { --accent: var(--zone-6); }
+.dash__intervals, .cmp__intervals { --accent: var(--zone-4); }
+.dash__dev { --accent: var(--teal); }
+.dash__sources { --accent: var(--cyan); }
+.cmp__table { --accent: var(--pink); }
+.cmp__curve { --accent: var(--cyan); }
+.panel--ride, .dash__chart { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, var(--card)), var(--card) 60%); }
+
+/* best efforts: each number in the zone of its watts, on a small tinted card */
+.effort { --zone: var(--cyan); padding: 6px 10px; border-radius: 10px; border-left: 3px solid var(--zone);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--zone) 16%, transparent), transparent); }
+.effort b { color: color-mix(in srgb, var(--zone) 60%, var(--white)); text-shadow: 0 0 10px color-mix(in srgb, var(--zone) 60%, transparent); }
+.effort--best { box-shadow: inset 0 0 0 1px rgba(255, 201, 60, .5), 0 0 12px rgba(255, 201, 60, .25); }
+
+/* time in zones (basic): a thicker, glowing bar */
+.zonebar span { height: 22px; }
+
+/* intervals: on-target share as a coloured figure */
+.intervals td.is-good { color: var(--teal); }
+.intervals td.is-bad { color: #FF7FAE; }
+
+/* compare: this ride in cyan, the change as a small coloured chip */
+.cmp__grid b { color: #9FEBFF; text-shadow: 0 0 8px rgba(61, 217, 255, .45); }
+.cmp__d.is-good, .cmp__d.is-bad { justify-self: end; padding: 0 6px; border-radius: 6px; }
+.cmp__d.is-good { background: rgba(54, 227, 196, .14); }
+.cmp__d.is-bad { background: rgba(255, 61, 129, .14); }
+.cmp__curve .cmp__legend i.is-other { border-top-color: var(--pink); }
+.cmp__overlay .cmp__legend i.is-other { border-top-color: var(--yellow); }
+
+/* how it felt: ten small buttons coloured easy → all out, and a one-line note */
+.feel { --accent: var(--pink); }
+.feel__saved { color: var(--muted); text-transform: none; letter-spacing: .04em; }
+.feel__scale { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.feel__n { height: 30px; min-width: 0; padding: 0; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); border-radius: 8px;
+  background: transparent; color: color-mix(in srgb, var(--c) 70%, var(--white)); font: 600 13px var(--font-mono); cursor: pointer; }
+.feel__n:hover { border-color: var(--c); }
+.feel__n[aria-checked="true"] { background: var(--c); color: #0A0612; box-shadow: 0 0 10px var(--c); }
+.feel__note { height: 34px; font-size: 14px; }

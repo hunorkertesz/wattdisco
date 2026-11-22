@@ -1,0 +1,104 @@
+# Builds the Mac and Windows apps for every version tag (v0.1.0, v0.2.0, ...) and puts
+# them on a draft GitHub Release. Check the draft, then press Publish; from then on the
+# website's .../releases/latest/download/<file> links point at the new files.
+# Can also be run by hand (Actions -> Release apps -> Run workflow) to only build them.
+name: Release apps
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14          # Apple silicon
+            file: WattDisco-mac.dmg
+          - os: windows-latest
+            file: WattDisco-windows.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      WATTDISCO_DATA: ${{ github.workspace }}/ci-data   # never a real rider's folder
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(grep -m1 '^__version__' src/wattdisco/__init__.py | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match __version__ $version in src/wattdisco/__init__.py"
+            exit 1
+          fi
+
+      - name: Install
+        run: uv sync --locked --group build
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Build the app
+        run: uv run pyinstaller packaging/wattdisco.spec --noconfirm
+
+      - name: Smoke test (simulated sensors, no window)
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then app="dist/Watt Disco.app/Contents/MacOS/Watt Disco"; else app="dist/WattDisco.exe"; fi
+          "$app" serve --sim --port 8799 &
+          for i in $(seq 1 60); do
+            if curl -fs http://127.0.0.1:8799/api/state > /dev/null && curl -fs http://127.0.0.1:8799/launch.html > /dev/null; then
+              echo "app answers after ${i} s"; kill $! || true; exit 0
+            fi
+            sleep 1
+          done
+          echo "the packaged app did not start"; cat "$WATTDISCO_DATA/wattdisco.log" || true; exit 1
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: packaging/make_dmg.sh "dist/Watt Disco.app" "${{ matrix.file }}"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: cp dist/WattDisco.exe "${{ matrix.file }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.file }}
+          path: ${{ matrix.file }}
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+
+      - name: Draft release with both apps
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la files
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" files/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" files/* --draft --title "Watt Disco ${GITHUB_REF_NAME#v}" --generate-notes
+          fi

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Training plan</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/plan.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <div class="plan">
+      <!-- no plan yet: choose one -->
+      <section id="choose" hidden aria-labelledby="choose-title" style="display: contents">
+        <div class="plan__head">
+          <div class="plan__title">
+            <span class="mono">Multi-week · suggests your next ride</span>
+            <h1 class="neon-title" id="choose-title">Training plans</h1>
+          </div>
+          <div class="tailor" id="tailor-choose"></div>
+        </div>
+        <div class="choices" id="choices"></div>
+        <ul class="how" aria-label="How the plans work">
+          <li><b>Sweet spot to threshold</b>Most FTP gain comes from time just below and at FTP, with a little VO2 max on top.</li>
+          <li><b>A bit more each week</b>Time in zone grows about 5–10 % a week, then a lighter week lets the body adapt.</li>
+          <li><b>Mostly easy</b>Two key sessions a week, endurance in between, never two hard days in a row.</li>
+          <li><b>No calendar</b>Ride the next session when you can. Targets are % FTP, so a test rescales the rest.</li>
+        </ul>
+        <p class="health mono">General guidance, not medical advice. Ease off when you're ill or very tired.</p>
+      </section>
+
+      <!-- one plan broken down: every week and session -->
+      <section id="detail" hidden style="display: contents">
+        <div class="plan__head">
+          <div class="plan__title">
+            <span class="mono" id="d-kicker">Training plan</span>
+            <h1 class="neon-title" id="d-title">Plan</h1>
+            <span class="d-about" id="d-about"></span>
+          </div>
+          <div class="tailor" id="tailor-detail"></div>
+          <div class="plan__actions">
+            <a class="btn btn--sm" href="/plan.html" id="d-back">‹ Back</a>
+            <button class="btn btn--sm btn--primary" type="button" id="d-start">Start plan</button>
+          </div>
+        </div>
+        <section class="card breakdown" aria-label="Weeks and sessions">
+          <ol class="breakdown__list" id="d-weeks"></ol>
+        </section>
+        <p class="health mono">General guidance, not medical advice. Ease off when you're ill or very tired.</p>
+      </section>
+
+      <!-- a plan is running -->
+      <section id="running" hidden style="display: contents">
+        <div class="plan__head">
+          <div class="plan__title">
+            <span class="mono" id="kicker">Training plan</span>
+            <h1 class="neon-title" id="title">Plan</h1>
+          </div>
+          <div class="tailor" id="tailor-running"></div>
+          <div class="plan__actions">
+            <a class="btn btn--sm" id="breakdown" href="/plan.html">Breakdown</a>
+            <button class="btn btn--sm" type="button" id="undo">Undo last</button>
+            <button class="btn btn--sm" type="button" id="end">End plan</button>
+          </div>
+        </div>
+        <div class="active">
+          <section class="card weeks" aria-label="Weeks">
+            <div class="progress">
+              <span class="mono" id="progress-text">0 of 0</span>
+              <div class="progress__bar" aria-hidden="true"><i id="progress-bar" style="width: 0"></i></div>
+            </div>
+            <ol class="weeks__list" id="weeks"></ol>
+          </section>
+          <aside class="card next" aria-labelledby="next-name">
+            <div id="next-box">
+              <span class="mono" id="next-where">Next up</span>
+            </div>
+            <h2 class="next__name" id="next-name"></h2>
+            <div class="tags" id="next-tags"></div>
+            <span class="next__text mono" id="next-text"></span>
+            <div class="facts">
+              <div><span class="mono">Duration</span><b id="next-time">--</b></div>
+              <div><span class="mono">Load (est.)</span><b id="next-load">--</b></div>
+              <div><span class="mono">FTP</span><b id="next-ftp">--</b></div>
+            </div>
+            <div class="next__buttons">
+              <a class="btn btn--primary" id="ride-it" href="/ready.html">Ride it</a>
+              <button class="btn btn--sm" type="button" id="elsewhere" title="You rode this session outdoors or in another app: it counts as done and the plan moves on">Done outdoors</button>
+              <button class="btn btn--sm" type="button" id="skip" title="Leave this session out: the plan moves on without it">Skip</button>
+            </div>
+            <div class="notice" id="repeat" hidden>
+              <span id="repeat-text"></span>
+              <button class="btn btn--sm" type="button" id="repeat-btn">Repeat week</button>
+            </div>
+            <div class="notice finished" id="finished" hidden>
+              <span id="finished-text"></span>
+              <a class="btn btn--sm btn--primary" href="/plan.html" id="another">Choose the next plan</a>
+            </div>
+            <span class="mono" id="status" role="status"></span>
+            <p class="health mono">General guidance, not medical advice. Ease off when you're ill or very tired.</p>
+          </aside>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { chipGroup, el, fmtClock, getZoneTops, renderStrip, setZoneTops, zoneColor } from "/components.js";
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "plan" });
+
+// a session's colour: the zone its workout trains
+const ZONE = { endurance: 2, tempo: 3, sweetspot: 4, threshold: 5, vo2: 6, sprint: 6, strength: 4, test: 5 };
+const minutes = (s) => `${Math.round(s / 60)} min`;
+const hours = (s) => { const h = s / 3600; return h >= 10 ? `${Math.round(h)} h` : `${h.toFixed(1)} h`; };
+
+async function call(method, url, body) {
+  const r = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body && JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.detail ?? "That did not work");
+  return data;
+}
+
+// ---------- tailoring: days per week and session length ----------
+// Before a plan starts, the choice previews every plan and is used when one starts (remembered per browser).
+// On a running plan it changes the plan from the current week on.
+const pref = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* private window */ } };
+const DAYS = [{ value: "", label: "As planned" }, ...[2, 3, 4, 5, 6].map((d) => ({ value: String(d), label: String(d) }))];
+const LENGTHS = [{ value: "", label: "As planned" }, ...[45, 60, 75, 90, 120].map((m) => ({ value: String(m), label: `${m} min` }))];
+const opts = { days: pref("wd.plan.days", ""), minutes: pref("wd.plan.minutes", "") };
+const query = () => {
+  const q = new URLSearchParams();
+  if (opts.days) q.set("days", opts.days);
+  if (opts.minutes) q.set("minutes", opts.minutes);
+  return q.toString() ? `?${q}` : "";
+};
+const body = (o) => ({ days: o.days ? Number(o.days) : null, minutes: o.minutes ? Number(o.minutes) : null });
+
+function tailorControls(id, values, onChange) {
+  const wrap = el("div", { class: "tailor", id },
+    el("div", { class: "tailor__row" }, el("span", { class: "mono", text: "Days a week" }),
+      chipGroup(DAYS, { value: values.days, label: "Days a week", onChange: (v) => onChange({ ...values, days: v }) })),
+    el("div", { class: "tailor__row" }, el("span", { class: "mono", text: "Session length" }),
+      chipGroup(LENGTHS, { value: values.minutes, label: "Session length", onChange: (v) => onChange({ ...values, minutes: v }) })));
+  $(id).replaceWith(wrap);
+}
+async function previewWith(next) {
+  Object.assign(opts, next);
+  keep("wd.plan.days", opts.days);
+  keep("wd.plan.minutes", opts.minutes);
+  render(await call("GET", `/api/plans${query()}`));
+}
+async function changeRunning(next) {
+  $("status").textContent = "";
+  try { render(await call("PUT", "/api/plan/options", body(next))); } catch (e) { $("status").textContent = e.message; }
+}
+
+const viewing = new URLSearchParams(location.search).get("view"); // a plan id: show its breakdown
+
+function render(data) {
+  const detail = viewing && data.plans.find((p) => p.id === viewing);
+  const a = data.active;
+  const activeOpts = a ? { days: a.days ? String(a.days) : "", minutes: a.minutes ? String(a.minutes) : "" } : null;
+  tailorControls("tailor-choose", opts, previewWith);
+  tailorControls("tailor-running", activeOpts ?? opts, changeRunning);
+  if (detail && a?.id === detail.id) tailorControls("tailor-detail", activeOpts, changeRunning);
+  else tailorControls("tailor-detail", opts, previewWith);
+  $("detail").hidden = !detail;
+  $("choose").hidden = !!detail || !!data.active;
+  $("running").hidden = !!detail || !data.active;
+  if (detail) renderDetail(data.active?.id === detail.id ? data.active : detail, data.active);
+  else if (data.active) renderActive(data.active);
+  else renderChoices(data.plans);
+}
+
+// ---------- breakdown ----------
+function zoneOfPct(pct) {
+  const tops = getZoneTops();
+  const i = tops.findIndex((top) => pct <= top + 1e-9);
+  return i === -1 ? tops.length + 1 : i + 1;
+}
+// the workout as a strip of blocks, each as long as its phase and in its zone
+function phaseStrip(phases) {
+  const total = phases.reduce((a, p) => a + p.seconds, 0);
+  return el("span", { class: "strip-zones", "aria-hidden": "true" }, phases.map((p) => {
+    const pct = p.pct_end == null ? p.pct : Math.max(p.pct, p.pct_end);
+    const top = zoneColor(zoneOfPct(pct));
+    const from = zoneColor(zoneOfPct(Math.min(p.pct, p.pct_end ?? p.pct)));
+    return el("i", { style: `flex: ${p.seconds / total}; height: ${Math.min(100, 25 + pct * 55)}%;`
+      + ` background: linear-gradient(to right, ${p.pct_end != null && p.pct_end < p.pct ? `${top}, ${from}` : `${from}, ${top}`})` });
+  }));
+}
+
+function renderDetail(p, active) {
+  const running = active?.id === p.id;
+  document.title = `Watt Disco – ${p.name}`;
+  const perWeek = p.seconds / p.weeks.length;
+  $("d-kicker").textContent = `${running ? "Your plan" : "Training plan"} · ${p.weeks.length} weeks · ${p.per_week} rides a week · ${hours(perWeek)} a week`;
+  $("d-title").replaceChildren(p.name, " ", levelTag(p));
+  $("d-about").textContent = `${p.for}. ${p.about}`;
+  $("d-back").href = "/plan.html";
+  $("d-start").hidden = running;
+  $("d-start").onclick = async (e) => {
+    if (active && !confirm(`Start ${p.name}? This ends ${active.name}; your rides stay in History.`)) return;
+    e.currentTarget.disabled = true;
+    try { await call("POST", "/api/plan", { plan: p.id, ...body(opts) }); location.href = "/plan.html"; }
+    catch (err) { e.currentTarget.disabled = false; alert(err.message); }
+  };
+  const status = { done: "✓", elsewhere: "✓", skipped: "–", next: "›" };
+  $("d-weeks").replaceChildren(...p.weeks.map((w) => el("li", { class: "bweek" },
+    el("div", { class: "bweek__head" },
+      el("b", { text: `Week ${w.n}` }),
+      el("span", { text: w.focus }),
+      w.light ? el("span", { class: "tag tag--light", text: "Lighter" }) : null,
+      el("span", { class: "bweek__sum mono", text: `${w.sessions.length} rides · ${hours(w.seconds)} · load ${w.load}` })),
+    el("ol", { class: "bweek__sessions" }, w.sessions.map((s, i) => el("li", { class: `bsess${s.status ? ` bsess--${s.status}` : ""}` },
+      el("span", { class: "bsess__n mono", text: status[s.status] ?? String(i + 1) }),
+      el("span", { class: "bsess__name" },
+        el("b", { text: s.name }),
+        s.test ? el("span", { class: "tag tag--test", text: "FTP test" })
+          : el("span", { class: `tag${s.key ? " tag--key" : ""}`, text: s.key ? "Key" : "Easy" })),
+      phaseStrip(s.phases),
+      el("span", { class: "bsess__text mono", text: s.text }),
+      el("span", { class: "bsess__num", text: minutes(s.seconds) }),
+      el("span", { class: "bsess__num muted", text: s.test ? "--" : `load ${s.load}` }),
+      el("a", { class: "bsess__open", href: `/ready.html?workout=${encodeURIComponent(s.workout_id)}`, text: "Open ›",
+        title: "Look at it on the ready screen" })))))));
+}
+
+// difficulty as written: a tag in the level's colour (easy green … very hard red)
+const levelTag = (p) => el("span", { class: "level", style: `--lvl: var(--zone-${p.level_zone})`,
+  title: `${p.level_name} as written: ${p.level_why}. More days or longer sessions make it harder.`, text: p.level_name });
+
+// ---------- choosing ----------
+function renderChoices(plans) {
+  document.title = "Watt Disco – Training plans";
+  const top = Math.max(...plans.flatMap((p) => p.weeks.map((w) => w.load)));
+  $("choices").replaceChildren(...plans.map((p) => {
+    const perWeek = p.seconds / p.weeks.length;
+    return el("article", { class: "card choice", "aria-label": `${p.name}, ${p.level_name}`, style: `--lvl: var(--zone-${p.level_zone})` },
+      el("div", { class: "choice__top" }, el("h2", { text: p.name }), levelTag(p)),
+      el("p", { class: "choice__for", text: p.for }),
+      el("div", { class: "facts facts--line" },
+        el("span", {}, el("b", { text: String(p.weeks.length) }), " weeks"),
+        el("span", {}, el("b", { text: String(p.per_week) }), " rides / week"),
+        el("span", {}, el("b", { text: hours(perWeek) }), " / week")),
+      el("div", { class: "choice__chart" },
+        el("div", { class: "loadbars", role: "img", "aria-label": "Training load per week" },
+          p.weeks.map((w) => el("span", { class: w.light ? "is-light" : "", title: `Week ${w.n} · ${w.focus} · load ${w.load}`,
+            style: `height: ${Math.max(6, (w.load / top) * 100)}%` }))),
+        el("div", { class: "loadbars__axis mono", "aria-hidden": "true" }, p.weeks.map((w) => el("span", { text: String(w.n) })))),
+      el("p", { class: "choice__about", text: p.about }),
+      el("div", { class: "choice__buttons" },
+        el("button", { class: "btn btn--primary", type: "button", text: "Start plan",
+          onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            try { render(await call("POST", "/api/plan", { plan: p.id, ...body(opts) })); } catch (err) { alert(err.message); }
+          } }),
+        el("a", { class: "btn", href: `/plan.html?view=${p.id}`, text: "View plan" })));
+  }));
+}
+
+// ---------- running ----------
+function sessionChip(s) {
+  const mark = { done: "✓", elsewhere: "✓", skipped: "–", next: "›", todo: "" }[s.status];
+  const label = { done: "ridden", elsewhere: "done outdoors", skipped: "skipped", next: "next", todo: "to do" }[s.status];
+  const attrs = {
+    class: `sess sess--${s.status}`,
+    style: `--zone: ${zoneColor(ZONE[s.category] ?? 2)}`,
+    title: `${s.name} · ${minutes(s.seconds)} · ${label}`,
+  };
+  const inner = [
+    el("span", { class: "sess__dot", "aria-hidden": "true" }),
+    el("span", { class: "sess__text" },
+      el("span", { class: "sess__name", text: s.name }),
+      el("span", { class: "sess__min", text: minutes(s.seconds) })),
+    mark ? el("span", { class: "sess__mark", "aria-hidden": "true", text: mark }) : null,
+  ];
+  return s.status === "done" && s.ride
+    ? el("a", { ...attrs, href: `/summary.html?ride=${encodeURIComponent(s.ride)}` }, inner)
+    : el("span", attrs, inner);
+}
+
+async function renderActive(p) {
+  document.title = `Watt Disco – ${p.name}`;
+  const started = new Date(p.started).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  $("kicker").textContent = `Training plan · started ${started}` + (p.ftp !== p.ftp_start ? ` · FTP ${p.ftp_start} → ${p.ftp} W` : "");
+  $("title").replaceChildren(p.name, " ", levelTag(p));
+  $("progress-text").textContent = `${p.done} of ${p.total} sessions`;
+  $("progress-bar").style.width = `${(100 * p.done) / p.total}%`;
+  $("undo").disabled = !p.can_undo;
+  $("breakdown").href = `/plan.html?view=${p.id}`;
+
+  const nowWeek = p.next ? p.next.week : null;
+  $("weeks").replaceChildren(...p.weeks.map((w) => el("li", { class: `week${w.n === nowWeek ? " is-now" : ""}` },
+    el("div", { class: "week__name" },
+      el("b", { text: `Week ${w.n}${w.round ? ` · again` : ""}` }),
+      el("span", { text: w.focus })),
+    el("div", { class: "week__sessions" }, w.sessions.map(sessionChip)),
+    el("span", { class: "week__total", text: hours(w.seconds) }))));
+  document.querySelector(".week.is-now")?.scrollIntoView({ block: "nearest" });
+
+  const n = p.next;
+  for (const id of ["next-name", "next-tags", "next-text", "ride-it", "elsewhere", "skip"]) $(id).hidden = !n;
+  document.querySelector(".next .facts").hidden = !n;
+  $("finished").hidden = !p.finished;
+  if (p.finished) {
+    $("next-where").textContent = "Plan complete";
+    $("finished-text").innerHTML = "";
+    $("finished-text").append(`All weeks done: ${p.done} of ${p.total} sessions ridden. `,
+      p.ftp !== p.ftp_start ? el("b", { text: `FTP ${p.ftp_start} → ${p.ftp} W.` }) : "Your FTP stayed the same.");
+    $("another").onclick = async (e) => { e.preventDefault(); render(await call("DELETE", "/api/plan")); };
+  }
+  if (n) {
+    $("next-where").textContent = `Next up · week ${n.week} of ${n.weeks} · session ${n.session} of ${n.sessions}`;
+    $("next-name").textContent = n.name;
+    $("next-tags").replaceChildren(
+      el("span", { class: "tag", text: n.focus }),
+      n.test ? el("span", { class: "tag tag--test", text: "FTP test" })
+        : el("span", { class: `tag${n.key ? " tag--key" : ""}`, text: n.key ? "Key session" : "Easy day" }));
+    $("next-time").textContent = fmtClock(n.seconds);
+    $("next-load").textContent = n.test ? "--" : String(n.load); // a test's load depends on how far you get
+    $("next-ftp").textContent = `${p.ftp} W`;
+    $("ride-it").href = `/ready.html?workout=${encodeURIComponent(n.workout_id)}`;
+    $("next-text").textContent = "";
+    const w = await fetch(`/api/workouts/${encodeURIComponent(n.workout_id)}`).then((r) => r.json()).catch(() => null);
+    if (w) $("next-text").textContent = w.text;
+  }
+  const s = p.suggest_repeat;
+  $("repeat").hidden = !s;
+  if (s) {
+    $("repeat-text").textContent = `Repeat week ${s.week}? ${s.reason[0].toUpperCase()}${s.reason.slice(1)}. A week again is better than pushing into one you are not ready for.`;
+    $("repeat-btn").textContent = `Repeat week ${s.week}`;
+  }
+}
+
+async function act(method, url, button) {
+  if (button) button.disabled = true;
+  $("status").textContent = "";
+  let data;
+  try { data = await call(method, url); } catch (e) { $("status").textContent = e.message; }
+  if (button) button.disabled = false;
+  if (data) render(data);
+}
+$("skip").onclick = (e) => act("POST", "/api/plan/skip", e.currentTarget);
+$("elsewhere").onclick = (e) => act("POST", "/api/plan/done", e.currentTarget);
+$("undo").onclick = (e) => act("POST", "/api/plan/undo", e.currentTarget);
+$("repeat-btn").onclick = (e) => act("POST", "/api/plan/repeat", e.currentTarget);
+$("end").onclick = (e) => {
+  if (confirm("End this plan? Your rides stay in History.")) act("DELETE", "/api/plan", e.currentTarget);
+};
+
+try { setZoneTops((await call("GET", "/api/settings")).zone_tops); } catch { /* default zones */ }
+render(await call("GET", `/api/plans${query()}`));
+</script>
+</body>
+</html>

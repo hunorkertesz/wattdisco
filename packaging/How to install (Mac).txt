@@ -1,0 +1,49 @@
+WATT DISCO: HOW TO INSTALL (MAC)
+Built with AI, by cyclists for cyclists
+
+Free for noncommercial use (PolyForm Noncommercial License 1.0.0,
+https://polyformproject.org/licenses/noncommercial/1.0.0).
+Required Notice: Copyright (c) 2026 Hunor Kertesz
+
+YOU NEED
+- A Mac with Apple silicon (M1 or newer). Apple menu > About This Mac: "Chip" says Apple M...
+- macOS 14 (Sonoma) or newer.
+- A Bluetooth smart trainer or power meter. A heart rate strap is optional.
+Nothing else to install.
+
+INSTALL
+1. Open WattDisco-mac.dmg.
+2. Drag "Watt Disco" onto "Applications" in the window that opens.
+3. Eject the Watt Disco disk (the arrow next to it in Finder).
+
+FIRST START
+The app is not signed by Apple yet, so macOS stops it the first time. Only do this if the file came from
+someone you know.
+1. Open Watt Disco from Applications. macOS says it can't be opened or verified: press Done (or Cancel),
+   not "Move to Bin".
+2. Apple menu > System Settings > Privacy & Security. Scroll down to the line about Watt Disco and
+   press "Open Anyway". Confirm with your password or Touch ID.
+3. Open Watt Disco again if it does not open by itself, and confirm "Open Anyway".
+4. Allow Bluetooth when macOS asks. Without it the app can't find your sensors.
+   (Later: System Settings > Privacy & Security > Bluetooth.)
+You only do this once.
+
+YOUR FIRST RIDE
+1. Answer the questions: units, FTP, weight, max heart rate (no FTP? choose the ramp test).
+2. Close Zwift, Garmin Connect, Wahoo and other apps that may hold the trainer.
+3. Wake the sensors: pedal, and wet the heart rate strap.
+4. Connect your devices, choose a workout, press Start workout.
+Controls: move the mouse over the top or bottom of the chart. Space pauses, M mutes the sound.
+
+AFTER THE RIDE
+- "Connect to Strava" does not work in this version unless you have your own Strava API keys. Save the .fit
+  file from the summary or upload screen and upload it at strava.com/upload/select.
+- Your rides stay on your Mac, in your home folder: Library/Application Support/Watt Disco.
+
+UPDATE OR REMOVE
+- Update: quit Watt Disco and drag the newer version onto Applications (Replace). Rides and settings stay.
+- Remove: drag Watt Disco to the Bin. To delete rides and settings too, delete the folder above.
+
+IF SOMETHING DOES NOT WORK
+- "No devices": check that Bluetooth is on and allowed for Watt Disco, and that no other app has the trainer.
+- Send me what you did, what you saw, and the file wattdisco.log from the folder above.

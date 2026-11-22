@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Zones</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/zones.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <form class="card" id="form" novalidate>
+      <div class="card__head">
+        <div>
+          <h1 class="neon-title">Zones</h1>
+          <span class="mono">Power zones are set from your FTP · heart rate zones from your max or threshold heart rate</span>
+        </div>
+        <div class="units-pick"><span class="mono" id="units-label">Units</span><span id="units"></span></div>
+      </div>
+
+      <div class="sections">
+        <section class="section" aria-labelledby="power-title">
+          <span class="mono section__title" id="power-title">Power</span>
+          <div class="rider">
+            <label class="field">
+              <span class="mono">FTP</span>
+              <span class="input-wrap">
+                <input class="input" id="ftp" name="ftp" type="number" inputmode="numeric" min="50" max="600" step="1" required>
+                <span class="input__unit">W</span>
+              </span>
+            </label>
+            <label class="field">
+              <span class="mono">Weight</span>
+              <span class="input-wrap">
+                <input class="input" id="weight" name="weight" type="number" inputmode="decimal" min="30" max="200" step="0.1" required>
+                <span class="input__unit" id="weight-unit">KG</span>
+              </span>
+            </label>
+            <div class="wkg">
+              <span class="mono">W / kg</span>
+              <span class="wkg__v" id="wkg">--</span>
+            </div>
+          </div>
+          <div id="cp"></div>
+          <ol class="zones" id="zones" aria-label="Power zones"></ol>
+        </section>
+
+        <section class="section" aria-labelledby="hr-title">
+          <span class="mono section__title section__title--hr" id="hr-title">Heart rate</span>
+          <div class="rider rider--hr">
+            <div class="field">
+              <span class="mono">Based on</span>
+              <span id="hr-method"></span>
+            </div>
+            <label class="field">
+              <span class="mono" id="hr-ref-label">Max HR</span>
+              <span class="input-wrap">
+                <input class="input" id="hr-ref" name="hr-ref" type="number" inputmode="numeric" step="1" required>
+                <span class="input__unit">BPM</span>
+              </span>
+            </label>
+          </div>
+          <ol class="zones" id="hr-zones" aria-label="Heart rate zones"></ol>
+        </section>
+      </div>
+
+      <div class="actions">
+        <span class="mono status" id="status" role="status"></span>
+        <button class="btn" type="button" id="reset">Reset to defaults</button>
+        <button class="btn btn--primary" type="submit" id="save">Save</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script type="module">
+import { chipGroup, criticalPowerLine, el, renderStrip } from "/components.js";
+import { KG_PER_LB, imperial, setUnits, units, weightUnit } from "/units.js";
+
+const $ = (id) => document.getElementById(id);
+const DEFAULTS = { ftp: 240, weight_kg: 75, hr_method: "max", max_hr: 190, lthr: 170 };
+renderStrip($("strip"), { active: "zones" });
+
+const settings = await (await fetch("/api/settings")).json();
+const methods = settings.hr_methods;
+// both references are kept, so switching method and back does not lose a value
+const hr = { method: settings.hr_method, max: settings.max_hr, lthr: settings.lthr };
+
+const zoneRow = (z, pct, value) =>
+  el("li", { class: "zone", style: `--zone: var(--zone-${z.n})` },
+    el("span", { class: "zone__bar", "aria-hidden": "true" }),
+    el("span", { class: "zone__n", text: `Z${z.n}` }),
+    el("span", { class: "zone__name", text: z.name }),
+    el("span", { class: "zone__pct", text: pct }),
+    el("span", { class: "zone__w", text: value }),
+  );
+
+function renderZones(zones) {
+  $("zones").replaceChildren(...zones.map((z) =>
+    zoneRow(z, z.to_pct == null ? `> ${z.from_pct} %` : `${z.from_pct}–${z.to_pct} %`,
+      z.to_w == null ? `> ${z.from_w - 1} W` : `${z.from_w}–${z.to_w} W`)));
+}
+function renderHrZones(zones) {
+  $("hr-zones").replaceChildren(...zones.map((z) =>
+    zoneRow(z, z.to_pct == null ? `> ${z.from_pct - 1} %` : z.from_pct === 0 ? `< ${z.to_pct + 1} %` : `${z.from_pct}–${z.to_pct} %`,
+      z.to_bpm == null ? `> ${z.from_bpm - 1}` : z.from_bpm === 0 ? `< ${z.to_bpm + 1}` : `${z.from_bpm}–${z.to_bpm}`)));
+}
+
+const methodGroup = chipGroup(Object.entries(methods).map(([value, m]) => ({ value, label: m.label })), {
+  value: hr.method,
+  label: "Heart rate zones based on",
+  onChange: (m) => { readHr(); hr.method = m; showHr(); },
+});
+$("hr-method").replaceWith(methodGroup);
+
+function showHr() {
+  const m = methods[hr.method];
+  $("hr-ref-label").textContent = m.label;
+  $("hr-ref").min = m.range[0];
+  $("hr-ref").max = m.range[1];
+  $("hr-ref").value = hr[hr.method];
+  methodGroup.set(hr.method);
+  preview();
+}
+
+// store what is typed under the current method
+function readHr() {
+  const v = Number($("hr-ref").value);
+  const [lo, hi] = methods[hr.method].range;
+  const ok = Number.isInteger(v) && v >= lo && v <= hi;
+  $("hr-ref").setAttribute("aria-invalid", String(!ok));
+  if (ok) hr[hr.method] = v;
+  return ok;
+}
+
+function readForm() {
+  const ftp = Number($("ftp").value);
+  const weight = Number($("weight").value) * (imperial() ? KG_PER_LB : 1);
+  const ftpOk = Number.isInteger(ftp) && ftp >= 50 && ftp <= 600;
+  const weightOk = weight >= 30 && weight <= 200;
+  $("ftp").setAttribute("aria-invalid", String(!ftpOk));
+  $("weight").setAttribute("aria-invalid", String(!weightOk));
+  const hrOk = readHr();
+  return { ftp, weight_kg: weight, ok: ftpOk && weightOk && hrOk, ftpOk, hrOk };
+}
+
+function setStatus(text, kind = "") {
+  $("status").textContent = text;
+  $("status").className = `mono status${kind ? ` is-${kind}` : ""}`;
+}
+
+// Preview zones and W/kg as you type, using the server's zone rules.
+let previewTimer = null;
+function preview() {
+  const f = readForm();
+  $("wkg").textContent = f.ftpOk && f.weight_kg >= 30 && f.weight_kg <= 200 ? (f.ftp / f.weight_kg).toFixed(2) : "--";
+  setStatus("");
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(async () => {
+    if (f.ftpOk) {
+      const r = await fetch(`/api/zones?ftp=${f.ftp}`);
+      if (r.ok) renderZones(await r.json());
+    }
+    if (f.hrOk) {
+      const r = await fetch(`/api/hr-zones?method=${hr.method}&reference=${hr[hr.method]}`);
+      if (r.ok) renderHrZones(await r.json());
+    }
+  }, 150);
+}
+
+function fill(s) {
+  $("ftp").value = s.ftp;
+  $("weight").value = imperial() ? Math.round(s.weight_kg / KG_PER_LB) : s.weight_kg;
+  $("weight-unit").textContent = weightUnit().toUpperCase();
+  Object.assign(hr, { method: s.hr_method, max: s.max_hr, lthr: s.lthr });
+  showHr();
+}
+
+// critical power from the power curve, next to the FTP (refreshed after saving a new FTP)
+async function showCp() {
+  try {
+    const cp = await (await fetch("/api/critical-power")).json();
+    const line = criticalPowerLine(cp);
+    line.id = "cp";
+    $("cp").replaceWith(line);
+  } catch { /* stays empty */ }
+}
+showCp();
+
+// units for speed, distance and weight (power stays in watts); saved at once
+const unitGroup = chipGroup([{ value: "metric", label: "KM · KG" }, { value: "imperial", label: "MI · LB" }], {
+  value: units(), label: "Units",
+  onChange: async (v) => {
+    const kg = readForm().weight_kg;
+    await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ units: v }) });
+    setUnits(v);
+    $("weight").value = imperial() ? Math.round(kg / KG_PER_LB) : Math.round(kg * 10) / 10;
+    $("weight-unit").textContent = weightUnit().toUpperCase();
+  },
+});
+unitGroup.setAttribute("aria-labelledby", "units-label");
+$("units").replaceWith(unitGroup);
+
+$("ftp").addEventListener("input", preview);
+$("weight").addEventListener("input", preview);
+$("hr-ref").addEventListener("input", preview);
+$("reset").addEventListener("click", () => fill(DEFAULTS));
+
+$("form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const f = readForm();
+  if (!f.ok) {
+    const [lo, hi] = methods[hr.method].range;
+    setStatus(`FTP 50–600 W, weight ${imperial() ? "66–440 lb" : "30–200 kg"}, ${methods[hr.method].label} ${lo}–${hi} bpm`, "error");
+    return;
+  }
+  $("save").disabled = true;
+  try {
+    const r = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ftp: f.ftp, weight_kg: Math.round(f.weight_kg * 10) / 10, hr_method: hr.method, max_hr: hr.max, lthr: hr.lthr }),
+    });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail ?? "Could not save");
+    renderZones(body.zones);
+    renderHrZones(body.hr_zones);
+    setStatus("Saved · workouts scaled to your FTP", "ok");
+    showCp();
+  } catch (e) {
+    setStatus(String(e.message ?? e), "error");
+  } finally {
+    $("save").disabled = false;
+  }
+});
+
+fill(settings);
+renderZones(settings.zones);
+renderHrZones(settings.hr_zones);
+</script>
+</body>
+</html>

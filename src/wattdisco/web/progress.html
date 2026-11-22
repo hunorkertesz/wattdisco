@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Progress</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/progress.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <div class="prog">
+      <div class="prog__head">
+        <div class="prog__title">
+          <h1 class="neon-title">Progress</h1>
+          <span class="mono">From your real rides · simulated rides left out</span>
+        </div>
+        <span id="range"></span>
+      </div>
+
+      <div class="grid">
+        <!-- fitness, fatigue, form -->
+        <section class="panel tile" aria-labelledby="fit-title">
+          <div class="tile__head">
+            <span class="mono panel__title" id="fit-title">Fitness · fatigue · form</span>
+            <span class="mono readout" id="fit-readout"></span>
+          </div>
+          <div class="nums">
+            <div class="num num--fit" title="Training load averaged over 42 days: what you have built"><span class="mono">Fitness</span><b id="fit-now">--</b><small id="fit-change"></small></div>
+            <div class="num num--fat" title="Training load averaged over 7 days: how tired you are"><span class="mono">Fatigue</span><b id="fat-now">--</b></div>
+            <div class="num num--form" title="Yesterday's fitness minus fatigue: below 0 you are training, above you are fresh"><span class="mono">Form</span><b id="form-now">--</b><small id="form-label"></small></div>
+          </div>
+          <canvas class="chart" id="fit-chart" role="img" aria-label="Fitness, fatigue and form per day"></canvas>
+        </section>
+
+        <!-- power curve -->
+        <section class="panel tile" aria-labelledby="curve-title">
+          <div class="tile__head">
+            <span class="mono panel__title" id="curve-title">Power curve</span>
+            <span id="curve-range"></span>
+          </div>
+          <div class="nums" id="efforts"></div>
+          <canvas class="chart" id="curve-chart" role="img" aria-label="Best average power for each duration"></canvas>
+        </section>
+
+        <!-- FTP history -->
+        <section class="panel tile" aria-labelledby="ftp-title">
+          <div class="tile__head">
+            <span class="mono panel__title" id="ftp-title">FTP history</span>
+            <a class="mono link" href="/zones.html">Change FTP ›</a>
+          </div>
+          <div id="cp"></div>
+          <div class="ftp">
+            <canvas class="chart" id="ftp-chart" role="img" aria-label="FTP over time"></canvas>
+            <ol class="ftp__list" id="ftp-list" aria-label="FTP changes, newest first"></ol>
+          </div>
+        </section>
+
+        <!-- power sources across rides -->
+        <section class="panel tile" aria-labelledby="src-title">
+          <div class="tile__head">
+            <span class="mono panel__title" id="src-title">Power sources across rides</span>
+            <span id="src-pair"></span>
+          </div>
+          <div class="nums" id="src-nums"></div>
+          <canvas class="chart" id="src-chart" role="img" aria-label="Difference between the two power sources per ride"></canvas>
+          <p class="empty mono" id="src-empty" hidden>Ride with two power sources (a trainer and a power meter) to see how they compare over weeks.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module" src="/progress.js"></script>
+</body>
+</html>

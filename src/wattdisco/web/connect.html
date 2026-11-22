@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Connect devices</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  .page { min-height: 100dvh; display: flex; flex-direction: column; }
+  .page main { flex: 1; display: flex; align-items: center; justify-content: center; padding: clamp(16px, 4vh, 40px) var(--gutter); }
+  .card { width: min(880px, 100%); }
+  .card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .close {
+    flex: none; display: grid; place-items: center; width: 44px; height: 44px;
+    border: 1.5px solid var(--line-strong); border-radius: 22px; color: var(--white); font-size: 22px; text-decoration: none;
+  }
+  .list { display: flex; flex-direction: column; gap: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .dot--on { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
+  .dot--off { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 160px; }
+  .info b { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+  .info .lead { font-size: 16px; }
+  .sub.is-warn { color: var(--yellow); }
+  .sub.is-ok { color: var(--teal); }
+  .help { font-size: 13px; line-height: 1.35; color: var(--yellow-soft); max-width: 60ch; }
+  .roles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row .btn { flex: none; }
+  .row--later { opacity: .6; }
+  .footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  .live { font-size: 18px; font-weight: 500; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+  [hidden] { display: none !important; }
+  /* Laptop screens: tighter rows so the whole list fits without scrolling. */
+  @media (max-height: 940px) and (min-width: 601px) {
+    .page main { padding-top: 12px; padding-bottom: 12px; }
+    .card { padding: 18px 22px; gap: 8px; }
+    .card .neon-title { font-size: clamp(26px, 3vw, 34px); }
+    .list { gap: 8px; }
+    .row { padding: 7px 14px; gap: 10px; }
+    .info b { font-size: 16px; }
+    .row .btn { height: 36px; padding: 0 16px; font-size: 13px; }
+    .chip { height: 28px; padding: 0 11px; }
+    .close { width: 36px; height: 36px; }
+  }
+  @media (max-height: 700px) and (min-width: 601px) {
+    .card { padding: 12px 18px; gap: 6px; }
+    .row { padding: 5px 12px; }
+    .row .btn { height: 32px; }
+    .list { gap: 6px; }
+    .footer { margin-top: 0; }
+    .footer .btn { height: 38px; }
+  }
+  @media (max-width: 600px) {
+    .row { gap: 10px; }
+    .info { flex-basis: 100%; }
+    .footer > * { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <section class="card">
+      <div class="card__head">
+        <div>
+          <h1 class="neon-title">Connect devices</h1>
+          <span class="mono" id="scan-state">Bluetooth · scanning…</span>
+        </div>
+        <a class="close" href="/train" aria-label="Close">×</a>
+      </div>
+
+      <div class="row" id="reconnect">
+        <span class="dot" id="reconnect-dot"></span>
+        <div class="info">
+          <b class="lead" id="reconnect-title">Pick your devices</b>
+          <span class="mono sub" id="reconnect-sub">They reconnect on their own next time</span>
+        </div>
+        <span class="mono" id="auto-label">Auto-connect at launch</span>
+        <button class="switch" type="button" role="switch" aria-checked="true" aria-labelledby="auto-label" id="auto"></button>
+      </div>
+
+      <div class="list" id="devices" aria-live="polite"></div>
+
+      <div class="row row--later" id="core-later" hidden>
+        <div class="info">
+          <b>Core body temperature</b>
+          <span class="mono sub">Heat sensor · core temperature and heat strain</span>
+        </div>
+        <span class="chip" aria-disabled="true">Temperature</span>
+        <span class="badge">Coming later</span>
+      </div>
+
+      <div class="row row--warn" id="multi" hidden>
+        <div class="info">
+          <b class="lead" style="color: var(--yellow-soft)" id="multi-title"></b>
+          <span class="mono sub">Pick a main sensor for the workout, or compare them</span>
+        </div>
+        <a class="btn" href="/compare.html">Compare sensors</a>
+        <a class="btn" href="/sensors.html">Choose main</a>
+      </div>
+
+      <span class="mono" id="status" role="status"></span>
+
+      <div class="footer">
+        <button class="btn" type="button" id="rescan">Rescan</button>
+        <a class="btn btn--primary" id="continue" href="/ready.html">Continue</a>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import { ROLE_LABEL, batteryBadge, deviceHelp, el, renderDeviceChips, renderStrip, signalBars } from "/components.js";
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "devices" });
+const ROLE_ORDER = ["power", "cadence", "control", "heart_rate", "temperature"];
+
+async function api(url, options = {}) {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail ?? `request failed (${r.status})`);
+  return body;
+}
+
+function setStatus(text, kind = "") {
+  $("status").textContent = text;
+  $("status").style.color = kind === "error" ? "var(--pink)" : kind === "ok" ? "var(--teal)" : "";
+}
+
+function ago(iso) {
+  if (!iso) return null;
+  const days = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  return days <= 0 ? "zeroed today" : days === 1 ? "zeroed yesterday" : `zeroed ${days} days ago`;
+}
+
+// ---------- rows, kept per device so focus survives the refresh ----------
+const rows = {};
+const busy = new Set(); // devices with an action in flight
+const connectingSince = {}; // device id -> when it started connecting (for "taking long" advice)
+
+function makeRow(id) {
+  const row = el("div", { class: "row", "data-id": id },
+    el("div", { class: "info" }, el("b", { class: "name" }), el("span", { class: "mono sub" }),
+      el("span", { class: "help", hidden: true })),
+    el("span", { class: "live" }),
+    el("div", { class: "roles", role: "group" }),
+    el("button", { class: "chip chip--warn zero", type: "button", title: "Unclip, cranks still, no pressure on the pedals" }, "Zero offset"),
+    el("span", { class: "battery" }),
+    el("span", { class: "bars" }),
+    el("button", { class: "btn action", type: "button" }),
+  );
+  row.querySelector(".zero").addEventListener("click", () => zero(id));
+  row.querySelector(".action").addEventListener("click", () => act(id));
+  return row;
+}
+
+function renderRow(d, data) {
+  const row = rows[d.id] ??= makeRow(d.id);
+  const connected = d.state === "connected";
+  row.querySelector(".name").textContent = d.name.toUpperCase();
+
+  const sub = row.querySelector(".sub");
+  const bits = [d.kind];
+  if (d.zeroed_at && d.capabilities.includes("power") && !d.capabilities.includes("control")) bits.push(ago(d.zeroed_at));
+  if (d.state === "connecting") bits.push("connecting…");
+  else if (d.state === "lost") bits.push("lost · reconnecting");
+  else if (connected && d.no_data) bits.push("no signal");
+  else if (d.state === "found" && d.remembered) bits.push("last used");
+  sub.textContent = bits.join(" · ");
+  sub.className = `mono sub${d.state === "lost" || (connected && d.no_data) ? " is-warn" : ""}`;
+  // what to do about it, in plain words
+  if (d.state === "connecting") connectingSince[d.id] ??= Date.now();
+  else delete connectingSince[d.id];
+  const help = deviceHelp(d, { connectingFor: connectingSince[d.id] ? Date.now() - connectingSince[d.id] : 0 });
+  const helpEl = row.querySelector(".help");
+  helpEl.textContent = help;
+  helpEl.hidden = !help;
+
+  const live = d.watts != null ? `${d.watts} W` : d.bpm != null ? `${d.bpm} bpm` : "";
+  row.querySelector(".live").textContent = connected && !d.no_data ? live : "";
+
+  // role chips: what the device is used for (only what it can do)
+  const roles = row.querySelector(".roles");
+  roles.setAttribute("aria-label", `${d.name} roles`);
+  const caps = ROLE_ORDER.filter((r) => d.capabilities.includes(r));
+  if (roles.dataset.caps !== caps.join()) {
+    roles.replaceChildren(...caps.map((role) => el("button", {
+      class: "chip", type: "button", "data-role": role,
+      onclick: () => toggleRole(d.id, role), text: ROLE_LABEL[role] ?? role,
+    })));
+    roles.dataset.caps = caps.join();
+  }
+  for (const chip of roles.children) chip.setAttribute("aria-pressed", String(d.roles.includes(chip.dataset.role)));
+  rows[d.id].currentRoles = d.roles;
+
+  const zeroable = connected && d.capabilities.includes("power") && !d.capabilities.includes("control");
+  row.querySelector(".zero").hidden = !zeroable;
+  row.querySelector(".zero").disabled = busy.has(`zero:${d.id}`);
+
+  row.querySelector(".bars").replaceChildren(signalBars(d.rssi));
+  row.querySelector(".battery").replaceChildren(batteryBadge(d.battery));
+
+  const action = row.querySelector(".action");
+  const label = connected || d.state === "connecting" || d.state === "lost" ? "Disconnect" : "Connect";
+  action.textContent = busy.has(d.id) ? "…" : label;
+  action.classList.toggle("btn--primary", label === "Connect");
+  action.disabled = busy.has(d.id);
+  return row;
+}
+
+function renderMissing(m) {
+  // a last-used device the scan has not found
+  const row = rows[`missing:${m.id}`] ??= el("div", { class: "row" },
+    el("div", { class: "info" }, el("b", { text: m.name.toUpperCase() }),
+      el("span", { class: "mono sub is-warn", text: `${m.kind} · last used · not found` }),
+      el("span", { class: "help", text: deviceHelp(m, { missing: true }) })),
+    el("button", { class: "btn", type: "button", onclick: () => rescan(), text: "Retry" }));
+  return row;
+}
+
+let data = null;
+
+function render() {
+  if (!data) return;
+  const found = new Set(data.devices.map((d) => d.id));
+  const missing = data.remembered.filter((m) => !found.has(m.id));
+  const wantedRows = [...data.devices.map((d) => renderRow(d, data)), ...missing.map(renderMissing)];
+  const box = $("devices");
+  if (wantedRows.length !== box.children.length || wantedRows.some((r, i) => box.children[i] !== r)) {
+    box.replaceChildren(...wantedRows); // only when the list changed, so focus stays put
+  }
+
+  const n = data.devices.length;
+  $("scan-state").textContent = data.scanning ? "Bluetooth · scanning…" : `Bluetooth · ${n} device${n === 1 ? "" : "s"} found`;
+  $("rescan").disabled = data.scanning;
+
+  // reconnect summary
+  const wanted = data.remembered.length;
+  const back = data.remembered.filter((m) => m.connected).length;
+  if (wanted) {
+    $("reconnect-title").textContent = `Reconnected ${back} of ${wanted} last device${wanted === 1 ? "" : "s"}`;
+    $("reconnect-sub").textContent = missing.length
+      ? `${missing.map((m) => m.name.toUpperCase()).join(", ")} not found · wake it up (pedal, damp strap)`
+      : "Everything from last time is back";
+  } else {
+    $("reconnect-title").textContent = "Pick your devices";
+    $("reconnect-sub").textContent = "They reconnect on their own next time";
+  }
+  $("reconnect-dot").className = `dot ${missing.length ? "dot--off" : "dot--on"}`;
+  $("auto").setAttribute("aria-checked", String(data.auto_connect));
+
+  $("core-later").hidden = data.devices.some((d) => d.capabilities.includes("temperature"));
+
+  const connected = data.devices.filter((d) => d.state === "connected");
+  const power = connected.filter((d) => d.roles.includes("power")).length;
+  const hr = connected.filter((d) => d.roles.includes("heart_rate")).length;
+  const multi = power > 1 || hr > 1;
+  $("multi").hidden = !multi;
+  $("multi-title").textContent = [
+    power > 1 ? `${power} power sources` : null, hr > 1 ? `${hr} heart rate sensors` : null,
+  ].filter(Boolean).join(" and ") + " found";
+  $("continue").href = multi ? "/sensors.html" : "/ready.html";
+
+  renderDeviceChips(strip.devices, data.devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+}
+
+async function refresh() {
+  try { data = await api("/api/devices"); render(); } catch {}
+}
+
+async function act(id) {
+  const d = data.devices.find((x) => x.id === id);
+  const verb = d.state === "found" || d.state === "disconnected" ? "connect" : "disconnect";
+  busy.add(id); render();
+  try { data = await api(`/api/devices/${encodeURIComponent(id)}/${verb}`, { method: "POST" }); setStatus(""); }
+  catch (e) { setStatus(e.message, "error"); }
+  busy.delete(id); render();
+}
+
+async function toggleRole(id, role) {
+  const current = new Set(rows[id].currentRoles);
+  current.has(role) ? current.delete(role) : current.add(role);
+  try {
+    data = await api(`/api/devices/${encodeURIComponent(id)}/role`, { method: "POST", body: JSON.stringify({ roles: [...current] }) });
+    render();
+  } catch (e) { setStatus(e.message, "error"); }
+}
+
+async function zero(id) {
+  const name = data.devices.find((x) => x.id === id)?.name ?? id;
+  busy.add(`zero:${id}`); render();
+  setStatus(`Zeroing ${name}… keep the cranks still`);
+  try {
+    const r = await api(`/api/devices/${encodeURIComponent(id)}/zero-offset`, { method: "POST" });
+    setStatus(`${name} zeroed · offset ${r.offset}`, "ok");
+  } catch (e) { setStatus(e.message, "error"); }
+  busy.delete(`zero:${id}`);
+  refresh();
+}
+
+async function rescan() {
+  try { await api("/api/scan", { method: "POST" }); } catch (e) { setStatus(e.message, "error"); }
+  refresh();
+}
+
+$("rescan").addEventListener("click", rescan);
+$("auto").addEventListener("click", async () => {
+  const on = $("auto").getAttribute("aria-checked") !== "true";
+  try { data = await api("/api/devices/auto-connect", { method: "PUT", body: JSON.stringify({ enabled: on }) }); render(); }
+  catch (e) { setStatus(e.message, "error"); }
+});
+
+refresh();
+setInterval(refresh, 1000);
+</script>
+</body>
+</html>

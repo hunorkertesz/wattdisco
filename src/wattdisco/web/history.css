@@ -1,0 +1,172 @@
+/* History: every finished ride, newest first. Neon screen; the list scrolls inside the card. */
+
+.page { height: 100dvh; display: flex; flex-direction: column; }
+.page main { flex: 1; min-height: 0; display: flex; justify-content: center; padding: clamp(12px, 3vh, 40px) var(--gutter); }
+.hist { width: min(1320px, 100%); min-height: 0; }
+
+.hist__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
+.hist__title { display: flex; flex-direction: column; }
+.hist__title .neon-title { font-size: clamp(28px, 4vw, 48px); }
+.hist__filters { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.hist__filters .chip { height: 36px; padding: 0 16px; border-radius: 18px; }
+
+/* totals for the chosen period */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px 24px;
+  padding: 4px 8px;
+}
+.total { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.total b {
+  font-size: clamp(24px, 2.8vw, 36px);
+  line-height: 1.15;
+  color: var(--white);
+  text-shadow: 0 0 10px rgba(255, 246, 229, .5);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* the list */
+.rides-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.rides {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 2px 4px 4px 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.ride {
+  --cols: 130px minmax(0, 1fr) 84px 70px 84px 56px 70px 64px 132px 64px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--row);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ride:not(.ride--head):hover,
+.ride:focus-within { border-color: var(--cyan); box-shadow: 0 0 10px rgba(61, 217, 255, .45); }
+.ride--head { padding-top: 0; padding-bottom: 0; background: none; border-color: transparent; color: var(--muted); }
+
+.num { text-align: right; font-size: 17px; font-weight: 700; }
+.ride--head .num { font-size: inherit; font-weight: inherit; }
+.ride__date { display: flex; flex-direction: column; line-height: 1.2; }
+.ride__date b { font-size: 15px; }
+.ride__date .mono { font-size: 11px; color: var(--muted); }
+.ride__name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ride__link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--white);
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+}
+/* the whole row opens the summary; the Strava link sits above it */
+.ride__link::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.ride__link:focus-visible { outline: none; }
+.col-strava { position: relative; z-index: 1; display: flex; justify-content: flex-end; }
+.ride--head .col-strava { justify-content: flex-end; }
+.ride__w { color: var(--zone, var(--white)); text-shadow: 0 0 8px color-mix(in srgb, var(--zone, transparent) 60%, transparent); }
+.ride__hr { color: #FF7FAE; }
+.muted { color: var(--muted); }
+
+.tag {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.tag--plan { border-color: var(--teal); color: var(--teal); }
+.tag--rpe { --rpe: var(--muted); border-color: var(--rpe); color: var(--rpe); cursor: help; }
+.upload-link.is-failed { color: #FF7FAE; }
+.tag--test { border-color: var(--yellow); color: var(--yellow-soft); box-shadow: 0 0 6px rgba(255, 201, 60, .5); }
+
+.col-strava .strava-link { min-height: 0; font-size: 14px; }
+.upload-link {
+  color: var(--cyan-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.upload-link:hover { text-shadow: 0 0 6px var(--cyan); }
+
+/* delete: a quiet ×, pink and asking once armed */
+.col-del { position: relative; z-index: 1; display: flex; justify-content: flex-end; }
+.del {
+  min-width: 32px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  background: none;
+  color: var(--muted);
+  font: 700 16px/1 var(--font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.del:hover, .del:focus-visible { border-color: var(--pink); color: var(--pink-soft); outline: none; }
+.del.is-armed { border-color: var(--pink); background: var(--pink); color: var(--bg); font-size: 12px; box-shadow: 0 0 10px var(--pink); }
+
+.hist [hidden] { display: none; }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 16px; text-align: center; }
+.empty p { margin: 0; font-size: 13px; }
+
+/* Half a screen: drop weighted power and distance. */
+@media (max-width: 1000px) {
+  .ride { --cols: 120px minmax(0, 1fr) 80px 64px 52px 64px 120px 64px; }
+  .col-wp, .col-dist { display: none; }
+}
+
+/* Narrow windows and phones: two lines per ride (name and Strava, then date, time, watts, heart rate). */
+@media (max-width: 860px) {
+  .ride--head { display: none; }
+  .ride {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "name name name strava del" "date time watts hr hr";
+    gap: 4px 16px;
+    padding: 10px 14px;
+  }
+  .ride > :nth-child(1) { grid-area: date; flex-direction: row; gap: 8px; align-items: baseline; white-space: nowrap; }
+  .ride > :nth-child(2) { grid-area: name; }
+  .ride > :nth-child(3) { grid-area: time; }
+  .ride > :nth-child(4) { grid-area: watts; }
+  .ride > :nth-child(6) { display: none; }
+  .ride > :nth-child(7) { grid-area: hr; }
+  .col-strava { grid-area: strava; white-space: nowrap; }
+  .col-del { grid-area: del; }
+  .num { font-size: 15px; }
+  .ride__w::after { content: " W"; font-size: 12px; font-weight: 400; }
+  .ride__hr::after { content: " bpm"; font-size: 12px; font-weight: 400; }
+}
+
+/* Phones: the page scrolls instead of the list. */
+@media (max-width: 600px) {
+  .page { height: auto; min-height: 100dvh; }
+  .hist { min-height: auto; }
+  .rides { overflow: visible; }
+  .totals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ride__date b { font-size: 14px; }
+  .ride__date .mono { display: none; }
+  .ride { column-gap: 12px; }
+}

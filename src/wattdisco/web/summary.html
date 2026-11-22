@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Ride summary</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/summary.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main id="main" hidden>
+    <div class="head">
+      <div>
+        <span class="mono" id="when">Ride complete</span>
+        <span class="mono plan-line" id="plan-line" hidden></span>
+        <h1 class="neon-title" id="title">Ride</h1>
+      </div>
+      <!-- FTP from this ride: a test sets it (with undo), any ride with a better 20 min suggests it. -->
+      <div class="ftp-note" id="ftp-note" role="status" hidden>
+        <div class="ftp-note__text">
+          <span class="mono" id="ftp-kicker">New FTP</span>
+          <span id="ftp-text"></span>
+        </div>
+        <button class="btn btn--sm" type="button" id="ftp-dismiss" hidden>Not now</button>
+        <button class="btn btn--sm btn--primary" type="button" id="ftp-action"></button>
+      </div>
+      <div class="head__right">
+        <div class="cmp-pick"><span class="mono">Compare with</span><span id="compare-pick"></span></div>
+        <div id="mode"></div>
+        <button class="btn btn--sm btn--icon" type="button" id="help" aria-label="What the numbers mean" title="What the numbers mean">?</button>
+      </div>
+    </div>
+
+    <!-- basic -->
+    <div class="stats" data-view="basic">
+      <div class="stat" data-metric="duration"><span class="mono">Duration</span><div class="stat__v"><b id="duration">--</b></div></div>
+      <div class="stat" data-metric="avg_power"><span class="mono">Avg power</span><div class="stat__v"><b id="avg-power">--</b><span>W</span></div></div>
+      <div class="stat stat--hr" data-metric="avg_hr"><span class="mono">Avg HR</span><div class="stat__v"><b id="avg-hr">--</b><span>bpm</span></div></div>
+      <div class="stat stat--hr" data-metric="max_hr"><span class="mono">Max HR</span><div class="stat__v"><b id="max-hr">--</b><span>bpm</span></div></div>
+      <div class="stat stat--cad" data-metric="avg_cadence"><span class="mono">Avg cadence</span><div class="stat__v"><b id="avg-cad">--</b><span>rpm</span></div></div>
+      <div class="stat stat--est" title="Estimated for a flat road with no wind, from power and your weight">
+        <span class="mono">Avg speed (est.)</span><div class="stat__v"><b id="avg-speed">--</b><span id="speed-unit">km/h</span></div></div>
+      <div class="stat stat--est" data-metric="distance" title="Estimated for a flat road with no wind, from power and your weight">
+        <span class="mono">Distance (est.)</span><div class="stat__v"><b id="distance">--</b><span id="distance-unit">km</span></div></div>
+    </div>
+    <section class="panel panel--ride" data-view="basic">
+      <canvas class="chart chart--ride" id="ride-chart" role="img" aria-label="Power and heart rate over the workout"></canvas>
+    </section>
+    <div class="basic-row" data-view="basic">
+      <section class="panel">
+        <span class="mono panel__title">Time in zones</span>
+        <div class="zonebar" id="zonebar"></div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <!-- this ride's power curve points; ★ marks a best ever (real rides only) -->
+      <section class="panel efforts" aria-labelledby="efforts-title">
+        <span class="mono panel__title" id="efforts-title">Best efforts <a class="efforts__more" href="/progress.html">power curve ›</a></span>
+        <div class="efforts__row" id="efforts"></div>
+      </section>
+      <!-- how hard it felt (1 very easy … 10 all out) and a note: kept with the ride, shown in the history -->
+      <section class="panel feel" aria-labelledby="feel-title">
+        <span class="mono panel__title" id="feel-title">How did it feel? <span class="feel__saved" id="feel-saved"></span></span>
+        <div class="feel__scale" id="feel-scale" role="radiogroup" aria-labelledby="feel-title"></div>
+        <input class="input feel__note" id="feel-note" type="text" maxlength="2000" placeholder="A note: legs, sleep, what to change…" aria-label="Note about this ride">
+      </section>
+    </div>
+
+    <!-- nerd -->
+    <div class="stats" data-view="nerd">
+      <div class="stat" data-metric="wp" title="Average that weighs hard efforts more, like your body does (4th-power mean of 30 s power)"><span class="mono">Weighted</span><div class="stat__v"><b id="wp">--</b><span>W</span></div></div>
+      <div class="stat" data-metric="intensity" title="Weighted power ÷ FTP"><span class="mono">Intensity</span><div class="stat__v"><b id="intensity">--</b></div></div>
+      <div class="stat" data-metric="load" title="Hours × intensity² × 100: one hour at FTP is 100"><span class="mono">Load</span><div class="stat__v"><b id="load">--</b></div></div>
+      <div class="stat" data-metric="vi" title="Weighted power ÷ average power: 1.00 is perfectly steady"><span class="mono">Variability</span><div class="stat__v"><b id="vi">--</b></div></div>
+      <div class="stat stat--target" data-metric="on_target"><span class="mono">On target</span><div class="stat__v"><b id="on-target">--</b><span>%</span></div></div>
+      <div class="stat stat--hr" data-metric="hr_drift" title="How much heart rate rose against power from the first to the second half"><span class="mono">HR drift</span><div class="stat__v"><b id="drift">--</b><span>%</span></div></div>
+      <div class="stat stat--est" data-metric="ef" title="Weighted power ÷ average heart rate: more watts for the same heart rate means fitter"><span class="mono">W / beat</span><div class="stat__v"><b id="ef">--</b><span>W/bpm</span></div></div>
+      <div class="stat stat--hr stat--aet" data-metric="aet">
+        <span class="mono aet__label" title="Aerobic threshold from heart rate variability">AeT · α1 <span id="aet-info-btn"></span></span>
+        <div class="stat__v"><b id="aet">--</b><span id="aet-unit">bpm</span></div>
+        <small class="aet__sub" id="aet-sub"></small>
+        <div class="info-text aet__pop" id="aet-info">
+          <p><b>Aerobic threshold from heart rate variability (DFA α1).</b> When you ride easy, the time between heartbeats
+            varies in a complex, correlated way and α1 is around 1. As effort rises the pattern turns random and α1 falls
+            towards 0.5. Where α1 crosses <b>0.75</b> lines up with the aerobic threshold (first ventilatory threshold).</p>
+          <p><b>How:</b> the RR intervals of your main strap; beats outside 300–2000 ms or 20 % off the one before are
+            dropped as artefacts. Every 20 s a 2-minute window (at least 100 beats, under 5 % artefacts) gets α1: the beat
+            series is summed up, cut into boxes of 4–16 beats, a straight line is taken out of each box, and α1 is the
+            slope of the remaining fluctuation against box size on a log–log scale. A straight line through α1 against
+            heart rate (and power) over all windows gives the heart rate and power where it is 0.75.</p>
+          <p>Shown only when the ride has windows on both sides of 0.75 and α1 clearly falls as heart rate rises
+            (correlation below −0.5). A ride from easy to hard shows it best. It's an estimate, not a lab test.</p>
+          <canvas class="aet__chart" id="aet-chart" role="img" aria-label="Alpha 1 per window against heart rate"></canvas>
+          <span class="mono aet__meta" id="aet-meta"></span>
+        </div>
+      </div>
+    </div>
+    <!-- Nerd dashboard: one screen with the ride chart, time in zones, deviations, intervals and sources. -->
+    <div class="dash" data-view="nerd">
+      <div class="dash__row dash__row--top">
+        <section class="panel dash__chart">
+          <span class="mono panel__title">Power, target and heart rate</span>
+          <canvas class="chart chart--fill" id="nerd-chart" role="img" aria-label="Power, target and heart rate over the workout"></canvas>
+          <span class="mono dash__sub">Power − target</span>
+          <canvas class="chart chart--diff" id="diff-chart" role="img" aria-label="Power minus target over the ride"></canvas>
+        </section>
+        <section class="panel dash__zones">
+          <span class="mono panel__title">Time in zones</span>
+          <div class="tiz">
+            <div class="tiz__col">
+              <span class="mono tiz__head">Power</span>
+              <ol class="tiz__list" id="tiz-power" aria-label="Time in power zones"></ol>
+            </div>
+            <div class="tiz__col tiz__col--hr">
+              <span class="mono tiz__head" id="tiz-hr-head">Heart rate</span>
+              <ol class="tiz__list" id="tiz-hr" aria-label="Time in heart rate zones"></ol>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="dash__row dash__row--bottom">
+        <section class="panel dash__intervals">
+          <span class="mono panel__title" id="intervals-title">Power vs target · intervals (±5 % = on target)</span>
+          <div class="table-scroll">
+            <table class="intervals">
+              <thead><tr>
+                <th class="mono" scope="col" title="Interval">#</th><th class="mono" scope="col">Target</th>
+                <th class="mono" scope="col">Avg</th><th class="mono" scope="col">Diff</th>
+                <th class="mono" scope="col">Diff %</th><th class="mono" scope="col">On target</th>
+                <th class="mono col-lr" scope="col" title="Left / right pedal share of the power, %">L/R</th>
+              </tr></thead>
+              <tbody id="intervals"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="panel dash__dev" id="deviation">
+          <span class="mono panel__title">Deviation from target</span>
+          <div class="dev__band" id="dev-band" role="img"></div>
+          <div class="dev__legend mono">
+            <span class="is-below">Under <b id="dev-below">--</b> %</span>
+            <span class="is-within">Within ±5 % <b id="dev-within">--</b> %</span>
+            <span class="is-above">Over <b id="dev-above">--</b> %</span>
+          </div>
+          <dl class="dev__figs">
+            <div><dt class="mono">Mean</dt><dd><b id="dev-mean">--</b> W <em id="dev-mean-pct"></em></dd></div>
+            <div><dt class="mono">Mean abs.</dt><dd><b id="dev-abs">--</b> W</dd></div>
+            <div><dt class="mono">Std. dev.</dt><dd><b id="dev-sd">--</b> W</dd></div>
+            <div><dt class="mono">Max over</dt><dd><b id="dev-over">--</b> W</dd></div>
+            <div><dt class="mono">Max under</dt><dd><b id="dev-under">--</b> W</dd></div>
+            <div><dt class="mono">Longest off</dt><dd><b id="dev-longest">--</b></dd></div>
+          </dl>
+        </section>
+        <section class="panel dash__sources sources" id="sources">
+          <span class="mono panel__title">Power source difference</span>
+          <span class="mono" id="sources-names"></span>
+          <div class="sources__v"><b id="sources-diff">--</b><span>W</span><em id="sources-pct"></em></div>
+          <div class="sources__more" id="sources-more">
+            <div><span class="mono">Lag</span><b id="sources-lag">--</b></div>
+            <div><span class="mono">Corr.</span><b id="sources-corr">--</b></div>
+          </div>
+          <!-- left/right balance from a dual-sided power meter -->
+          <div class="lr" id="lr" hidden>
+            <span class="mono" id="lr-title">L / R balance</span>
+            <div class="lr__bar" aria-hidden="true"><i id="lr-left"></i></div>
+            <div class="lr__v"><b id="lr-v">--</b><small id="lr-halves"></small></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- compare: this ride next to an earlier one, or the 28-day average -->
+    <div class="cmp" data-view="compare">
+      <section class="panel cmp__table">
+        <span class="mono panel__title" id="cmp-title">This ride vs</span>
+        <div class="cmp__grid" id="cmp-grid"></div>
+      </section>
+      <section class="panel cmp__curve">
+        <span class="mono panel__title">Power curve <span class="cmp__legend"><i class="is-mine"></i>this ride <i class="is-other"></i><span id="cmp-curve-other">other</span></span></span>
+        <canvas class="chart cmp__canvas" id="cmp-curve" role="img" aria-label="Best power for each duration, this ride and the other"></canvas>
+      </section>
+      <section class="panel cmp__overlay">
+        <span class="mono panel__title">Power and heart rate on the workout clock <span class="cmp__legend"><i class="is-mine"></i>this ride <i class="is-other"></i>other · 30 s average</span></span>
+        <canvas class="chart cmp__canvas" id="cmp-overlay" role="img" aria-label="Power and heart rate of both rides over workout time"></canvas>
+        <p class="cmp__none mono" id="cmp-overlay-none" hidden>Pick an earlier ride to lay it over this one.</p>
+      </section>
+      <section class="panel cmp__intervals">
+        <span class="mono panel__title" id="cmp-iv-title">Interval by interval</span>
+        <div class="table-scroll">
+          <table class="intervals cmp__ivtable">
+            <thead><tr>
+              <th class="mono" scope="col">#</th><th class="mono" scope="col">Power</th><th class="mono" scope="col">Before</th>
+              <th class="mono" scope="col">HR</th><th class="mono" scope="col">Before</th><th class="mono" scope="col" title="Heart rate change at that power">Δ HR</th>
+            </tr></thead>
+            <tbody id="cmp-iv"></tbody>
+          </table>
+        </div>
+        <p class="cmp__none mono" id="cmp-iv-none" hidden>Interval by interval needs the same workout ridden before.</p>
+      </section>
+    </div>
+
+    <div class="actions">
+      <span class="mono" id="status" role="status"></span>
+      <button class="btn" type="button" id="discard">Discard</button>
+      <button class="btn" type="button" id="next-ride" hidden title="Done with this ride: TRAIN goes to the ready screen again">Done · next ride</button>
+      <a class="btn" id="save-fit" href="#" download>Save .fit file</a>
+      <a class="btn" id="save-csv" href="#" download title="Every second of the ride, every sensor in its own columns">Save CSV</a>
+      <a class="btn" id="compare" href="/compare.html">Compare sensors</a>
+      <a class="btn btn--primary" id="upload" href="/upload.html">Upload ride</a>
+    </div>
+  </main>
+
+  <div class="empty" id="empty" hidden>
+    <h1 class="neon-title">No rides yet</h1>
+    <a class="btn btn--primary" href="/workout.html">Go ride</a>
+  </div>
+</div>
+
+<script type="module">
+import { chipGroup, effortColor, el, fmtClock, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor } from "/components.js";
+import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
+import { distance, distanceUnit, speed, speedUnit } from "/units.js";
+import { METRIC, METRICS, averageMetrics, comparisonChoices, delta, drawCurves, drawOverlay, drawSparkline, fmtMetric,
+  metricsOfRow, metricsOfSummary, trendOf } from "/summary-compare.js";
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "train" });
+
+const num = (v, digits = 0) => (v == null ? "--" : Number(v).toFixed(digits));
+const signed = (v, digits = 1) => (v == null ? "--" : `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(digits)}`);
+const duration = (s) => (s >= 3600 ? fmtClock(s) : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+const LABEL = { warmup: "Warm-up", endurance: "Endurance", tempo: "Tempo", sweetspot: "Sweet spot", threshold: "Threshold", vo2: "VO2", sprint: "Sprint", recovery: "Recovery", cooldown: "Cool-down", free: "Free" };
+
+async function load() {
+  const params = new URLSearchParams(location.search);
+  let id = params.get("ride");
+  if (!id) {
+    const rides = await (await fetch("/api/rides?include_sim=true")).json();
+    id = rides[0]?.id;
+  }
+  if (!id) { $("empty").hidden = false; return null; }
+  const r = await fetch(`/api/rides/${encodeURIComponent(id)}/summary`);
+  if (!r.ok) { $("empty").hidden = false; return null; }
+  return r.json();
+}
+
+function renderBasic(s) {
+  $("duration").textContent = duration(s.duration);
+  $("avg-power").textContent = num(s.basic.avg_power);
+  $("avg-hr").textContent = num(s.basic.avg_hr);
+  $("max-hr").textContent = num(s.basic.max_hr);
+  $("avg-cad").textContent = num(s.basic.avg_cadence);
+  $("avg-speed").textContent = num(speed(s.basic.avg_speed_kmh), 1);
+  $("distance").textContent = num(distance(s.basic.distance_km), 1);
+  $("speed-unit").textContent = speedUnit();
+  $("distance-unit").textContent = distanceUnit();
+  accent("avg_power", s.basic.avg_power, s.ftp);
+
+  const used = s.zones.filter((z) => z.seconds > 0);
+  $("zonebar").replaceChildren(...used.map((z) =>
+    el("span", { style: `flex:${z.seconds};--zone:${zoneColor(z.n)}`, title: `Z${z.n} ${z.name} ${duration(z.seconds)}` })));
+  $("legend").replaceChildren(...used.map((z) =>
+    el("span", { class: "mono", style: `--zone:${zoneColor(z.n)}` }, el("i"), `Z${z.n} ${z.name} ${duration(z.seconds)}`)));
+}
+
+// A power tile takes the zone colour of its own number (avg power, weighted power, intensity).
+function accent(metric, watts, ftp) {
+  const tile = document.querySelector(`[data-metric="${metric}"]`);
+  if (watts == null || !ftp) tile.style.removeProperty("--accent");
+  else tile.style.setProperty("--accent", effortColor(watts, ftp));
+}
+
+function renderNerd(s) {
+  const n = s.nerd;
+  $("wp").textContent = num(n.wp);
+  $("intensity").textContent = num(n.intensity, 2);
+  $("load").textContent = num(n.load);
+  $("vi").textContent = num(n.vi, 2);
+  $("on-target").textContent = num(n.on_target_pct);
+  $("drift").textContent = signed(n.hr_drift_pct);
+  $("ef").textContent = n.wp && s.basic.avg_hr ? (n.wp / s.basic.avg_hr).toFixed(2) : "--";
+  accent("wp", n.wp, s.ftp);
+  accent("intensity", n.intensity == null ? null : n.intensity * s.ftp, s.ftp);
+
+  const work = s.intervals.filter((i) => i.work);
+  const kinds = [...new Set(work.map((i) => LABEL[i.kind] ?? i.kind))];
+  $("intervals-title").textContent =
+    `Power vs target · ${kinds.length === 1 ? `${kinds[0]} intervals` : "intervals"} (±5 % = on target)`;
+  const bal = s.balance;
+  const lrByIndex = Object.fromEntries((bal?.intervals ?? []).map((x) => [x.index, x]));
+  const lr = (x) => (x ? `${x.left.toFixed(0)}/${x.right.toFixed(0)}` : "--");
+  document.querySelectorAll(".col-lr").forEach((c) => { c.hidden = !bal; });
+  const row = (label, i, cls = "") => el("tr", { class: cls },
+    el("td", { text: label }),
+    el("td", { text: i.target == null ? "--" : `${i.target} W` }),
+    el("td", { text: i.avg_power == null ? "--" : `${num(i.avg_power)} W` }),
+    el("td", { text: i.diff == null ? "--" : `${signed(i.diff)} W` }),
+    el("td", { text: i.diff_pct == null ? "--" : `${signed(i.diff_pct)} %` }),
+    el("td", { text: i.on_target_pct == null ? "--" : `${num(i.on_target_pct)} %`,
+      class: i.on_target_pct == null ? "" : i.on_target_pct >= 85 ? "is-good" : i.on_target_pct < 60 ? "is-bad" : "" }),
+    bal ? el("td", { class: "col-lr", text: cls === "all" ? lr(bal) : lr(lrByIndex[i.index]) }) : null,
+  );
+  const rows = work.map((i, k) => row(String(k + 1), i));
+  if (s.work_all && work.length > 1) rows.push(row("ALL", s.work_all, "all"));
+  if (!rows.length) rows.push(el("tr", {}, el("td", { colspan: bal ? 7 : 6, class: "mono", text: "No work intervals in this ride" })));
+  $("intervals").replaceChildren(...rows);
+
+  renderZoneTimes($("tiz-power"), s.zones, s.duration);
+  const hz = s.hr_zones;
+  if (hz) {
+    $("tiz-hr-head").textContent = `HR · ${hz.method === "lthr" ? "threshold" : "max"} ${hz.reference}`;
+    renderZoneTimes($("tiz-hr"), hz.zones, s.duration, (z) => z.to_bpm == null ? `> ${z.from_bpm - 1} bpm` : z.from_bpm === 0 ? `< ${z.to_bpm + 1} bpm` : `${z.from_bpm}–${z.to_bpm} bpm`);
+  }
+  renderDeviation(s.deviation);
+
+  const src = s.sources;
+  $("sources").hidden = !src && !bal;
+  for (const id of ["sources-names", "sources-more"]) $(id).hidden = !src;
+  $("sources-diff").closest(".sources__v").hidden = !src;
+  $("lr").hidden = !bal;
+  if (bal) {
+    $("lr-title").textContent = "L / R balance";
+    $("lr-title").title = bal.device;
+    $("lr-left").style.width = `${bal.left}%`;
+    $("lr-v").textContent = `${bal.left.toFixed(1)} / ${bal.right.toFixed(1)}`;
+    $("lr-halves").textContent = bal.drift == null ? "" : ` left ${bal.first_half_left.toFixed(1)} → ${bal.second_half_left.toFixed(1)} %`;
+    $("lr-halves").title = "Left pedal share in the first and the second half of the ride";
+  }
+  if (src) {
+    $("sources-names").textContent = `${src.a_name} − ${src.b_name}`;
+    $("sources-diff").textContent = signed(src.mean_diff);
+    $("sources-pct").textContent = src.mean_diff_pct == null ? "" : `· ${signed(src.mean_diff_pct)} %`;
+    $("sources-lag").textContent = src.lag_s == null ? "--" : `${Math.abs(src.lag_s).toFixed(1)} s`;
+    $("sources-lag").title = src.lag_s == null ? "" : `${src.lag_s >= 0 ? src.b_name : src.a_name} reports later`;
+    $("sources-corr").textContent = num(src.correlation, 3);
+  }
+}
+
+// One row per zone: name, a bar scaled to the ride, time and share.
+function renderZoneTimes(list, zones, total, range) {
+  const all = zones.reduce((sum, z) => sum + z.seconds, 0) || total || 1;
+  const most = Math.max(1, ...zones.map((z) => z.seconds));
+  list.replaceChildren(...zones.map((z) =>
+    el("li", { class: "tiz__row", style: `--zone: var(--zone-${z.n})`, title: `Z${z.n} ${z.name}${range ? ` · ${range(z)}` : ""}` },
+      el("span", { class: "tiz__n", text: `Z${z.n}` }),
+      el("span", { class: "tiz__name", text: z.name }),
+      el("span", { class: "tiz__track" }, el("span", { class: "tiz__fill", style: `width: ${(100 * z.seconds) / most}%` })),
+      el("span", { class: "tiz__t", text: duration(z.seconds) }),
+      el("span", { class: "tiz__pct", text: `${Math.round((100 * z.seconds) / all)} %` }),
+    )));
+}
+
+function renderDeviation(d) {
+  $("deviation").classList.toggle("is-empty", !d);
+  if (!d) return;
+  $("dev-band").replaceChildren(
+    el("span", { class: "is-below", style: `flex: ${d.below_pct}` }),
+    el("span", { class: "is-within", style: `flex: ${d.within_pct}` }),
+    el("span", { class: "is-above", style: `flex: ${d.above_pct}` }));
+  $("dev-band").setAttribute("aria-label", `Under ${num(d.below_pct)} %, within ${num(d.within_pct)} %, over ${num(d.above_pct)} %`);
+  $("dev-below").textContent = num(d.below_pct);
+  $("dev-within").textContent = num(d.within_pct);
+  $("dev-above").textContent = num(d.above_pct);
+  $("dev-mean").textContent = signed(d.mean_w);
+  $("dev-mean-pct").textContent = `${signed(d.mean_pct)} %`;
+  $("dev-abs").textContent = num(d.mean_abs_w, 1);
+  $("dev-sd").textContent = num(d.sd_w, 1);
+  $("dev-over").textContent = signed(d.max_over_w, 0);
+  $("dev-under").textContent = signed(d.max_under_w, 0);
+  $("dev-longest").textContent = duration(d.longest_off_s);
+}
+
+// ---------- FTP from this ride ----------
+const RULE = { ramp: "75 % of your best minute", "20min": "95 % of your 20 min", best20: "95 % of your best 20 min" };
+// `source` says where the FTP came from for the FTP history: a test, a ride's best 20 min, or by hand (undo).
+async function putFtp(ftp, source = "manual", rideId = null) {
+  const current = await (await fetch("/api/settings")).json();
+  const r = await fetch("/api/settings", {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ftp, weight_kg: current.weight_kg, ftp_source: source, ride_id: rideId }),
+  });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail ?? "Could not save the FTP");
+  return (await r.json()).ftp;
+}
+
+async function renderFtp(s) {
+  const est = s.ftp_estimate;
+  if (!est) return;
+  const key = `wd.ftp-dismissed.${s.id}`;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem(key) === "1"; } catch {}
+  let ftp = (await (await fetch("/api/settings")).json()).ftp;
+  const test = est.source !== "best20";
+  const basis = `${RULE[est.source]}, ${Math.round(est.best_w)} W`;
+
+  function show() {
+    const set = ftp === est.ftp;
+    // a suggestion that was overtaken (FTP already higher) or dismissed stays away
+    if (!test && !set && (dismissed || ftp > est.ftp)) { $("ftp-note").hidden = true; return; }
+    $("ftp-note").hidden = false;
+    $("ftp-kicker").textContent = test ? "FTP test result" : "New FTP?";
+    if (set) {
+      $("ftp-text").textContent = `Your FTP is now ${est.ftp} W (was ${est.ftp_before} W) · ${basis}`;
+      $("ftp-action").textContent = `Undo · back to ${est.ftp_before} W`;
+      $("ftp-action").classList.remove("btn--primary");
+      $("ftp-action").onclick = () => change(est.ftp_before);
+    } else {
+      $("ftp-text").textContent = test
+        ? `${est.ftp} W · ${basis}`
+        : `Your best 20 min was ${Math.round(est.best_w)} W, so your FTP is about ${est.ftp} W (now ${ftp} W)`;
+      $("ftp-action").textContent = `Set FTP to ${est.ftp} W`;
+      $("ftp-action").classList.add("btn--primary");
+      $("ftp-action").onclick = () => change(est.ftp, est.source);
+    }
+    $("ftp-dismiss").hidden = test || set;
+  }
+  async function change(to, source = "manual") {
+    $("ftp-action").disabled = true;
+    try {
+      ftp = await putFtp(to, source, s.id);
+      $("status").textContent = `FTP ${ftp} W · zones and workouts follow`;
+    } catch (e) {
+      $("status").textContent = String(e.message ?? e);
+    } finally {
+      $("ftp-action").disabled = false;
+      show();
+    }
+  }
+  $("ftp-dismiss").onclick = () => {
+    dismissed = true;
+    try { localStorage.setItem(key, "1"); } catch {}
+    show();
+  };
+  show();
+}
+
+// Aerobic threshold from DFA alpha 1 (core/hrv.py), with an info popover that also plots the windows.
+function renderAet(s) {
+  const d = s.dfa;
+  const th = d?.threshold;
+  $("aet").textContent = th ? String(th.hr) : "--";
+  $("aet-unit").hidden = !th;
+  $("aet-sub").textContent = th ? (th.power ? `${th.power} W · r ${th.correlation.toFixed(2)}` : `r ${th.correlation.toFixed(2)}`)
+    : d ? "not on this ride" : "no RR data";
+  $("aet-sub").title = th ? "" : d?.reason ?? "This ride has no beat-to-beat (RR) data from a chest strap";
+  const panel = $("aet-info");
+  $("aet-info-btn").replaceWith(infoButton(panel, "How the aerobic threshold is calculated"));
+  $("aet-meta").textContent = !d ? "No RR intervals on this ride."
+    : `${d.windows.length} windows · ${d.beats} beats from ${d.device} · ${d.artefacts_pct} % artefacts · mean α1 ${d.mean_alpha1 ?? "--"}`
+      + (th ? "" : ` · ${d.reason}`);
+  panel.addEventListener("info-toggle", (e) => { if (e.detail.open) drawAet($("aet-chart"), d); });
+}
+
+function drawAet(canvas, d) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!d?.windows.length) return;
+  const hrs = d.windows.map((x) => x.hr);
+  const lo = Math.floor(Math.min(...hrs) / 10) * 10, hi = Math.ceil(Math.max(...hrs) / 10) * 10;
+  const left = 34, right = w - 8, top = 6, bottom = h - 18;
+  const x = (v) => left + ((v - lo) / Math.max(1, hi - lo)) * (right - left);
+  const y = (a) => bottom - (Math.min(1.75, Math.max(0, a)) / 1.75) * (bottom - top);
+  ctx.font = '10px "Martian Mono", monospace';
+  ctx.fillStyle = "#A99BC9";
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const a of [0.5, 0.75, 1, 1.5]) {
+    ctx.strokeStyle = a === 0.75 ? "#FFC93C" : "#2A1A44";
+    ctx.setLineDash(a === 0.75 ? [4, 3] : []);
+    ctx.beginPath(); ctx.moveTo(left, y(a)); ctx.lineTo(right, y(a)); ctx.stroke();
+    ctx.fillText(String(a), left - 4, y(a));
+  }
+  ctx.setLineDash([]);
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let v = lo; v <= hi; v += 10) {
+    if (v !== hi && x(v) > right - 64) continue; // keep clear of the last label
+    ctx.textAlign = v === hi ? "right" : "center";
+    ctx.fillText(v === hi ? `${v} bpm` : `${v}`, v === hi ? right : x(v), bottom + 4);
+  }
+  ctx.fillStyle = "rgba(255, 107, 122, .75)";
+  for (const p of d.windows) { ctx.beginPath(); ctx.arc(x(p.hr), y(p.alpha1), 2.2, 0, 2 * Math.PI); ctx.fill(); }
+  if (d.threshold) {
+    ctx.strokeStyle = "#FFF6E5"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x(d.threshold.hr), top); ctx.lineTo(x(d.threshold.hr), bottom); ctx.stroke();
+    ctx.fillStyle = "#FFF6E5"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText(`${d.threshold.hr} bpm`, Math.min(x(d.threshold.hr) + 4, right - 60), top);
+  }
+}
+
+async function renderEfforts(s) {
+  const bests = s.bests ?? {};
+  let curve = [];
+  if (!s.sim) {
+    try { curve = (await (await fetch("/api/progress")).json()).curve.all; } catch { /* no records shown */ }
+  }
+  const record = new Set(curve.filter((p) => p.ride === s.id).map((p) => String(p.seconds)));
+  const LABEL = { 5: "5 s", 60: "1 min", 300: "5 min", 1200: "20 min" };
+  $("efforts").replaceChildren(...[5, 60, 300, 1200].map((sec) => {
+    const w = bests[String(sec)];
+    const best = record.has(String(sec));
+    return el("div", { class: `effort${best ? " effort--best" : ""}`, title: best ? "Your best ever for this duration" : "",
+      style: w && s.ftp ? `--zone:${effortColor(w, s.ftp)}` : "" },
+      el("span", { class: "mono", text: `${LABEL[sec]}${best ? " ★" : ""}` }),
+      el("b", { text: w ? String(Math.round(w)) : "--" }, w ? el("span", { text: " W" }) : null));
+  }));
+}
+
+// What the nerd numbers mean: shown the first time the nerd view opens, and on the ? button.
+const nerdHelp = helpCard("summary-nerd", {
+  title: "The nerd numbers",
+  items: [
+    ["Weighted", "An average that counts hard efforts more, closer to what the ride cost your body than the plain average."],
+    ["Intensity", "Weighted power ÷ FTP. About 0.65–0.75 is an endurance ride, 0.85–0.95 sweet spot, 1.0 an hour all out."],
+    ["Load", "Hours × intensity² × 100: one hour at FTP is 100. Adds up into fitness and fatigue on Progress."],
+    ["Variability", "Weighted ÷ average power. 1.00 is perfectly steady; above about 1.1 the ride was surgy."],
+    ["On target", "The share of the ride within ±5 % of the target power."],
+    ["HR drift", "How much your heart rate rose against power from the first half to the second. Under 5 % on a steady ride means good aerobic fitness."],
+    ["W / beat", "Weighted power ÷ average heart rate. More watts for the same heartbeats over the weeks means you are getting fitter."],
+    ["AeT · α1", "Your aerobic threshold heart rate from heart rate variability; the i button explains how."],
+  ],
+  note: "Each tile shows the change against the ride in Compare with, and a line of your recent rides.",
+});
+$("help").onclick = () => nerdHelp.open();
+
+// How the ride felt: 1–10 and a note, saved as they change.
+const FEEL_WORDS = { 1: "very easy", 3: "easy", 5: "steady", 7: "hard", 9: "very hard", 10: "all out" };
+async function renderFeel(s) {
+  const notes = await fetch(`/api/rides/${s.id}/notes`).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
+  let rpe = notes.rpe ?? null;
+  const save = async () => {
+    const r = await fetch(`/api/rides/${s.id}/notes`, { method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rpe, note: $("feel-note").value }) }).catch(() => null);
+    $("feel-saved").textContent = r?.ok ? "· saved" : "· not saved";
+  };
+  const buttons = Array.from({ length: 10 }, (_, i) => {
+    const n = i + 1;
+    return el("button", { class: "feel__n", type: "button", role: "radio", style: `--c:${rpeColor(n)}`,
+      title: `${n}${FEEL_WORDS[n] ? ` · ${FEEL_WORDS[n]}` : ""}`, text: String(n),
+      onclick: () => { rpe = rpe === n ? null : n; show(); save(); } });
+  });
+  const show = () => buttons.forEach((b, i) => b.setAttribute("aria-checked", String(rpe === i + 1)));
+  $("feel-scale").replaceChildren(...buttons);
+  show();
+  $("feel-note").value = notes.note ?? "";
+  let timer = null;
+  $("feel-note").oninput = () => { clearTimeout(timer); $("feel-saved").textContent = ""; timer = setTimeout(save, 600); };
+}
+
+// What this ride did for the training plan: the session it ticked off, or why it did not count.
+async function renderPlan(s) {
+  const p = await fetch(`/api/rides/${s.id}/plan`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  if (!p) return;
+  const parts = [];
+  if (p.counted) parts.push(el("b", { text: `✓ Plan · week ${p.counted.week} of ${p.counted.weeks}, session ${p.counted.session} of ${p.counted.sessions}` }));
+  else if (p.reason === "sim") parts.push("Simulated · not counted for your plan");
+  else if (p.reason === "short") parts.push("Ended early · not counted for your plan");
+  else return;
+  if (p.finished) parts.push(" · ", el("a", { href: "/plan.html", text: "plan complete ›" }));
+  else if (p.next) parts.push(" · next: ", el("a", { href: `/ready.html?workout=${encodeURIComponent(p.next.workout_id)}`, text: `${p.next.name} ›` }));
+  $("plan-line").replaceChildren(...parts);
+  $("plan-line").hidden = false;
+}
+
+// ---------- comparing with earlier rides ----------
+const cmp = { rows: [], choices: [], choice: null, other: null, otherSummary: null, mine: null };
+
+function compareLabel() {
+  const c = cmp.choice;
+  return !c ? "" : c.value === "avg28" ? "28-day avg" : new Date(c.row.started).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+// every headline tile: the change against the comparison, and in nerd mode the trend over recent rides
+function decorateTiles(s) {
+  for (const tile of document.querySelectorAll("[data-metric]")) {
+    const m = METRIC[tile.dataset.metric];
+    let d = tile.querySelector(".stat__delta");
+    if (!d) {
+      d = el("small", { class: "stat__delta" });
+      tile.querySelector(".stat__v").after(d);
+    }
+    const ch = cmp.other ? delta(m, cmp.mine[m.key], cmp.other[m.key]) : null;
+    d.textContent = ch ? ch.text : "";
+    d.className = `stat__delta${ch?.tone ? ` is-${ch.tone}` : ""}`;
+    d.title = ch && cmp.other ? `${cmp.choice.label}: ${fmtMetric(m, cmp.other[m.key])}` : "";
+    if (tile.closest('[data-view="nerd"]')) {
+      let c = tile.querySelector(".spark");
+      if (!c) {
+        c = el("canvas", { class: "spark", "aria-hidden": "true", title: "Your recent rides, this one last" });
+        tile.append(c);
+      }
+      if (!c.closest("[hidden]")) drawSparkline(c, trendOf(m.key, s, cmp.rows), getComputedStyle(tile.querySelector(".stat__v")).color);
+    }
+  }
+}
+
+function renderCompare(s) {
+  const c = cmp.choice;
+  $("cmp-title").textContent = c ? `This ride vs ${c.label}` : "Pick something to compare with";
+  $("cmp-grid").replaceChildren(
+    el("span", { class: "mono cmp__h" }), el("span", { class: "mono cmp__h", text: "This ride" }),
+    el("span", { class: "mono cmp__h", text: c ? compareLabel() : "--" }), el("span", { class: "mono cmp__h", text: "Change" }),
+    ...METRICS.flatMap((m) => {
+      const mine = cmp.mine[m.key], other = cmp.other?.[m.key];
+      if (mine == null && other == null) return [];
+      const ch = delta(m, mine, other);
+      return [el("span", { class: "cmp__l", text: m.label, title: m.title ?? "" }),
+        el("b", { text: fmtMetric(m, mine) }), el("span", { class: "cmp__o", text: fmtMetric(m, other) }),
+        el("span", { class: `cmp__d${ch?.tone ? ` is-${ch.tone}` : ""}`, text: ch?.text ?? "" })];
+    }));
+  $("cmp-curve-other").textContent = c ? (c.value === "avg28" ? "best of 28 days" : compareLabel()) : "other";
+  if (!$("cmp-curve").closest("[hidden]")) {
+    let otherBests = c?.row?.bests ?? null;
+    if (c?.value === "avg28") {
+      otherBests = {};
+      for (const r of c.rows) for (const [k, v] of Object.entries(r.bests ?? {})) otherBests[k] = Math.max(otherBests[k] ?? 0, v);
+    }
+    drawCurves($("cmp-curve"), s.bests, otherBests);
+    $("cmp-overlay-none").hidden = !!cmp.otherSummary;
+    $("cmp-overlay").hidden = !cmp.otherSummary;
+    if (cmp.otherSummary) drawOverlay($("cmp-overlay"), s, cmp.otherSummary);
+  }
+  // interval by interval: the same workout ridden before, matched in order
+  const mineIv = s.intervals.filter((i) => i.work);
+  const otherIv = (cmp.otherSummary?.intervals ?? []).filter((i) => i.work);
+  const same = cmp.otherSummary && c?.same && otherIv.length === mineIv.length && mineIv.length > 0;
+  $("cmp-iv-none").hidden = !!same;
+  $("cmp-iv").closest(".table-scroll").hidden = !same;
+  if (same) {
+    $("cmp-iv").replaceChildren(...mineIv.map((iv, k) => {
+      const o = otherIv[k];
+      const dhr = iv.avg_hr != null && o.avg_hr != null ? iv.avg_hr - o.avg_hr : null;
+      return el("tr", {},
+        el("td", { text: String(k + 1) }),
+        el("td", { text: `${num(iv.avg_power)} W` }), el("td", { class: "cmp__o", text: `${num(o.avg_power)} W` }),
+        el("td", { text: iv.avg_hr == null ? "--" : `${num(iv.avg_hr)}` }), el("td", { class: "cmp__o", text: o.avg_hr == null ? "--" : num(o.avg_hr) }),
+        el("td", { class: dhr == null ? "" : dhr < -0.5 ? "is-good" : dhr > 0.5 ? "is-bad" : "", text: dhr == null ? "--" : `${signed(dhr, 0)} bpm` }));
+    }));
+  }
+}
+
+async function chooseComparison(value, s) {
+  cmp.choice = cmp.choices.find((c) => c.value === value) ?? null;
+  cmp.other = !cmp.choice ? null : cmp.choice.row ? metricsOfRow(cmp.choice.row) : averageMetrics(cmp.choice.rows);
+  cmp.otherSummary = null;
+  try { localStorage.setItem("wd.summary.compare", cmp.choice?.value === "avg28" ? "avg28" : value === "none" ? "none" : "auto"); } catch { /* private window */ }
+  decorateTiles(s);
+  renderCompare(s);
+  if (cmp.choice?.row) {
+    const r = await fetch(`/api/rides/${encodeURIComponent(cmp.choice.row.id)}/summary`).catch(() => null);
+    if (r?.ok && cmp.choice?.value === value) {
+      cmp.otherSummary = await r.json();
+      renderCompare(s);
+    }
+  }
+}
+
+async function setupCompare(s) {
+  cmp.mine = metricsOfSummary(s);
+  try { cmp.rows = await (await fetch("/api/rides")).json(); } catch { cmp.rows = []; }
+  cmp.choices = comparisonChoices(s, cmp.rows);
+  let pref = "auto";
+  try { pref = localStorage.getItem("wd.summary.compare") ?? "auto"; } catch { /* private window */ }
+  const start = pref === "none" ? "none" : pref === "avg28" && cmp.choices.some((c) => c.value === "avg28") ? "avg28" : cmp.choices[0]?.value ?? "none";
+  const picker = neonSelect({ label: "Compare with", compact: true,
+    options: [{ value: "none", label: "Nothing" }, ...cmp.choices.map((c) => ({ value: c.value, label: c.label }))],
+    value: start, onChange: (v) => chooseComparison(v, s) });
+  picker.id = "compare-pick";
+  $("compare-pick").replaceWith(picker);
+  await chooseComparison(start, s);
+}
+
+function drawCharts(s) {
+  if (!$("ride-chart").closest("[hidden]")) drawSummaryChart($("ride-chart"), s);
+  if (!$("nerd-chart").closest("[hidden]")) drawSummaryChart($("nerd-chart"), s);
+  if (!$("diff-chart").closest("[hidden]")) drawTargetDiffChart($("diff-chart"), s);
+  if (cmp.mine) { decorateTiles(s); renderCompare(s); }
+}
+
+const summary = await load();
+if (summary) {
+  $("main").hidden = false;
+  const started = new Date(summary.started);
+  const day = started.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  $("when").textContent = `Ride complete · ${day.replace(",", "")}${summary.sim ? " · simulated" : ""}`;
+  $("title").textContent = summary.name;
+  document.title = `Watt Disco – ${summary.name}`;
+  $("save-fit").href = `/api/rides/${summary.id}/export.fit`;
+  $("save-csv").href = `/api/rides/${summary.id}/export.csv`;
+  $("compare").href = `/compare.html?ride=${summary.id}`;
+  $("upload").href = `/upload.html?ride=${summary.id}`;
+  const upload = await (await fetch(`/api/rides/${summary.id}/upload`)).json();
+  if (upload.state === "uploading") $("status").textContent = "Uploading to Strava…";
+  if (upload.state === "error") {
+    $("status").textContent = `Strava upload failed${upload.message ? ` · ${upload.message}` : ""}`;
+    $("upload").textContent = "Retry upload";
+  }
+  if (upload.state === "done" || upload.state === "duplicate") {
+    $("upload").textContent = "View on Strava";
+    $("upload").className = "strava-link";
+    $("upload").href = upload.url;
+    $("upload").target = "_blank";
+    $("upload").rel = "noopener";
+  }
+
+  renderBasic(summary);
+  renderNerd(summary);
+  renderFtp(summary);
+  renderPlan(summary);
+  renderEfforts(summary);
+  renderFeel(summary);
+  renderAet(summary);
+  setupCompare(summary);
+
+  const VIEWS = ["basic", "nerd", "compare"];
+  const fromHash = VIEWS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "basic";
+  const setView = (v) => {
+    for (const node of document.querySelectorAll("[data-view]")) node.hidden = node.dataset.view !== v;
+    $("main").classList.toggle("is-nerd", v === "nerd");
+    $("main").classList.toggle("is-compare", v === "compare");
+    if (v === "nerd") nerdHelp.maybeOpen();
+    history.replaceState(null, "", `${location.pathname}?ride=${summary.id}${v === "basic" ? "" : `#${v}`}`);
+    drawCharts(summary);
+  };
+  const mode = chipGroup([{ value: "basic", label: "Basic" }, { value: "nerd", label: "Nerd" }, { value: "compare", label: "Compare" }],
+    { value: fromHash, label: "Summary view", onChange: setView });
+  $("mode").replaceWith(mode);
+  setView(fromHash);
+  new ResizeObserver(() => drawCharts(summary)).observe($("main"));
+
+  // TRAIN comes back here after a ride until it is discarded, uploaded, or the rider moves on.
+  fetch("/api/state").then((r) => r.json()).then((st) => {
+    $("next-ride").hidden = st.ride?.review_id !== summary.id;
+  }).catch(() => {});
+  $("next-ride").addEventListener("click", async () => {
+    await fetch("/api/ride/review/done", { method: "POST" }).catch(() => null);
+    location.href = "/ready.html";
+  });
+
+  // Discard needs a second tap within 3 s.
+  let armed = null;
+  $("discard").addEventListener("click", async () => {
+    if (!armed) {
+      $("discard").textContent = "Tap again to discard";
+      armed = setTimeout(() => { armed = null; $("discard").textContent = "Discard"; }, 3000);
+      return;
+    }
+    clearTimeout(armed);
+    const r = await fetch(`/api/rides/${summary.id}`, { method: "DELETE" });
+    const fromHistory = document.referrer && new URL(document.referrer).pathname === "/history.html";
+    if (r.ok) location.href = fromHistory ? "/history.html" : "/workout.html";
+    else $("status").textContent = "Could not discard the ride";
+  });
+}
+</script>
+</body>
+</html>

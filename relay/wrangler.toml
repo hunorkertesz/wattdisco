@@ -1,0 +1,8 @@
+name = "wattdisco-strava-relay"
+main = "strava-relay.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+# No logs of requests or bodies: the relay handles sign-in codes and tokens.
+[observability]
+enabled = false
