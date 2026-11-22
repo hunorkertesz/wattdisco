@@ -173,7 +173,7 @@ Every version tag builds both apps on GitHub (`.github/workflows/release.yml`): 
 `WattDisco-windows.exe`, attached to a draft release.
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0   # the tag must match __version__ in src/wattdisco/__init__.py
+git tag v1.0.0 && git push origin v1.0.0   # the tag must match __version__ in src/wattdisco/__init__.py
 ```
 
 On your own computer:

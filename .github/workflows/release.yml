@@ -1,4 +1,4 @@
-# Builds the Mac and Windows apps for every version tag (v0.1.0, v0.2.0, ...) and puts
+# Builds the Mac and Windows apps for every version tag (v1.0.0, v1.1.0, ...) and puts
 # them on a draft GitHub Release. Check the draft, then press Publish; from then on the
 # website's .../releases/latest/download/<file> links point at the new files.
 # Can also be run by hand (Actions -> Release apps -> Run workflow) to only build them.
