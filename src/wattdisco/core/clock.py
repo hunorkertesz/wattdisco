@@ -9,10 +9,10 @@ class Clock:
 
     def __init__(self, speed: float = 1.0) -> None:
         self.speed = speed
-        self._start = time.monotonic()
+        self._start = time.perf_counter()  # also monotonic, but not in 16 ms steps on Windows
 
     def now(self) -> float:
-        return (time.monotonic() - self._start) * self.speed
+        return (time.perf_counter() - self._start) * self.speed
 
     async def sleep(self, seconds: float) -> None:
         await asyncio.sleep(max(0.0, seconds) / self.speed)

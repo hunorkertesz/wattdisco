@@ -72,7 +72,8 @@ def build_fit(ride: RideData, summary: dict, sport_type: str = "VirtualRide") ->
     core = stats.per_second(ride.metrics.get("core_temp", []), elapsed + 1)
     # pause / resume as timer stop / start events, written in time order between the records
     timer_events = sorted(
-        [(p, EventType.STOP_ALL) for p, _ in ride.pauses] + [(r, EventType.START) for _, r in ride.pauses if r is not None]
+        [(p, EventType.STOP_ALL) for p, _ in ride.pauses] + [(r, EventType.START) for _, r in ride.pauses if r is not None],
+        key=lambda event: event[0],  # by time only: a pause and its resume can share one, and the stop stays first
     )
 
     fit = FitFileBuilder(auto_define=True, min_string_size=len(PRODUCT_NAME) + 1)

@@ -178,6 +178,14 @@ def test_paused_ride_fit_has_timer_events_and_moving_time(tmp_path):
     assert messages["lap"][0].total_timer_time == 120
 
 
+def test_fit_with_a_pause_resumed_on_the_same_clock_tick(tmp_path):
+    ride = load_ride(ride_path(tmp_path, record_ride(tmp_path, seconds=120)))
+    ride.pauses = [(60.5, 60.5)]  # a coarse clock can give both the same time
+    messages = read_fit(build_fit(ride, build_summary(ride)))
+    timer = [EventType(e.event_type) for e in messages["event"] if e.event == Event.TIMER.value]
+    assert timer == [EventType.START, EventType.STOP_ALL, EventType.START, EventType.STOP_ALL]
+
+
 def test_plain_ride_file_is_indoor_cycling(tmp_path):
     store = RideStore(tmp_path)
     ride_id = "20261103-101500"

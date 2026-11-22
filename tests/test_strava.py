@@ -125,8 +125,9 @@ def test_sign_in_stores_tokens_privately(strava, api, tmp_path):
     assert strava.status() == {"configured": True, "connected": True, "athlete": "Test Rider", "mode": "own"}
     authorize = next(kw for name, kw in api.calls if name == "authorize")
     assert authorize["scope"] == ["read", "activity:write"]
-    mode = stat.S_IMODE(os.stat(tmp_path / "strava_tokens.json").st_mode)
-    assert mode == 0o600
+    if os.name != "nt":  # Windows has no such mode; the folder itself belongs to the user there
+        mode = stat.S_IMODE(os.stat(tmp_path / "strava_tokens.json").st_mode)
+        assert mode == 0o600
 
 
 def test_sign_in_rejects_unknown_state_and_missing_scope(strava):

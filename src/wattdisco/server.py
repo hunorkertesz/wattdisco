@@ -691,12 +691,16 @@ class Ride:
 
     async def _record_ticks(self) -> None:
         """Once per ride second: chart history point and a tick line in the recording."""
+        last = (None, 0)  # ride start and second of the last tick
         while True:
             if not self.active:
                 await self.clock.sleep(PLAY_INTERVAL)
                 continue
             start = self.ride_start
             n = math.floor(self.clock.now() - start) + 1
+            if last[0] == start:
+                n = max(n, last[1] + 1)  # a sleep can wake early (Windows timers): never the same second twice
+            last = (start, n)
             await self.clock.sleep(start + n + 0.05 - self.clock.now())
             if self.active and self.ride_start == start:
                 self._auto_pause_step()

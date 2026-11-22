@@ -558,6 +558,24 @@ def test_pause_stops_everything_and_resume_continues(client):
     assert client.post("/api/ride/pause").status_code == 409  # no ride
 
 
+def test_no_second_is_recorded_twice_when_sleeps_wake_early(tmp_path):
+    import asyncio
+    import time
+
+    from wattdisco.core.recorder import load_ride
+
+    class EarlyClock(Clock):  # like Windows, where timers can fire up to 16 ms early
+        async def sleep(self, seconds):
+            await asyncio.sleep(max(0.001, seconds / self.speed - 0.016))
+
+    ride = Ride(SimSource(WORKOUT), WORKOUT, EarlyClock(speed=20), data_dir=tmp_path)
+    with TestClient(create_app(ride)) as c:
+        time.sleep(0.8)
+        ride_id = c.post("/api/ride/stop").json()["id"]
+    seconds = [tick["t"] for tick in load_ride(ride.store.path(ride_id, ".jsonl")).ticks]
+    assert len(seconds) > 5 and len(seconds) == len(set(seconds))
+
+
 def test_running_ride_is_not_listed(client):
     import time
 
@@ -1017,5 +1035,5 @@ def test_notes_delete_undo_and_trash(client):
     assert client.get(f"/api/rides/{ride_id}/notes").json()["rpe"] == 7
     assert client.post(f"/api/rides/{ride_id}/restore").status_code == 404
     client.delete(f"/api/rides/{ride_id}")
-    ride.store.purge_deleted(days=0)
+    ride.store.purge_deleted(days=-1)  # everything, whatever the file system's clock says
     assert not any(ride.store.trash.iterdir())
