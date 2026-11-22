@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon
             file: WattDisco-mac.dmg
           - os: windows-latest
             file: WattDisco-windows.exe
