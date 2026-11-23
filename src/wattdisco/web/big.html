@@ -24,14 +24,15 @@
   .big > .mono:first-child { font-size: 16px; }
   .big__v { font-size: clamp(80px, min(16vw, 30vh), 220px); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
   .big__u { font-size: 26px; margin-top: -4px; }
-  .big__sub { font-size: 14px; margin-top: 10px; }
+  /* the three columns share one structure (label, number, unit, bar, line), so their numbers line up */
+  .big__sub { font-size: 14px; margin-top: 10px; min-height: 1.3em; }
   .big--power { color: var(--power); }
   .big--hr { color: var(--hr); }
   .big--cad { color: var(--cadence); }
   .big--power > .mono:first-child { color: var(--clean-text); }
   .big--hr > .mono:first-child { color: var(--hr); }
   .big--cad > .mono:first-child { color: var(--cadence); }
-  .target-bar { width: min(320px, 90%); height: 22px; margin-top: 12px; display: block; }
+  .target-bar, .bar-space { width: min(320px, 90%); height: 22px; margin-top: 12px; display: block; flex: none; }
 
   .big-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 72px; padding: 8px var(--gutter); border-top: 1px solid var(--clean-line); }
   .progress { flex: 1; min-width: 0; height: 44px; display: block; }
@@ -90,12 +91,14 @@
       <span class="mono" id="hr-label">Heart rate</span>
       <span class="big__v" id="hr">--</span>
       <span class="big__u">bpm</span>
+      <span class="bar-space" aria-hidden="true"></span>
       <span class="mono big__sub" id="hr-sub"></span>
     </div>
     <div class="big big--cad">
       <span class="mono">Cadence</span>
       <span class="big__v" id="cadence">--</span>
       <span class="big__u">rpm</span>
+      <span class="bar-space" aria-hidden="true"></span>
       <span class="mono big__sub" id="cad-sub"></span>
     </div>
   </main>
