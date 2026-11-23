@@ -319,6 +319,12 @@ def test_relay_post(local_relay):
     answers["/token"] = (400, {"error": "Bad Request"})
     with pytest.raises(StravaError, match="Bad Request"):
         relay_post(f"{base}/token", {"code": "abc"})
+    answers["/token"] = (403, {"error": "Forbidden", "detail": "limit of connected athletes exceeded"})
+    with pytest.raises(StravaError, match="full for now"):
+        relay_post(f"{base}/token", {"code": "abc"})
+    answers["/token"] = (400, {"error": "Forbidden"})  # the first relay: no detail, 403 sent as 400
+    with pytest.raises(StravaError, match="full for now"):
+        relay_post(f"{base}/token", {"code": "abc"})
     answers["/token"] = (429, {"error": "Rate Limit Exceeded"})
     with pytest.raises(StravaError, match="busy"):
         relay_post(f"{base}/token", {"code": "abc"})

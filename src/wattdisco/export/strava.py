@@ -48,6 +48,10 @@ SHARED_CLIENT_ID: int | None = 293374
 SHARED_RELAY_URL: str | None = "https://wattdisco-strava-relay.wattdisco.workers.dev"
 
 
+ATHLETES_FULL = ("Watt Disco's Strava connection is full for now: Strava lets it connect only a few riders until it "
+                 "approves more. Save the .fit file and upload it at strava.com/upload in the meantime.")
+
+
 class StravaError(Exception):
     """Something the user should see, in plain words."""
 
@@ -95,11 +99,15 @@ def relay_post(url: str, payload: dict) -> dict:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         try:
-            message = json.loads(e.read()).get("error")
+            answer = json.loads(e.read())
+            message, detail = answer.get("error"), str(answer.get("detail") or "")
         except (ValueError, AttributeError):
-            message = None
+            message, detail = None, ""
         if e.code == 429:
             raise StravaError("Strava is busy right now, please try again in a few minutes") from e
+        refused = e.code == 403 or (message or "").strip().lower() == "forbidden"  # older relays send 400 "Forbidden"
+        if "limit" in detail.lower() or (refused and url.endswith("/token")):
+            raise StravaError(ATHLETES_FULL) from e
         raise StravaError(f"Strava sign-in failed: {message or e.reason}") from e
     except (OSError, ValueError) as e:
         raise StravaError("could not reach the Watt Disco sign-in service, check the internet connection") from e

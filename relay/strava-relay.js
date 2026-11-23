@@ -54,8 +54,10 @@ export default {
       return reply(502, { error: "Strava did not answer" });
     }
     if (!answer.ok) {
-      const status = answer.status === 429 ? 429 : answer.status >= 500 ? 502 : 400;
-      return reply(status, { error: data?.message || "Strava refused the request" });
+      const status = answer.status === 429 ? 429 : answer.status >= 500 ? 502 : answer.status === 403 ? 403 : 400;
+      // Strava's reason, e.g. "limit of connected athletes exceeded", so the app can say what to do
+      const detail = Array.isArray(data?.errors) ? data.errors.map((e) => e?.code).filter(Boolean).join(", ").slice(0, 200) : "";
+      return reply(status, { error: data?.message || "Strava refused the request", ...(detail ? { detail } : {}) });
     }
 
     // Pass on only what the app needs.
