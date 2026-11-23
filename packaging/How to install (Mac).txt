@@ -36,8 +36,8 @@ YOUR FIRST RIDE
 Controls: move the mouse over the top or bottom of the chart. Space pauses, M mutes the sound.
 
 AFTER THE RIDE
-- "Connect to Strava" does not work in this version unless you have your own Strava API keys. Save the .fit
-  file from the summary or upload screen and upload it at strava.com/upload/select.
+- Upload ride -> Connect to Strava, once. Strava lets Watt Disco connect only a limited number of riders for now:
+  if it says the connection is full, save the .fit file and upload it at strava.com/upload/select.
 - Your rides stay on your Mac, in your home folder: Library/Application Support/Watt Disco.
 
 UPDATE OR REMOVE

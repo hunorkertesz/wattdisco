@@ -109,7 +109,8 @@
           <p class="hint">Strava sign-in isn't available in this version. Save the .fit file and upload it at
             <code>strava.com/upload</code>, or use your own Strava API app: create one at
             <code>strava.com/settings/api</code> with <code>localhost</code> as authorization callback domain,
-            then put its keys in the <code>.env</code> file next to the app and restart it:</p>
+            then put its keys in a file named <code>.env</code> in the Watt Disco data folder (where your rides are)
+            and restart the app:</p>
           <p class="hint"><code>STRAVA_CLIENT_ID=12345</code><br><code>STRAVA_CLIENT_SECRET=…</code></p>
         </div>
 
@@ -117,6 +118,8 @@
         <div id="signin" hidden>
           <p class="hint">Sign in once with your Strava account, nothing else to set up. Watt Disco asks to upload
             activities; after that, rides go up with one tap, or on their own after every ride if you switch that on.</p>
+          <p class="hint" id="few-riders">Strava lets Watt Disco connect only a limited number of riders for now. If it
+            says the connection is full, save the .fit file and upload it at <code>strava.com/upload</code>.</p>
           <p class="hint" id="own-app" hidden>Using your own Strava API app from <code>.env</code>.</p>
         </div>
 
@@ -242,6 +245,7 @@ function renderStatus() {
   $("no-keys").hidden = configured;
   $("signin").hidden = !configured || connected;
   $("own-app").hidden = status.mode !== "own";
+  $("few-riders").hidden = status.mode !== "shared";
   $("form").hidden = !connected;
   $("connect").hidden = !configured || connected;
   $("upload").hidden = !connected || !summary;

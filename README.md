@@ -165,12 +165,13 @@ Move the mouse or tap the screen to show the controls; they fade away again on t
 
 ## Strava
 
-**In version 1.0:** save the ride's `.fit` file from its summary and upload it at `strava.com/upload`. It holds power, heart
-rate, cadence and the estimated speed and distance.
+Press **Upload ride** after a ride, **Connect to Strava** once, and switch on automatic upload if you like. New uploads are
+visible to "only you" until you change it. Simulated rides are never uploaded on their own.
 
-**Planned:** press **Upload ride**, connect Strava once, and switch on automatic upload if you like. The sign-in will use a
-small relay (`relay/`, a Cloudflare Worker) that keeps the shared app's secret and never sees your rides. Simulated rides
-are never uploaded on their own.
+The sign-in goes through a small relay (`relay/`, a Cloudflare Worker) that keeps the shared app's secret and never sees
+your rides; the rides go straight to Strava. Strava lets a new app connect only a limited number of riders until it
+approves more. If the app says the connection is full, save the ride's `.fit` file from its summary and upload it at
+`strava.com/upload`: it holds power, heart rate, cadence and the estimated speed and distance.
 
 The app can also use your own Strava API app:
 
