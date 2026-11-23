@@ -11,6 +11,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "bleak>=3.0.2",
+    "certifi>=2024.2",  # trusted certificates for the relay, also inside a built app
     "fastapi>=0.162.0",
     "fit-tool>=0.9.17",
     "platformdirs>=4.3",

@@ -330,6 +330,25 @@ def test_relay_post(local_relay):
         relay_post(f"{base}/token", {"code": "abc"})
 
 
+def test_relay_trusts_the_bundled_certificates(monkeypatch):
+    import ssl
+
+    from wattdisco.export import strava as module
+
+    seen = {}
+    monkeypatch.setenv("SSL_CERT_FILE", "/no/such/cert.pem")  # like a built app on a rider's Mac
+    monkeypatch.setenv("SSL_CERT_DIR", "/no/such/certs")
+
+    def fake_urlopen(request, timeout, context):
+        seen["context"] = context
+        raise OSError("stop here")
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
+    with pytest.raises(StravaError):
+        relay_post("https://relay.example/token", {"code": "abc"})
+    assert isinstance(seen["context"], ssl.SSLContext) and seen["context"].cert_store_stats()["x509_ca"] > 50
+
+
 def test_relay_unreachable():
     with pytest.raises(StravaError, match="internet"):
         relay_post("http://127.0.0.1:9/token", {"code": "abc"})

@@ -14,6 +14,7 @@ All calls here block (stravalib uses requests): run them in a thread.
 """
 
 import json
+import ssl
 import logging
 import os
 import re
@@ -90,12 +91,23 @@ def load_keys(env_file: Path, shared_id: int | None = SHARED_CLIENT_ID,
     return None
 
 
+def _tls() -> ssl.SSLContext:
+    """Certificates from certifi, bundled with the app: a built app's own OpenSSL may look for them in a folder
+    that doesn't exist on the rider's computer (the cause of "could not reach" in 1.1.0)."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except (ImportError, OSError):
+        return ssl.create_default_context()
+
+
 def relay_post(url: str, payload: dict) -> dict:
     """POST JSON to the relay, return its JSON. Raises StravaError in plain words."""
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
                                      headers={"Content-Type": "application/json", "User-Agent": "wattdisco"})
     try:
-        with urllib.request.urlopen(request, timeout=RELAY_TIMEOUT) as r:
+        with urllib.request.urlopen(request, timeout=RELAY_TIMEOUT, context=_tls()) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         try:

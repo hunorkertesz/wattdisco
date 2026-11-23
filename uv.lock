@@ -1346,6 +1346,7 @@ version = "1.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bleak" },
+    { name = "certifi" },
     { name = "fastapi" },
     { name = "fit-tool" },
     { name = "platformdirs" },
@@ -1368,6 +1369,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=3.0.2" },
+    { name = "certifi", specifier = ">=2024.2" },
     { name = "fastapi", specifier = ">=0.162.0" },
     { name = "fit-tool", specifier = ">=0.9.17" },
     { name = "platformdirs", specifier = ">=4.3" },
