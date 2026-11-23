@@ -88,13 +88,22 @@ def test_load_keys(tmp_path, monkeypatch):
     for name in ("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET", "STRAVA_RELAY_URL"):
         monkeypatch.delenv(name, raising=False)
     env = tmp_path / ".env"
-    assert load_keys(env) is None
+    none = {"shared_id": None, "shared_relay": None}  # a build without the shared app
+    assert load_keys(env, **none) is None
     env.write_text("STRAVA_CLIENT_ID=\nSTRAVA_CLIENT_SECRET=\n")
-    assert load_keys(env) is None
+    assert load_keys(env, **none) is None
     env.write_text("STRAVA_CLIENT_ID=abc\nSTRAVA_CLIENT_SECRET=x\n")
-    assert load_keys(env) is None
+    assert load_keys(env, **none) is None
     env.write_text("STRAVA_CLIENT_ID=12345\nSTRAVA_CLIENT_SECRET=shh\n")
-    assert load_keys(env) == KEYS
+    assert load_keys(env, **none) == KEYS
+
+
+def test_the_app_uses_the_shared_watt_disco_app_and_relay(tmp_path, monkeypatch):
+    for name in ("STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET", "STRAVA_RELAY_URL"):
+        monkeypatch.delenv(name, raising=False)
+    keys = load_keys(tmp_path / ".env")
+    assert keys.mode == "shared" and keys.client_secret is None
+    assert keys.relay_url.startswith("https://") and keys.relay_url.endswith(".workers.dev")
 
 
 def test_load_keys_shared_app(tmp_path, monkeypatch):

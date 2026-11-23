@@ -43,9 +43,9 @@ SPORT_TYPES = ("VirtualRide", "Ride")
 RELAY_TIMEOUT = 20
 
 # Watt Disco's shared Strava app and its relay (see relay/README.md). Both are public;
-# only the client secret is private, and it lives in the relay. None until it is set up.
-SHARED_CLIENT_ID: int | None = None
-SHARED_RELAY_URL: str | None = None
+# only the client secret is private, and it lives in the relay (Cloudflare, see relay/README.md).
+SHARED_CLIENT_ID: int | None = 293374
+SHARED_RELAY_URL: str | None = "https://wattdisco-strava-relay.wattdisco.workers.dev"
 
 
 class StravaError(Exception):
