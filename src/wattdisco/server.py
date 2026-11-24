@@ -72,6 +72,7 @@ AUTO_PAUSE_SECONDS = 5  # ride seconds without pedalling before the ride pauses 
 AUTO_RESUME_SECONDS = 2  # ride seconds of pedalling before it goes on again
 PEDAL_WATTS = 20
 PEDAL_RPM = 20
+KM_PER_MI = 1.609344
 AVG_WINDOWS = (30, 60, 300, 600)  # seconds: the nerd-mode averages the rider can pick from
 
 
@@ -94,13 +95,67 @@ def device_kind(capabilities) -> str:
     return "Sensor"
 
 
-def default_description(summary: dict) -> str:
-    parts = ["Indoor ride with Watt Disco", summary["name"]]
-    if summary["nerd"].get("wp"):
-        parts.append(f"Weighted power {round(summary['nerd']['wp'])} W")
-    if summary["nerd"].get("load"):
-        parts.append(f"Training load {round(summary['nerd']['load'])}")
-    return " · ".join(parts)
+def default_title(summary: dict) -> str:
+    """The activity's title on Strava: the app, then the ride (e.g. "Watt Disco: Sweet spot 3 × 4")."""
+    return f"Watt Disco: {summary['name']}"
+
+
+def _clock(seconds: float) -> str:
+    s = round(seconds)
+    return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}" if s >= 3600 else f"{s // 60}:{s % 60:02d}"
+
+
+def default_description(summary: dict, units: str = "metric") -> str:
+    """The activity's description: the ride's numbers in a few short lines (the rider can still edit it)."""
+    imperial = units == "imperial"
+    km = lambda v: f"{v / KM_PER_MI:.1f} mi" if imperial else f"{v:.1f} km"  # noqa: E731
+    up = lambda m: f"{round(m * 3.28084)} ft" if imperial else f"{round(m)} m"  # noqa: E731
+    basic, nerd, climb = summary.get("basic") or {}, summary.get("nerd") or {}, summary.get("climb")
+    lines = []
+    if summary.get("duration"):
+        distance = basic.get("distance_km")
+        kind = "virtual" if climb else "estimated"
+        lines.append(f"{_clock(summary['duration'])}" + (f" · {km(distance)} ({kind})" if distance else ""))
+    if climb:
+        part = (f"Climb: {km(climb['length'] / 1000)}, {up(climb['ascent'])} up · to the top in {_clock(climb['seconds'])}"
+                if climb["top"] else f"Climb: {km(climb['distance'] / 1000)} of {km(climb['length'] / 1000)}, "
+                f"{up(climb['climbed'])} of {up(climb['ascent'])} up")
+        if climb.get("vam"):
+            part += f" · VAM {climb['vam']} m/h"
+        if climb.get("w_per_kg"):
+            part += f" · {climb['w_per_kg']:.2f} W/kg"
+        if climb.get("difficulty", 1) < 1:
+            part += f" · trainer at {round(climb['difficulty'] * 100)} % of the gradient"
+        lines.append(part)
+    power = [f"avg {round(basic['avg_power'])} W"] if basic.get("avg_power") else []
+    if nerd.get("wp"):
+        power.append(f"weighted {round(nerd['wp'])} W")
+    if nerd.get("intensity"):
+        power.append(f"intensity {nerd['intensity']:.2f}")
+    if nerd.get("load"):
+        power.append(f"training load {round(nerd['load'])}")
+    if power:
+        lines.append("Power: " + " · ".join(power))
+    body = []
+    if basic.get("avg_hr"):
+        body.append(f"heart rate avg {round(basic['avg_hr'])}" + (f", max {round(basic['max_hr'])}" if basic.get("max_hr") else "") + " bpm")
+    if basic.get("avg_cadence"):
+        body.append(f"cadence {round(basic['avg_cadence'])} rpm")
+    if body:
+        lines.append(body[0][0].upper() + " · ".join(body)[1:])
+    bests = summary.get("bests") or {}
+    best = [f"{label} {round(bests[key])} W" for key, label in (("5", "5 s"), ("60", "1 min"), ("300", "5 min"), ("1200", "20 min"))
+            if bests.get(key)]
+    if best:
+        lines.append("Best: " + " · ".join(best))
+    if not climb and nerd.get("on_target_pct") is not None:
+        lines.append(f"On target: {round(nerd['on_target_pct'])} % of the time within ±5 %")
+    test = (summary.get("workout") or {}).get("test")
+    estimate = summary.get("ftp_estimate")
+    if test and estimate:
+        lines.append(f"FTP test: {estimate['ftp']} W ({'ramp test' if test == 'ramp' else '20 min test'})")
+    lines.append("Indoor ride with Watt Disco")
+    return "\n".join(lines)
 
 
 def workout_dict(workout: Workout) -> dict:
@@ -494,7 +549,7 @@ class Ride:
         if summary.get("sim") or not summary["duration"]:
             return
         self.start_upload(ride_id, {
-            "name": summary["name"], "description": default_description(summary),
+            "name": default_title(summary), "description": default_description(summary, self.settings.units),
             "sport_type": self.settings.strava_sport_type, "private": self.settings.strava_private,
         })
 
@@ -1521,7 +1576,7 @@ def create_app(ride: Ride) -> FastAPI:
     @app.get("/api/rides/{ride_id}/description")
     async def ride_description(ride_id: str):
         summary = await asyncio.to_thread(ride.store.summary, known_ride(ride_id))
-        return {"name": summary["name"], "description": default_description(summary)}
+        return {"name": default_title(summary), "description": default_description(summary, ride.settings.units)}
 
     @app.delete("/api/rides/{ride_id}")
     async def ride_delete(ride_id: str):

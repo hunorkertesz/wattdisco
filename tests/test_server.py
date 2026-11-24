@@ -1037,3 +1037,42 @@ def test_notes_delete_undo_and_trash(client):
     client.delete(f"/api/rides/{ride_id}")
     ride.store.purge_deleted(days=-1)  # everything, whatever the file system's clock says
     assert not any(ride.store.trash.iterdir())
+
+
+def test_strava_title_and_description_carry_the_ride():
+    from wattdisco.server import default_description, default_title
+
+    ride = {"name": "Sweet spot 3 × 4", "duration": 1680, "workout": {}, "climb": None, "ftp_estimate": None,
+            "basic": {"avg_power": 201.4, "avg_hr": 142.2, "max_hr": 168, "avg_cadence": 88.4, "distance_km": 25.31},
+            "nerd": {"wp": 215.2, "intensity": 0.874, "load": 58.3, "on_target_pct": 92.4},
+            "bests": {"5": 612.0, "60": 380.2, "300": 290.0, "1200": 240.6}}
+    assert default_title(ride) == "Watt Disco: Sweet spot 3 × 4"
+    text = default_description(ride)
+    assert text.splitlines() == [
+        "28:00 · 25.3 km (estimated)",
+        "Power: avg 201 W · weighted 215 W · intensity 0.87 · training load 58",
+        "Heart rate avg 142, max 168 bpm · cadence 88 rpm",
+        "Best: 5 s 612 W · 1 min 380 W · 5 min 290 W · 20 min 241 W",
+        "On target: 92 % of the time within ±5 %",
+        "Indoor ride with Watt Disco",
+    ]
+    assert "15.7 mi" in default_description(ride, "imperial")
+
+    climb = {**ride, "name": "Alpine-style climb", "duration": 2400, "nerd": {"wp": 230.0}, "bests": {},
+             "climb": {"length": 9000, "ascent": 615, "climbed": 615, "distance": 9000, "top": True, "seconds": 2290,
+                       "vam": 967, "w_per_kg": 3.05, "difficulty": 0.75}}
+    lines = default_description(climb).splitlines()
+    assert lines[0] == "40:00 · 25.3 km (virtual)"
+    assert lines[1] == "Climb: 9.0 km, 615 m up · to the top in 38:10 · VAM 967 m/h · 3.05 W/kg · trainer at 75 % of the gradient"
+    assert not any(line.startswith("On target") for line in lines)  # a climb has no target
+    test = {**ride, "workout": {"test": "ramp"}, "ftp_estimate": {"ftp": 256}}
+    assert "FTP test: 256 W (ramp test)" in default_description(test)
+
+
+def test_upload_screen_gets_the_watt_disco_title(client):
+    import time
+
+    time.sleep(0.4)
+    ride_id = client.post("/api/ride/stop").json()["id"]
+    d = client.get(f"/api/rides/{ride_id}/description").json()
+    assert d["name"].startswith("Watt Disco: ") and d["description"].endswith("Indoor ride with Watt Disco")
