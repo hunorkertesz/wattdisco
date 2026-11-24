@@ -85,7 +85,23 @@
       <div class="stat" data-metric="load" title="Hours × intensity² × 100: one hour at FTP is 100"><span class="mono">Load</span><div class="stat__v"><b id="load">--</b></div></div>
       <div class="stat" data-metric="vi" title="Weighted power ÷ average power: 1.00 is perfectly steady"><span class="mono">Variability</span><div class="stat__v"><b id="vi">--</b></div></div>
       <div class="stat stat--target" data-metric="on_target"><span class="mono">On target</span><div class="stat__v"><b id="on-target">--</b><span>%</span></div></div>
-      <div class="stat stat--hr" data-metric="hr_drift" title="How much heart rate rose against power from the first to the second half"><span class="mono">HR drift</span><div class="stat__v"><b id="drift">--</b><span>%</span></div></div>
+      <div class="stat stat--hr stat--aet" data-metric="hr_drift">
+        <span class="mono aet__label drift__label-up" title="How much heart rate rose against power from the first to the second half">HR drift <span id="drift-info-btn"></span></span>
+        <div class="stat__v"><b id="drift">--</b><span>%</span></div>
+        <div class="info-text aet__pop" id="drift-info">
+          <p><b>Heart rate drift</b> (also called aerobic decoupling) shows how much your heart rate crept up against your
+            power as the ride went on. The ride's seconds with both power and heart rate are cut into two halves, and each
+            half gets its watts per beat: average power ÷ average heart rate. The drift is how much the second half's watts
+            per beat fell below the first half's.</p>
+          <div class="drift__halves" id="drift-halves"></div>
+          <p><b>Reading it:</b> under 5 % on a long steady ride means your aerobic base held up well; 5–10 % is some
+            fatigue; above 10 % the ride was beyond what your aerobic fitness carries for that long. Heat, little to drink,
+            tiredness or a hard day before push it up too. A negative number means your heart rate fell against power,
+            usually because the second half was harder or the first half held a long warm-up.</p>
+          <p>It means most on a steady ride of an hour or more at endurance pace. On interval workouts the two halves hold
+            different efforts, so compare it only with rides of the same workout. Needs at least 2 minutes in each half.</p>
+        </div>
+      </div>
       <div class="stat stat--est" data-metric="ef" title="Weighted power ÷ average heart rate: more watts for the same heart rate means fitter"><span class="mono">W / beat</span><div class="stat__v"><b id="ef">--</b><span>W/bpm</span></div></div>
       <div class="stat stat--hr stat--aet" data-metric="aet">
         <span class="mono aet__label" title="Aerobic threshold from heart rate variability">AeT · α1 <span id="aet-info-btn"></span></span>
@@ -502,6 +518,27 @@ async function renderFtp(s) {
   show();
 }
 
+// HR drift with an info popover: what it is, and this ride's two halves side by side.
+function renderDrift(s) {
+  const d = s.hr_drift;
+  $("drift-info-btn").replaceWith(infoButton($("drift-info"), "What HR drift means"));
+  const box = $("drift-halves");
+  box.replaceChildren();
+  if (!d) {
+    box.append(el("span", { class: "mono drift__none", text: "This ride doesn't have 2 minutes of power and heart rate in each half." }));
+    return;
+  }
+  const row = (label, h) => [
+    el("span", { class: "mono drift__label", text: label }),
+    el("span", { text: `${Math.round(h.power)} W` }),
+    el("span", { class: "drift__hr", text: `${Math.round(h.hr)} bpm` }),
+    el("b", { text: `${h.ratio.toFixed(2)} W/beat` }),
+  ];
+  box.append(...row(`1st half · ${fmtClock(d.first.seconds)}`, d.first), ...row(`2nd half · ${fmtClock(d.second.seconds)}`, d.second),
+    el("span", { class: "mono drift__label drift__total", text: "Drift" }),
+    el("b", { class: "drift__total drift__pct", text: `${signed(d.pct)} %` }));
+}
+
 // Aerobic threshold from DFA alpha 1 (core/hrv.py), with an info popover that also plots the windows.
 function renderAet(s) {
   const d = s.dfa;
@@ -584,7 +621,7 @@ const nerdHelp = helpCard("summary-nerd", {
     ["Load", "Hours × intensity² × 100: one hour at FTP is 100. Adds up into fitness and fatigue on Progress."],
     ["Variability", "Weighted ÷ average power. 1.00 is perfectly steady; above about 1.1 the ride was surgy."],
     ["On target", "The share of the ride within ±5 % of the target power."],
-    ["HR drift", "How much your heart rate rose against power from the first half to the second. Under 5 % on a steady ride means good aerobic fitness."],
+    ["HR drift", "How much your heart rate rose against power from the first half to the second. Under 5 % on a steady ride means good aerobic fitness; the i button explains more."],
     ["W / beat", "Weighted power ÷ average heart rate. More watts for the same heartbeats over the weeks means you are getting fitter."],
     ["AeT · α1", "Your aerobic threshold heart rate from heart rate variability; the i button explains how."],
   ],
@@ -780,6 +817,7 @@ if (summary) {
   renderClimbTimes(summary);
   renderFeel(summary);
   renderAet(summary);
+  renderDrift(summary);
   setupCompare(summary);
 
   const VIEWS = ["basic", "nerd", "compare"];

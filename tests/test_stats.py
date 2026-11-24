@@ -51,6 +51,11 @@ def test_hr_drift():
     hr = [140] * 300 + [147] * 300  # HR up 5 % at the same power
     assert stats.hr_drift_pct(power, hr) == pytest.approx(100 * (1 - 140 / 147), abs=0.01)
     assert stats.hr_drift_pct([200] * 100, [140] * 100) is None  # too short
+    d = stats.hr_drift(power, hr)
+    assert d["pct"] == pytest.approx(stats.hr_drift_pct(power, hr))
+    assert d["first"]["ratio"] == pytest.approx(d["first"]["power"] / d["first"]["hr"])
+    assert d["first"]["seconds"] + d["second"]["seconds"] == sum(1 for p, h in zip(power, hr) if p and h)
+    assert stats.hr_drift([200] * 100, [140] * 100) is None
 
 
 def test_time_in_zones():

@@ -8,7 +8,7 @@ from wattdisco.core.recorder import RideData
 from wattdisco.core.speed import virtual_ride
 
 # Bump when the summary gains or changes fields, so cached summaries and .fit files are rebuilt.
-SUMMARY_VERSION = 12  # 10: left/right balance; 11: climbs (recorded distance, height); 12: climb power, W/kg, speed
+SUMMARY_VERSION = 13  # 10: left/right balance; 11: climbs (recorded distance, height); 12: climb power, W/kg, speed; 13: HR drift halves
 
 
 def build_summary(ride: RideData) -> dict:
@@ -96,6 +96,7 @@ def build_summary(ride: RideData) -> dict:
             "on_target_pct": stats.on_target_pct(power, target),
             "hr_drift_pct": stats.hr_drift_pct(power, hr),
         },
+        "hr_drift": stats.hr_drift(power, hr),
         "zones": stats.time_in_zones(power, ftp),
         "hr_zones": _hr_zones(meta, hr),
         "deviation": stats.deviation(power, target),

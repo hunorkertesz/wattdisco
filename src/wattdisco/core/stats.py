@@ -68,16 +68,26 @@ def on_target_pct(power: Sequence, target: Sequence, band: float = ON_TARGET_BAN
     return 100 * sum(abs(p - t) <= band * t for p, t in pairs) / len(pairs)
 
 
-def hr_drift_pct(power: Sequence, hr: Sequence) -> float | None:
-    """Positive when heart rate rose relative to power in the second half."""
+def hr_drift(power: Sequence, hr: Sequence) -> dict | None:
+    """Power and heart rate in each half of the seconds that have both, and how much the watts per beat fell.
+
+    `pct` is positive when heart rate rose relative to power in the second half."""
     pairs = [(p, h) for p, h in zip(power, hr) if p and h]
     half = len(pairs) // 2
     if half < MIN_DRIFT_HALF:
         return None
-    first, second = pairs[:half], pairs[half:]
-    r1 = mean(p for p, _ in first) / mean(h for _, h in first)
-    r2 = mean(p for p, _ in second) / mean(h for _, h in second)
-    return (r1 - r2) / r1 * 100
+    halves = []
+    for part in (pairs[:half], pairs[half:]):
+        watts, beats = mean(p for p, _ in part), mean(h for _, h in part)
+        halves.append({"seconds": len(part), "power": watts, "hr": beats, "ratio": watts / beats})
+    r1, r2 = halves[0]["ratio"], halves[1]["ratio"]
+    return {"pct": (r1 - r2) / r1 * 100, "first": halves[0], "second": halves[1]}
+
+
+def hr_drift_pct(power: Sequence, hr: Sequence) -> float | None:
+    """Positive when heart rate rose relative to power in the second half."""
+    d = hr_drift(power, hr)
+    return None if d is None else d["pct"]
 
 
 def time_in_zones(power: Sequence, ftp: int) -> list[dict]:
