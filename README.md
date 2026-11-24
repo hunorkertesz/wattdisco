@@ -89,6 +89,9 @@ Not sure what a number means? **?** explains them all.
   screen is further away. A ride cut short by a crash or a power cut can be continued where it stopped.
 - **Every sensor, recorded.** Trainer and power meter, two heart rate straps, left/right balance, RR intervals and
   battery levels, even the ones that aren't the main source.
+- **Just ride.** No workout and no target: the trainer rides like a flat road, you shift gears, and the ride is
+  recorded until you end it.
+- **Trainer calibration.** A spin-down over Bluetooth, step by step, for trainers that offer it.
 
 **Train**
 - **Workouts.** 40+ built-ins by type (endurance, tempo, sweet spot, threshold, VO2 max, sprints, strength, FTP tests),
@@ -97,11 +100,19 @@ Not sure what a number means? **?** explains them all.
   ride and how long a session can be. The plan suggests the next session; ride it, skip it, or mark it done outdoors.
 - **FTP tests.** Ramp test and 20 min test set your FTP; any ride with a better 20 minutes suggests a new one.
 
+**Climb**
+- **Climbs.** The road's gradient sets the trainer's resistance, as on a real climb (FTMS simulation); your power and
+  weight move you up it. Built-in climbs, or your own from a `.gpx` file (only the distance and gradients are kept,
+  never the GPS positions). Difficulty 25–100 %.
+- **Ride against your best.** A ghost of your fastest earlier ride up the same climb, and how many seconds ahead or
+  behind you are. Live speed, VAM, W/kg and time to the top in nerd mode.
+- **Climb summary.** Time to the top, VAM, W/kg, your best times up each climb, and power by gradient.
+
 **Analyse**
 - **Ride summary** in three views: the basics, a nerd dashboard, and a side-by-side **compare** with the last time you
   rode the same workout (or any earlier ride, or your 28-day average).
-- **Progress.** Fitness, fatigue and form, your power curve, FTP history, critical power and W′, and how your two power
-  sources drift apart over weeks.
+- **Progress.** Fitness, fatigue and form, your power curve, FTP history, critical power and W′, how your two power
+  sources drift apart over weeks, and your best time up each climb.
 - **Aerobic threshold from heart rate variability** (DFA α1), from the strap's RR intervals.
 - **History** of every ride, with totals for 7 days, 28 days or all time, how each ride felt (1–10) and your notes.
   A deleted ride can be brought back.
@@ -161,7 +172,7 @@ Move the mouse or tap the screen to show the controls; they fade away again on t
 | N | nerd mode | F | the whole workout in the chart |
 | B | big numbers | ↑ / ↓ | this interval ±5 W (nerd mode) |
 | C | sensor comparison | S | skip to the next phase (nerd mode) |
-| M | mute / unmute the sound cues (or the speaker, top right) | | |
+| M | mute / unmute the sound cues (or the speaker, top right) | G | the ghost on a climb, on or off |
 
 ## Strava
 
@@ -198,8 +209,10 @@ Everything stays on your computer, in your own app folder:
 | Windows | `%LOCALAPPDATA%\Watt Disco` |
 | Linux | `~/.local/share/Watt Disco` |
 
-Rides (`rides/`, one `.jsonl` per ride with every sample), workouts, settings, the training plan, FTP history and
-the Strava sign-in. Set `WATTDISCO_DATA` to use another folder.
+Rides (`rides/`, one `.jsonl` per ride with every sample), workouts and climbs, settings, the training plan, FTP
+history, the Strava sign-in and a log of what the app did (`logs/`). Set `WATTDISCO_DATA` to use another folder.
+Something not working? **Copy diagnostics** on the Devices screen shows the app's versions, your devices and the end of
+the log, to paste into an [issue](https://github.com/hunorkertesz/wattdisco/issues).
 
 ### Privacy
 
