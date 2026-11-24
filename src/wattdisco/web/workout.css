@@ -508,3 +508,6 @@
 
 /* Text size for riders who sit further from the screen (ready screen, per browser): bigger numbers, smaller chart */
 .app[data-ride-text] .chart-wrap { min-height: 120px; }
+
+/* A climb: the badge takes the gradient's colour (light greys to pink), so its text stays dark. */
+.phase-badge--grade { color: #070B0A; }

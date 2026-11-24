@@ -813,18 +813,29 @@ export function drawProgressStrip(canvas, workout, ftp, elapsed) {
 
 // A climb: height over distance, each stretch filled in its gradient's colour, the rider as a dot.
 // `profile` is [[metres, height, gradient %], ...]; `distance` the rider's position (null before the start).
-export function drawClimbProfile(canvas, profile, { distance = null, imperial = false } = {}) {
+// `window` (metres) shows that much of the road around the rider, mostly ahead; null shows the whole climb.
+export function drawClimbProfile(canvas, profile, { distance = null, imperial = false, window = null } = {}) {
   const { ctx, w, h } = fit(canvas);
   if (!profile || profile.length < 2) return;
   const top = 18;
   const bottom = h - 22;
   const length = profile[profile.length - 1][0];
-  const alts = profile.map((p) => p[1]);
-  const lo = Math.min(...alts);
-  const hi = Math.max(...alts);
-  const span = Math.max(20, hi - lo);
-  const x = (d) => (d / length) * w;
-  const y = (a) => bottom - ((a - lo) / (span * 1.12)) * (bottom - top);
+  const span = window && window < length ? window : length;
+  const from = span === length ? 0 : Math.min(length - span, Math.max(0, (distance ?? 0) - span * 0.25));
+  const to = from + span;
+  const heightAt = (d) => {
+    let i = profile.findIndex((p) => p[0] >= d);
+    if (i <= 0) return profile[Math.max(0, i)][1];
+    const [d0, a0] = profile[i - 1];
+    const [d1, a1] = profile[i];
+    return a0 + ((a1 - a0) * (d - d0)) / Math.max(1, d1 - d0);
+  };
+  const seen = profile.filter((p) => p[0] >= from && p[0] <= to).map((p) => p[1]).concat([heightAt(from), heightAt(to)]);
+  const lo = Math.min(...seen);
+  const hi = Math.max(...seen);
+  const rise = Math.max(span === length ? 20 : 8, hi - lo);
+  const x = (d) => ((d - from) / span) * w;
+  const y = (a) => bottom - ((a - lo) / (rise * 1.12)) * (bottom - top);
 
   ctx.strokeStyle = css("--line");
   ctx.lineWidth = 1;
@@ -834,10 +845,13 @@ export function drawClimbProfile(canvas, profile, { distance = null, imperial = 
   }
 
   for (let i = 1; i < profile.length; i++) {
-    const [d0, a0] = profile[i - 1];
-    const [d1, a1, g] = profile[i];
-    const grade = (g + profile[i - 1][2]) / 2;
-    const color = gradeColor(grade);
+    const [p0, p1] = [profile[i - 1], profile[i]];
+    if (p1[0] < from || p0[0] > to) continue;
+    const d0 = Math.max(from, p0[0]);
+    const d1 = Math.min(to, p1[0]);
+    const a0 = heightAt(d0);
+    const a1 = heightAt(d1);
+    const color = gradeColor((p0[2] + p1[2]) / 2);
     const ridden = distance != null && d1 <= distance;
     const fill = ctx.createLinearGradient(0, Math.min(y(a0), y(a1)), 0, bottom);
     fill.addColorStop(0, hexToRgba(color, ridden ? 0.75 : 0.5));
@@ -850,29 +864,25 @@ export function drawClimbProfile(canvas, profile, { distance = null, imperial = 
     neonStroke(ctx, color);
   }
 
-  // distance marks along the bottom, height of the top on the left
+  // distance marks along the bottom, the height shown on the left
   font(ctx, 10, 1);
   ctx.fillStyle = css("--muted");
   ctx.textBaseline = "alphabetic";
   const unit = imperial ? 1609.344 : 1000;
-  const total = length / unit;
-  const step = [0.5, 1, 2, 5, 10].find((s) => total / s <= Math.max(2, Math.floor(w / 90))) ?? 20;
-  for (let k = 0; k * step <= total + 1e-9; k++) {
+  const shownUnits = span / unit;
+  const step = [0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10].find((st) => shownUnits / st <= Math.max(2, Math.floor(w / 90))) ?? 20;
+  for (let k = Math.ceil(from / unit / step - 1e-9); k * step * unit <= to + 1e-6; k++) {
     const xx = x(k * step * unit);
-    ctx.textAlign = k === 0 ? "left" : xx > w - 30 ? "right" : "center";
-    ctx.fillText(`${+(k * step).toFixed(1)}${k === 0 ? (imperial ? " MI" : " KM") : ""}`, xx, h - 6);
+    ctx.textAlign = xx < 30 ? "left" : xx > w - 30 ? "right" : "center";
+    ctx.fillText(`${+(k * step).toFixed(2)}${k === 0 ? (imperial ? " MI" : " KM") : ""}`, xx, h - 6);
   }
   ctx.textAlign = "left";
   const feet = (m) => (imperial ? `${Math.round(m * 3.28084)} FT` : `${Math.round(m)} M`);
-  ctx.fillText(`+${feet(hi - lo)}`, 4, top - 4);
+  ctx.fillText(span === length ? `+${feet(hi - lo)}` : `+${feet(hi - lo)} IN VIEW`, 4, top - 4);
 
   if (distance != null) {
     const d = Math.min(length, Math.max(0, distance));
-    let i = profile.findIndex((p) => p[0] >= d);
-    if (i <= 0) i = 1;
-    const [d0, a0] = profile[i - 1];
-    const [d1, a1] = profile[i];
-    const a = a0 + ((a1 - a0) * (d - d0)) / Math.max(1, d1 - d0);
+    const a = heightAt(d);
     ctx.save();
     ctx.strokeStyle = css("--white");
     ctx.setLineDash([3, 4]);

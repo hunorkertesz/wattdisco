@@ -56,7 +56,7 @@
     </nav>
     <!-- This interval and the ride: a second dock at the bottom of the chart, shown and hidden with the top one. -->
     <nav class="dock dock--bottom" id="dock-ride" aria-label="Interval and ride">
-      <div class="dock__group nerd-only" role="group" aria-label="This interval">
+      <div class="dock__group nerd-only" id="interval-group" role="group" aria-label="This interval">
         <span class="zoom-label">INTERVAL</span>
         <button class="btn btn--sm btn--icon btn--pink" type="button" id="easier" aria-label="Easier by 5 W" title="Easier by 5 W (↓)">−</button>
         <span class="zoom-label adjust-label" id="adjust-label">±0 W</span>
@@ -70,7 +70,7 @@
     <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show view controls"></button></div>
     <div class="dock-zone dock-zone--bottom" id="zone-ride"><button class="dock-handle" type="button" aria-label="Show interval and ride controls"></button></div>
     <div class="chart-wrap">
-      <canvas id="chart" role="img" aria-label="Workout chart with target power, power and heart rate"></canvas>
+      <canvas id="chart" role="img" aria-label="Workout chart with target power, power and heart rate, or a climb's profile with your position"></canvas>
       <div class="phase-pill" id="pill" hidden></div>
       <button class="sound-hint" type="button" id="sound-hint" hidden>Tap for sound cues</button>
     </div>
@@ -82,13 +82,13 @@
         <span class="mono target-label basic-only">Target</span>
         <div id="mode"></div>
       </div>
-      <div class="num basic-only"><span id="target">--</span><span class="num__u">W</span></div>
+      <div class="num basic-only"><span id="target">--</span><span class="num__u" id="target-unit">W</span></div>
       <span class="mono target-diff basic-only" id="target-diff">±5 %</span>
       <div class="nerd-target nerd-only">
         <!-- Target ring: the dot runs round the ring as power goes under or over the target. -->
         <svg class="ring" id="ring" viewBox="0 0 120 120" role="img" aria-label="Power against target"></svg>
-        <div class="stat stat--target"><span class="mono">On target · this interval</span>
-          <div class="num"><span id="n-on-target">--</span><span class="num__u">%</span></div></div>
+        <div class="stat stat--target"><span class="mono" id="n-stat-label">On target · this interval</span>
+          <div class="num"><span id="n-on-target">--</span><span class="num__u" id="n-stat-unit">%</span></div></div>
       </div>
       <span class="mono trainer-status" id="trainer-status" role="status"></span>
     </div>
@@ -144,16 +144,18 @@
 </div>
 
 <script type="module">
-import { PHASE_LABEL, chipGroup, effortColor, el, fmtClock, fmtNum, neonSelect, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen, helpCard } from "/components.js";
-import { Trace, drawWorkoutChart } from "/charts.js";
+import { PHASE_LABEL, chipGroup, effortColor, el, fmtClock, fmtNum, gradeColor, neonSelect, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen, helpCard } from "/components.js";
+import { Trace, drawClimbProfile, drawWorkoutChart } from "/charts.js";
 import { confirmTwice, endRide, setupDock } from "/dock.js";
 import { connectLive } from "/live.js";
-import { metricInUnits } from "/units.js";
+import { distance as inDistance, distanceUnit, imperial, metricInUnits, setUnits, speed as inSpeed, speedUnit } from "/units.js";
 import { addSoundButton, blocked as soundBlocked, rideCues, unlockSound } from "/sound.js";
 
 const $ = (id) => document.getElementById(id);
 const ALERT_SECONDS = 10;
 const ZOOMS = [300, 600, 1200, 1800];
+const CLIMB_WINDOW = { 300: 1000, 600: 2000, 1200: 4000, 1800: 6000 }; // a climb's zoom: metres of road in view
+let climbing = false; // the ride is a climb: same screen, the road instead of the workout
 
 const strip = renderStrip($("strip"), { active: "train" });
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -182,11 +184,14 @@ function fitNewRide(rideId) {
 function setZoom(next) {
   zoom = next;
   try { localStorage.setItem("wd.zoom", JSON.stringify(zoom)); } catch {}
-  $("zoom-label").textContent = zoom.fit ? "WHOLE" : `${zoom.span / 60} MIN`;
+  showZoomLabel();
   $("zoom-fit").setAttribute("aria-pressed", String(zoom.fit));
   $("zoom-in").disabled = !zoom.fit && zoom.span === ZOOMS[0];
   $("zoom-out").disabled = !zoom.fit && zoom.span === ZOOMS[ZOOMS.length - 1];
   render(live.store);
+}
+function showZoomLabel() {
+  $("zoom-label").textContent = zoom.fit ? "WHOLE" : climbing ? `${CLIMB_WINDOW[zoom.span] / 1000} KM` : `${zoom.span / 60} MIN`;
 }
 $("zoom-in").onclick = () => setZoom({ ...zoom, fit: false, span: zoom.fit ? zoom.span : ZOOMS[Math.max(0, ZOOMS.indexOf(zoom.span) - 1)] });
 $("zoom-out").onclick = () => setZoom({ ...zoom, fit: false, span: zoom.fit ? zoom.span : ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom.span) + 1)] });
@@ -207,11 +212,26 @@ const nerdHelp = helpCard("workout-nerd", {
   ],
   note: "Shown once. The ? button in the top controls brings it back.",
 });
-$("help").onclick = () => nerdHelp.open();
+// On a climb the same places show the road: its own card, also shown once.
+const climbHelp = helpCard("climb-nerd", {
+  title: "Nerd mode on a climb · what you see",
+  items: [
+    ["Gradient ring", "The road's gradient here. The dot moves right as it gets steeper, left on a descent; the marked band is ±5 %."],
+    ["Speed", "Your speed on this road, from your power, your weight and the real gradient."],
+    ["Trainer line", "What the trainer simulates: the gradient a moment ahead, scaled by the difficulty you chose."],
+    ["Teal ring", "How far your two power sources (trainer and power meter) read apart. The band is ±2 %."],
+    ["Average pills", "Power and heart rate averaged over the last 30 s; tap the pill to pick 1, 5 or 10 minutes."],
+    ["Zoom", "− / + shows 1, 2, 4 or 6 km of road ahead; Fit shows the whole climb."],
+  ],
+  note: "Shown once. The ? button in the top controls brings it back.",
+});
+const help = () => (climbing ? climbHelp : nerdHelp);
+$("help").onclick = () => help().open();
+let helpShown = false; // opened once the screen knows whether this is a climb
 
 function setNerd(on) {
   nerd = on;
-  if (on) nerdHelp.maybeOpen();
+  if (on && helpShown) help().maybeOpen();
   try { localStorage.setItem("wd.nerd", on ? "1" : "0"); } catch {}
   $("app").classList.toggle("is-nerd", on);
   for (const b of document.querySelectorAll("[data-view]")) {
@@ -362,17 +382,27 @@ const label = (kind) => PHASE_LABEL[kind] ?? String(kind).toUpperCase();
 let lastHr = null;
 let lastPowerT = -1;
 
+const km = (m) => `${inDistance(m / 1000).toFixed(m < 10000 ? 2 : 1)} ${distanceUnit().toUpperCase()}`;
+const height = (m) => (imperial() ? `${Math.round(m * 3.28084)} FT` : `${Math.round(m)} M`);
+const pct = (g) => (g == null ? "--" : `${g < 0 ? "−" : ""}${Math.abs(g).toFixed(1)}`);
+
 function renderHud(store, s, w) {
   const workout = store.workout;
   $("title").textContent = workout.name;
   document.title = `Watt Disco – ${workout.name}`;
+  if (climbing && s.climb) return renderClimbHud(store, s, w);
   const parts = [];
   if (w.interval && w.interval.n > 0 && !w.done) parts.push(`INTERVAL ${w.interval.n} / ${w.interval.of}`);
   parts.push(`${fmtClock(Math.min(w.elapsed, w.total))} / ${fmtClock(w.total)}`);
   if (store.speed !== 1) parts.push(`SIM ×${store.speed}`);
   $("progress").textContent = parts.join(" · ");
 
-  // Heart rate keeps the last value, dimmed, while the strap is silent.
+  renderHeartRate(s);
+  renderPhase(w);
+}
+
+// Heart rate keeps the last value, dimmed, while the strap is silent.
+function renderHeartRate(s) {
   const mainHr = s.devices.find((d) => d.id === s.main_hr_id);
   const silent = !mainHr || mainHr.no_data || mainHr.state !== "connected";
   if (s.hr != null) lastHr = s.hr;
@@ -381,8 +411,12 @@ function renderHud(store, s, w) {
   $("hr-label").textContent = silent && s.main_hr_id ? "HEART RATE · NO SIGNAL" : "HEART RATE";
   $("hr-label").classList.toggle("is-warn", silent && !!s.main_hr_id);
   traces.hr.setRate(s.hr);
+}
 
+function renderPhase(w) {
   const badge = $("phase-badge");
+  badge.classList.remove("phase-badge--grade");
+  $("countdown").setAttribute("aria-label", "Time left in this phase");
   if (w.done) {
     badge.textContent = "DONE";
     badge.style.background = "";
@@ -396,6 +430,22 @@ function renderHud(store, s, w) {
       ? `NEXT · ${label(w.next.kind)} ${w.next.watts} W · ${fmtDuration(w.next.seconds)}`
       : "LAST PHASE";
   }
+}
+
+// A climb: where you are on the road, the gradient here, and how far to the top.
+function renderClimbHud(store, s, w) {
+  const c = s.climb;
+  const parts = [`${km(c.distance)} OF ${km(c.length)}`, `${height(c.climbed)} OF ${height(c.ascent)} UP`, fmtClock(Math.round(w.elapsed))];
+  if (store.speed !== 1) parts.push(`SIM ×${store.speed}`);
+  $("progress").textContent = parts.join(" · ");
+  renderHeartRate(s);
+  const badge = $("phase-badge");
+  badge.textContent = c.top ? "AT THE TOP" : `CLIMB · ${pct(c.grade)} %`;
+  badge.style.background = c.top ? "" : gradeColor(c.grade);
+  badge.classList.toggle("phase-badge--grade", !c.top);
+  $("countdown").textContent = c.top ? height(c.ascent) : km(c.left);
+  $("countdown").setAttribute("aria-label", c.top ? "Climbed" : "Distance to the top");
+  $("next").textContent = c.top ? "CLIMB COMPLETE" : `TO THE TOP · ${height(c.ascent - c.climbed)} TO CLIMB`;
 }
 
 function renderNumbers(store, s, w) {
@@ -414,6 +464,34 @@ function renderNumbers(store, s, w) {
   const phase = w.index == null ? null : store.workout.phases[w.index];
   for (const bar of cadBars) bar(s.cadence, w.done ? null : phase?.cadence);
 
+  if (climbing && s.climb) {
+    renderClimbTarget(s, s.climb);
+  } else {
+    renderTarget(s, w);
+  }
+  // Recent average (30 s … 10 min, picked in the pill) beside the label, in the zone of that average
+  const avg30 = s.nerd?.avg?.[avgWindow.power];
+  $("avg30").textContent = fmtNum(avg30);
+  $("hr-avg30").textContent = fmtNum(s.nerd?.hr_avg?.[avgWindow.hr]);
+  $("avg30-box").style.setProperty("--avg-color", avg30 == null ? "" : effortColor(avg30, store.settings?.ftp));
+
+  renderTrainer(s, w);
+  if (nerd) renderNerd(s, w);
+}
+
+// A climb has no target power: the box shows the road's gradient, the speed it gives and what the trainer simulates.
+function renderClimbTarget(s, c) {
+  const box = $("target-box");
+  document.querySelector(".target-label").textContent = "Gradient";
+  $("target").textContent = pct(c.grade);
+  $("target-unit").textContent = "%";
+  box.style.setProperty("--effort-color", gradeColor(c.grade));
+  $("target-diff").textContent = `${fmtNum(inSpeed(c.speed * 3.6), 1)} ${speedUnit()}`; // the trainer's gradient: in the trainer line
+  $("target-diff").classList.remove("is-off");
+}
+
+function renderTarget(s, w) {
+  $("target-unit").textContent = "W";
   const box = $("target-box");
   const adjusted = w.adjust ? ` · ${w.adjust > 0 ? "+" : "−"}${Math.abs(w.adjust)} W` : "";
   document.querySelector(".target-label").textContent = `Target${adjusted}`;
@@ -430,14 +508,6 @@ function renderNumbers(store, s, w) {
     $("target-diff").textContent = `${diff} · ±5 %`;
     $("target-diff").classList.toggle("is-off", w.on_target === false);
   }
-  // Recent average (30 s … 10 min, picked in the pill) beside the label, in the zone of that average
-  const avg30 = s.nerd?.avg?.[avgWindow.power];
-  $("avg30").textContent = fmtNum(avg30);
-  $("hr-avg30").textContent = fmtNum(s.nerd?.hr_avg?.[avgWindow.hr]);
-  $("avg30-box").style.setProperty("--avg-color", avg30 == null ? "" : effortColor(avg30, store.settings?.ftp));
-
-  renderTrainer(s, w);
-  if (nerd) renderNerd(s, w);
 }
 
 const signed = (v, d = 0) => (v == null ? "--" : `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(d)}`);
@@ -503,14 +573,27 @@ const cadBars = [makeCadenceBar($("cad-bar")), makeCadenceBar($("n-cad-bar"))];
 
 function renderNerd(s, w) {
   const n = s.nerd ?? {};
-  targetRing({
+  const c = climbing ? s.climb : null;
+  $("n-stat-label").textContent = c ? "Speed" : "On target · this interval";
+  $("n-stat-unit").textContent = c ? speedUnit() : "%";
+  if (c) {
+    // the dot runs round with the gradient: up the right side for climbing, left for downhill; ±3 % marked as flat-ish
+    targetRing({
+      value: pct(c.grade),
+      unit: "% GRADIENT",
+      pct: c.grade,
+      text: c.difficulty < 1 ? `TRAINER ${pct(c.trainer_grade)} %` : `${height(c.ascent - c.climbed)} TO CLIMB`,
+      off: false,
+    });
+    $("n-on-target").textContent = fmtNum(inSpeed(c.speed * 3.6), 1);
+  } else targetRing({
     value: w.target ?? "--",
     unit: w.adjust ? `W TARGET ${w.adjust > 0 ? "+" : "−"}${Math.abs(w.adjust)}` : "W TARGET",
     pct: w.diff == null ? null : n.diff_pct,
     text: w.diff == null ? "" : `${signed(w.diff)} W · ${signed(n.diff_pct, 1)} %`,
     off: w.on_target === false,
   });
-  $("n-on-target").textContent = fmtNum(n.on_target_interval_pct);
+  if (!c) $("n-on-target").textContent = fmtNum(n.on_target_interval_pct);
   $("n-cadence").textContent = fmtNum(s.cadence);
   const src = n.source_diff;
   sourceRing({
@@ -523,11 +606,25 @@ function renderNerd(s, w) {
 }
 
 function renderTrainer(s, w) {
-  mode.set(w.mode);
+  mode.style.display = climbing ? "none" : ""; // a climb has no ERG: the road sets the resistance
+  if (!climbing) mode.set(w.mode);
   const trainerUp = s.devices.some((d) => d.roles.includes("control") && d.state === "connected");
   const t = s.trainer;
   let text;
   let warn = false;
+  if (climbing) {
+    const c = s.climb ?? {};
+    if (w.paused) text = "PAUSED · TRAINER ON A FLAT ROAD";
+    else if (c.top) text = "AT THE TOP · TRAINER ON A FLAT ROAD";
+    else if (!trainerUp) { text = "NO TRAINER CONNECTED · SPEED STILL FOLLOWS THE CLIMB"; warn = true; }
+    else if (t && !t.ok) { text = `TRAINER · ${t.message.toUpperCase()}`; warn = true; }
+    else if (t && t.mode === "sim" && t.grade != null) {
+      text = `TRAINER SIMULATES ${pct(t.grade)} %${c.difficulty < 1 ? ` · DIFFICULTY ${Math.round(c.difficulty * 100)} %` : ""}`;
+    } else text = "TALKING TO TRAINER…";
+    $("trainer-status").textContent = text;
+    $("trainer-status").classList.toggle("is-warn", warn);
+    return;
+  }
   if (w.paused) text = "PAUSED · TRAINER RELEASED";
   else if (w.mode === "free") text = "FREE RIDE · FOLLOW THE TARGET";
   else if (!trainerUp) { text = "ERG · NO TRAINER CONNECTED"; warn = true; }
@@ -544,10 +641,15 @@ function render(store) {
   $("conn").hidden = store.connected || !store.workout;
   const s = store.state;
   if (!s || !store.workout) return;
-  if (store.workout.climb) { location.replace("/climb.html"); return; } // a climb has its own screen
   const w = s.workout;
   if (s.ride?.active && s.ride.id !== zoom.ride) return fitNewRide(s.ride.id); // setZoom renders again
   setZoneTops(store.settings?.zone_tops);
+  setUnits(store.settings?.units);
+  climbing = !!store.workout.climb;
+  if (!helpShown) { helpShown = true; if (nerd) help().maybeOpen(); }
+  $("app").classList.toggle("is-climb", climbing);
+  $("interval-group").hidden = climbing; // a road has no interval to make harder or skip
+  showZoomLabel();
 
   renderDeviceChips(strip.devices, s.devices);
   renderExtras(s);
@@ -560,6 +662,13 @@ function render(store) {
   const alert = !w.done && w.next && w.seconds_left <= ALERT_SECONDS;
   $("app").classList.toggle("is-alert", !!alert);
 
+  if (climbing) {
+    $("pill").hidden = true;
+    drawClimbProfile($("chart"), store.workout.profile, {
+      distance: s.climb?.distance ?? null, imperial: imperial(), window: zoom.fit ? null : CLIMB_WINDOW[zoom.span],
+    });
+    return;
+  }
   const nowX = drawWorkoutChart($("chart"), {
     workout: adjustedWorkout(store.workout, w.adjustments),
     history: store.history,
@@ -613,6 +722,7 @@ function renderRide(s, w) {
   $("paused-title").textContent = why === "waiting" ? "Pedal to start" : why === "stopped" ? "Paused · pedal to go on" : "Paused";
   $("paused-why").textContent = why === "waiting" ? "The workout clock starts with your first pedal strokes"
     : why === "stopped" ? "You stopped pedalling · nothing is recorded · auto-pause can be switched off on the ready screen"
+    : climbing ? "Clock stopped · trainer on a flat road · nothing is recorded"
     : "Workout clock stopped · trainer released · nothing is recorded";
   $("resume").firstChild.textContent = why === "waiting" ? "Start now " : "Resume ";
   $("pause").firstChild.textContent = paused ? "Resume " : "Pause ";
