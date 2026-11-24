@@ -389,6 +389,7 @@ const pct = (g) => (g == null ? "--" : `${g < 0 ? "−" : ""}${Math.abs(g).toFix
 function renderHud(store, s, w) {
   const workout = store.workout;
   $("title").textContent = workout.name;
+  $("title").title = workout.name; // the full name, when two lines cut it short
   document.title = `Watt Disco – ${workout.name}`;
   if (climbing && s.climb) return renderClimbHud(store, s, w);
   const parts = [];
