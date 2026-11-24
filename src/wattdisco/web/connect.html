@@ -25,6 +25,7 @@
   .sub.is-ok { color: var(--teal); }
   .help { font-size: 13px; line-height: 1.35; color: var(--yellow-soft); max-width: 60ch; }
   .roles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .info .calib { align-self: flex-start; margin-top: 3px; }
   .row .btn { flex: none; }
   .row--later { opacity: .6; }
   .footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
@@ -146,7 +147,8 @@ const connectingSince = {}; // device id -> when it started connecting (for "tak
 function makeRow(id) {
   const row = el("div", { class: "row", "data-id": id },
     el("div", { class: "info" }, el("b", { class: "name" }), el("span", { class: "mono sub" }),
-      el("span", { class: "help", hidden: true })),
+      el("span", { class: "help", hidden: true }),
+      el("button", { class: "chip chip--warn calib", type: "button", title: "Spin-down calibration: makes the trainer's power more accurate" }, "Calibrate")),
     el("span", { class: "live" }),
     el("div", { class: "roles", role: "group" }),
     el("button", { class: "chip chip--warn zero", type: "button", title: "Unclip, cranks still, no pressure on the pedals" }, "Zero offset"),
@@ -155,6 +157,7 @@ function makeRow(id) {
     el("button", { class: "btn action", type: "button" }),
   );
   row.querySelector(".zero").addEventListener("click", () => zero(id));
+  row.querySelector(".calib").addEventListener("click", () => calibration.open(id));
   row.querySelector(".action").addEventListener("click", () => act(id));
   return row;
 }
@@ -167,6 +170,7 @@ function renderRow(d, data) {
   const sub = row.querySelector(".sub");
   const bits = [d.kind];
   if (d.zeroed_at && d.capabilities.includes("power") && !d.capabilities.includes("control")) bits.push(ago(d.zeroed_at));
+  if (d.calibrated_at && d.capabilities.includes("control")) bits.push(ago(d.calibrated_at).replace("zeroed", "calibrated"));
   if (d.state === "connecting") bits.push("connecting…");
   else if (d.state === "lost") bits.push("lost · reconnecting");
   else if (connected && d.no_data) bits.push("no signal");
@@ -201,6 +205,7 @@ function renderRow(d, data) {
   const zeroable = connected && d.capabilities.includes("power") && !d.capabilities.includes("control");
   row.querySelector(".zero").hidden = !zeroable;
   row.querySelector(".zero").disabled = busy.has(`zero:${d.id}`);
+  row.querySelector(".calib").hidden = !(connected && d.capabilities.includes("control"));
 
   row.querySelector(".bars").replaceChildren(signalBars(d.rssi));
   row.querySelector(".battery").replaceChildren(batteryBadge(d.battery));
@@ -290,6 +295,70 @@ async function toggleRole(id, role) {
     render();
   } catch (e) { setStatus(e.message, "error"); }
 }
+
+// ---------- spin-down calibration of the trainer (POST /api/devices/<id>/calibrate, then poll /api/calibration) ----------
+const calibration = (() => {
+  let card = null, timer = null, deviceId = null;
+  const STEPS = {
+    starting: ["Getting the trainer ready…", ""],
+    speed_up: ["Pedal up to speed", "Ride up past the band, then keep going until the app says stop."],
+    stop: ["Stop pedalling", "Let the wheel run down on its own. Don't touch the pedals."],
+    success: ["Calibrated", "Your trainer's power is set for today's conditions. Calibrate again after moving it or when it feels off."],
+    error: ["Calibration failed", ""],
+  };
+  const close = () => { clearInterval(timer); timer = null; card?.remove(); card = null; removeEventListener("keydown", onKey, true); };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const show = (c) => {
+    if (!card) return;
+    const stage = c?.stage ?? "starting";
+    const [title, text] = STEPS[stage] ?? STEPS.starting;
+    card.querySelector(".calib__title").textContent = title;
+    card.querySelector(".calib__text").textContent = stage === "error" ? (c.message || "Try again.") : text;
+    const meter = card.querySelector(".calib__meter");
+    meter.hidden = !(stage === "speed_up" || stage === "stop");
+    const top = Math.max(40, (c?.high ?? 35) + 8);
+    card.querySelector(".calib__speed").textContent = c?.speed == null ? "--" : c.speed.toFixed(1);
+    card.querySelector(".calib__fill").style.width = `${Math.min(100, ((c?.speed ?? 0) / top) * 100)}%`;
+    const band = card.querySelector(".calib__band");
+    band.hidden = c?.low == null;
+    if (c?.low != null) { band.style.left = `${(c.low / top) * 100}%`; band.style.width = `${((c.high - c.low) / top) * 100}%`; }
+    card.querySelector(".calib__target").textContent = stage === "speed_up" && c?.high != null ? `ride past ${c.high.toFixed(0)} km/h` : "";
+    card.querySelector(".calib__start").hidden = !(stage === "error" || stage === "intro");
+    card.querySelector(".calib__start").textContent = stage === "error" ? "Try again" : "Start";
+    card.className = `help-card calib-card calib-card--${stage}`;
+    if (stage === "success" || stage === "error") { clearInterval(timer); timer = null; refresh(); }
+  };
+  const poll = async () => show(await fetch("/api/calibration").then((r) => r.json()).catch(() => null));
+  const start = async () => {
+    show({ stage: "starting" });
+    const r = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/calibrate`, { method: "POST" });
+    if (!r.ok) { show({ stage: "error", message: (await r.json().catch(() => ({}))).detail ?? "The trainer isn't ready." }); return; }
+    clearInterval(timer);
+    timer = setInterval(poll, 300);
+  };
+  const open = (id) => {
+    if (card) return;
+    deviceId = id;
+    card = el("div", { class: "help-card calib-card", role: "dialog", "aria-modal": "false", "aria-label": "Trainer calibration" },
+      el("div", { class: "help-card__head" }, el("span", { class: "mono", text: "Spin-down calibration" }),
+        el("button", { class: "btn btn--sm", type: "button", text: "Close", onclick: close })),
+      el("b", { class: "calib__title", role: "status" }),
+      el("p", { class: "calib__text" }),
+      el("div", { class: "calib__meter", hidden: true },
+        el("div", { class: "calib__num" }, el("span", { class: "calib__speed", text: "--" }), el("span", { class: "mono", text: "km/h" }),
+          el("span", { class: "mono calib__target" })),
+        el("div", { class: "calib__bar" }, el("span", { class: "calib__band" }), el("span", { class: "calib__fill" }))),
+      el("button", { class: "btn btn--primary calib__start", type: "button", text: "Start", onclick: start }));
+    document.body.append(card);
+    addEventListener("keydown", onKey, true);
+    show({ stage: "intro" });
+    card.querySelector(".calib__title").textContent = "Before you start";
+    card.querySelector(".calib__text").textContent = "Ride easy for about 10 minutes first, so the trainer is warm. "
+      + "Then press Start, pedal up to the speed shown, and stop pedalling when the app says so. It takes about a minute.";
+    card.querySelector(".calib__start").focus();
+  };
+  return { open };
+})();
 
 async function zero(id) {
   const name = data.devices.find((x) => x.id === id)?.name ?? id;

@@ -754,3 +754,21 @@ body.clean { background: var(--clean-bg); }
   border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px; font-family: var(--font-mono); font-size: 11px; line-height: 1.45; }
 .diag__status { min-height: 1em; font-size: 11px; color: var(--teal); text-transform: none; }
 .visually-hidden { position: fixed; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
+
+/* Spin-down calibration dialog (connect.html) */
+.calib-card { width: min(520px, calc(100vw - 32px)); }
+.calib__title { font-family: var(--font); font-weight: 700; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; color: var(--white); }
+.calib-card--stop .calib__title { color: var(--yellow); }
+.calib-card--success .calib__title { color: var(--teal); }
+.calib-card--error .calib__title { color: var(--pink); }
+.calib__text { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.calib__meter[hidden] { display: none; }
+.calib__num { display: flex; align-items: baseline; gap: 8px; }
+.calib__speed { font-family: var(--font-mono); font-size: 44px; font-weight: 600; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.calib__target { margin-left: auto; text-transform: none; color: var(--yellow-soft); }
+.calib__bar { position: relative; height: 12px; border-radius: 6px; background: var(--row); border: 1px solid var(--line-strong); overflow: hidden; }
+.calib__fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); transition: width .25s; }
+.calib__band { position: absolute; top: 0; bottom: 0; background: rgba(255, 201, 60, .45); z-index: 1; }
+.calib__band[hidden] { display: none; }
+.calib__start { align-self: flex-start; }
+.calib__start[hidden] { display: none; }

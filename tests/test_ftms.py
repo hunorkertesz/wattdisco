@@ -119,3 +119,87 @@ def test_apply_reports_timeout():
 
     assert run(go()) is False
     assert results == [(False, "trainer did not answer")]
+
+
+class SpinDownTrainer:
+    """A trainer that runs a spin-down: answers 0x13 with a speed band, sends speed and status notifications."""
+
+    def __init__(self, features=(0).to_bytes(4, "little") + (1 << 15 | 1 << 13).to_bytes(4, "little"), finish=0x02,
+                 answer=0x01):
+        self.features, self.finish, self.answer = features, finish, answer
+        self.callbacks = {}
+        self.written: list[bytes] = []
+
+    async def read_gatt_char(self, uuid):
+        if uuid == ftms.FITNESS_MACHINE_FEATURE:
+            return self.features
+        return bytes.fromhex("0000e8030100")
+
+    async def start_notify(self, uuid, callback):
+        self.callbacks[uuid] = callback
+
+    async def stop_notify(self, uuid):
+        self.callbacks.pop(uuid, None)
+
+    async def write_gatt_char(self, _uuid, data, response=True):
+        self.written.append(bytes(data))
+        loop = asyncio.get_running_loop()
+        cp = self.callbacks[ftms.CONTROL_POINT]
+        if data[0] != ftms.OP_SPIN_DOWN:
+            loop.call_soon(cp, None, bytearray([0x80, data[0], 0x01]))
+            return
+        band = (3000).to_bytes(2, "little") + (3500).to_bytes(2, "little")  # 30–35 km/h
+        loop.call_soon(cp, None, bytearray([0x80, data[0], self.answer]) + band)
+        if self.answer != 0x01:
+            return
+        bike, status = self.callbacks[ftms.INDOOR_BIKE_DATA], self.callbacks[ftms.FITNESS_MACHINE_STATUS]
+        for i, kmh in enumerate((28.0, 33.0, 36.5)):
+            loop.call_later(0.01 * (i + 1), bike, None, bytearray((0x0044).to_bytes(2, "little") + round(kmh * 100).to_bytes(2, "little")))
+        loop.call_later(0.05, status, None, bytearray([0x14, 0x04]))  # stop pedalling
+        loop.call_later(0.08, status, None, bytearray([0x14, self.finish]))
+
+
+def test_spin_down_parsers():
+    assert ftms.spin_down_start() == b"\x13\x01"
+    assert ftms.parse_spin_down_targets(bytes.fromhex("b80bac0d")) == (30.0, 35.0)
+    assert ftms.parse_spin_down_targets(b"") is None
+    assert ftms.parse_spin_down_status(b"\x14\x04") == "stop" and ftms.parse_spin_down_status(b"\x14\x02") == "success"
+    assert ftms.parse_spin_down_status(b"\x04") is None
+    assert ftms.parse_bike_speed(bytes.fromhex("4400c409")) == 25.0
+    assert ftms.parse_bike_speed(bytes.fromhex("4500c409")) is None  # "more data": no speed in this packet
+    features = (0).to_bytes(4, "little") + (1 << 15).to_bytes(4, "little")
+    assert ftms.supports_spin_down(features) and not ftms.supports_simulation(features)
+
+
+def test_spin_down_runs_through_its_stages():
+    trainer = SpinDownTrainer()
+    c = FtmsController(trainer, lambda *a: None)
+    seen = []
+
+    async def go():
+        await c.setup()
+        await c.calibrate(seen.append)
+
+    run(go())
+    stages = [s["stage"] for s in seen if "stage" in s]
+    assert stages == ["speed_up", "stop", "success"]
+    assert seen[0] == {"stage": "speed_up", "low": 30.0, "high": 35.0}
+    assert [s["speed"] for s in seen if "speed" in s] == [28.0, 33.0, 36.5]
+    assert ftms.INDOOR_BIKE_DATA not in trainer.callbacks  # notifications stopped afterwards
+    assert ftms.CONTROL_POINT in trainer.callbacks  # control stays
+
+
+def test_spin_down_plain_errors():
+    async def calibrate(trainer):
+        c = FtmsController(trainer, lambda *a: None)
+        await c.setup()
+        await c.calibrate(lambda _s: None, timeout=1.0)
+
+    no_feature = SpinDownTrainer(features=(0).to_bytes(8, "little"))
+    with pytest.raises(ValueError, match="maker's app"):
+        run(calibrate(no_feature))
+    assert not any(w[0] == ftms.OP_SPIN_DOWN for w in no_feature.written)  # never asked
+    with pytest.raises(ValueError, match="failed"):
+        run(calibrate(SpinDownTrainer(finish=0x03)))
+    with pytest.raises(ValueError, match="maker's app"):
+        run(calibrate(SpinDownTrainer(features=b"", answer=0x02)))  # unknown features, then "not supported"

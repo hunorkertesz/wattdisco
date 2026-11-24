@@ -261,6 +261,8 @@ class Ride:
         self.bus.subscribe("trainer_status", self._log_trainer)
         self.bus.subscribe_all(self._record)
         self._device_states: dict[str, str] = {}
+        self._calibration: dict | None = None  # the trainer's spin-down calibration, while it runs and after
+        self._calibration_task: asyncio.Task | None = None
         self._trainer_ok: bool | None = None
 
     def _load_review(self) -> str | None:
@@ -594,9 +596,9 @@ class Ride:
         log.log(level, "device %s: %s (roles %s, battery %s)", device.name, device.state, roles, device.battery)
 
     def _log_trainer(self, status: TrainerStatus) -> None:
-        if status.ok == self._trainer_ok and status.ok:
-            return
-        self._trainer_ok = status.ok
+        before, self._trainer_ok = self._trainer_ok, status.ok
+        if status.ok and before is not False:
+            return  # only a problem, or the end of one, is worth a line
         if status.ok:
             log.info("trainer answers again (%s)", status.mode)
         else:
@@ -655,7 +657,8 @@ class Ride:
             "auto_connect": self.known.auto_connect,
             "devices": [
                 {**asdict(d), "kind": device_kind(d.capabilities), "remembered": d.id in known,
-                 "zeroed_at": known.get(d.id, {}).get("zeroed_at"), "zero_offset": known.get(d.id, {}).get("zero_offset")}
+                 "zeroed_at": known.get(d.id, {}).get("zeroed_at"), "zero_offset": known.get(d.id, {}).get("zero_offset"),
+                 "calibrated_at": known.get(d.id, {}).get("calibrated_at")}
                 for d in snap.devices
             ],
             "remembered": [
@@ -673,6 +676,48 @@ class Ride:
         self.session.set_roles(device_id, roles)
         self.known.update(device_id, roles=sorted(roles), save=False)
         self._save_soon(self.known.save)
+
+    # ---------- spin-down calibration of the trainer ----------
+
+    def calibration(self) -> dict | None:
+        return self._calibration
+
+    def start_calibration(self, device_id: str) -> dict:
+        """Start a spin-down (runs in the background; the screen polls `calibration()`)."""
+        if self.active:
+            raise ValueError("end the ride before calibrating the trainer")
+        if self._calibration and self._calibration["stage"] in ("starting", "speed_up", "stop"):
+            raise ValueError("a calibration is already running")
+        device = self.session.devices.get(device_id)
+        if device is None or "control" not in device.capabilities or device.state != "connected":
+            raise ValueError("connect the trainer first")
+        self._calibration = {"device_id": device_id, "name": device.name, "stage": "starting", "low": None,
+                             "high": None, "speed": None, "message": ""}
+        self.bus.publish("trainer", TrainerCommand("free"))  # no ERG grip while the wheel spins down
+
+        def progress(update: dict) -> None:
+            self._calibration.update(update)
+
+        async def run() -> None:
+            log.info("spin-down calibration of %s started", device.name)
+            try:
+                await self.source.calibrate(device_id, progress)
+                self._calibration["stage"] = "success"
+                if device_id not in self.known.devices:  # calibrated before its first ride: remember it now
+                    self.known.devices[device_id] = {"id": device_id, "name": device.name, "roles": sorted(device.roles),
+                                                     "capabilities": sorted(device.capabilities)}
+                self.known.update(device_id, calibrated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), save=False)
+                self._save_soon(self.known.save)
+                log.info("spin-down calibration of %s done", device.name)
+            except ValueError as e:
+                self._calibration.update(stage="error", message=str(e))
+                log.warning("spin-down calibration of %s failed: %s", device.name, e)
+            except Exception as e:  # noqa: BLE001  never leave the screen waiting
+                self._calibration.update(stage="error", message="the calibration stopped unexpectedly")
+                log.exception("spin-down calibration of %s crashed: %s", device.name, e)
+
+        self._calibration_task = asyncio.create_task(run())
+        return self._calibration
 
     async def zero_offset(self, device_id: str) -> dict:
         offset = await self.source.zero_offset(device_id)
@@ -1184,6 +1229,17 @@ def create_app(ride: Ride) -> FastAPI:
     @app.post("/api/devices/{device_id}/role")
     async def device_roles(device_id: str, body: RolesIn):
         return device_call(ride.set_roles, device_id, set(body.roles))
+
+    @app.post("/api/devices/{device_id}/calibrate")
+    async def calibrate(device_id: str):
+        try:
+            return ride.start_calibration(device_id)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from e
+
+    @app.get("/api/calibration")
+    async def calibration():
+        return ride.calibration() or {"stage": None}
 
     @app.post("/api/devices/{device_id}/zero-offset")
     async def zero_offset(device_id: str):

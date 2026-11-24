@@ -49,6 +49,8 @@ class LiveSensor:
         # Trainer control: the latest wanted command survives reconnects and is re-applied.
         self._wanted: TrainerCommand | None = None
         self._wake = asyncio.Event()
+        self._controller: FtmsController | None = None  # while trainer control is set up on this connection
+        self._reapply = False  # after a calibration: send the wanted command again
         if "control" in device.capabilities:
             bus.subscribe("trainer", self._on_trainer_command)
 
@@ -110,8 +112,30 @@ class LiveSensor:
             self._report(False, self._wanted, f"no trainer control: {e}")
             return
         applied: TrainerCommand | None = None
+        self._controller = controller
+        try:
+            await self._control_loop(controller, applied)
+        finally:
+            self._controller = None
+
+    async def calibrate(self, progress) -> None:
+        """Spin-down calibration of this trainer (ble/ftms.py); ValueError with a plain message if it can't."""
+        controller = self._controller
+        if controller is None:
+            raise ValueError(f"{self.device.name} is not ready for control yet")
+        try:
+            await controller.calibrate(progress)
+        except (BleakError, OSError) as e:
+            raise ValueError(f"lost the trainer during calibration: {e}") from e
+        finally:
+            self._reapply = True  # some trainers reset after a spin-down: send the current command again
+            self._wake.set()
+
+    async def _control_loop(self, controller: FtmsController, applied: TrainerCommand | None) -> None:
         while True:
             self._wake.clear()
+            if self._reapply:
+                self._reapply, applied = False, None
             wanted = self._wanted
             if wanted is not None and wanted != applied:
                 try:
@@ -296,6 +320,12 @@ class BleManager:
             task.cancel()
         device.state = "disconnected"
         self._publish(device)
+
+    async def calibrate(self, device_id: str, progress) -> None:
+        device = self._device(device_id)
+        if "control" not in device.capabilities or device_id not in self._sensors or device.state != "connected":
+            raise ValueError(f"{device.name} is not a connected trainer")
+        await self._sensors[device_id].calibrate(progress)
 
     async def zero_offset(self, device_id: str) -> int:
         device = self._device(device_id)

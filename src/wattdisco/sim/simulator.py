@@ -23,6 +23,7 @@ ARM_BAND = Device(id="sim-arm", name="SIM HR armband", roles={"heart_rate"}, rss
 CORE = Device(id="sim-core", name="SIM CORE", roles={"temperature"}, rssi=-66, battery=71)
 SIM_SCAN_SECONDS = 3.0
 SIM_ZERO_SECONDS = 1.5
+SIM_SPIN_DOWN_STEP = 0.25  # s between speed updates in a simulated spin-down (about 6 s in all)
 
 REST_HR = 62
 MAX_HR = 188
@@ -167,6 +168,25 @@ class SimSource:
             raise ValueError(f"{device.name} cannot be zeroed here")
         await asyncio.sleep(SIM_ZERO_SECONDS)
         return self._rng.randint(-12, 12)
+
+    async def calibrate(self, device_id: str, progress) -> None:
+        """A spin-down as a real trainer runs it: ride up past the band, stop pedalling, the wheel runs down."""
+        device = self._device(device_id)
+        if device.state != "connected" or "control" not in device.capabilities:
+            raise ValueError(f"{device.name} is not a connected trainer")
+        low, high = 30.0, 35.0
+        progress({"stage": "speed_up", "low": low, "high": high})
+        speed = 24.0
+        while speed < high + 1:
+            speed += 1.2
+            progress({"speed": round(speed, 1)})
+            await asyncio.sleep(SIM_SPIN_DOWN_STEP)
+        progress({"stage": "stop"})
+        while speed > 8:
+            speed -= 3.5
+            progress({"speed": round(max(0.0, speed), 1)})
+            await asyncio.sleep(SIM_SPIN_DOWN_STEP)
+        progress({"stage": "success"})
 
     def set_workout(self, workout: Workout) -> None:
         """Follow a new workout from now on (e.g. rescaled after an FTP change)."""

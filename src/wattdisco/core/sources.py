@@ -26,3 +26,8 @@ class SensorSource(Protocol):
     async def zero_offset(self, device_id: str) -> int:
         """Zero a power meter; returns the offset it reports. Raises ValueError if it cannot."""
         ...
+
+    async def calibrate(self, device_id: str, progress) -> None:
+        """Spin-down calibration of a trainer. `progress(dict)` gets the stages ("speed_up" with the speed band
+        "low"/"high" in km/h, "stop", "success") and live "speed"; raises ValueError with a plain message."""
+        ...
