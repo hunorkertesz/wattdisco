@@ -274,7 +274,8 @@ def strava_client(tmp_path):
     from wattdisco.export.strava import Strava
 
     api = FakeStravaApi()
-    strava = Strava(KEYS, tmp_path, client_factory=api.factory, clock=lambda: api.now, sleep=lambda s: None)
+    strava = Strava(KEYS, tmp_path, client_factory=api.factory, clock=lambda: api.now, sleep=lambda s: None,
+                    revoke=api.revoke)
     ride = Ride(SimSource(WORKOUT), WORKOUT, Clock(speed=20), data_dir=tmp_path, strava=strava)
     return TestClient(create_app(ride)), api
 

@@ -8,7 +8,9 @@ from types import SimpleNamespace
 import pytest
 from stravalib.exc import ActivityUploadFailed
 
-from wattdisco.export.strava import Strava, StravaError, StravaKeys, duplicate_activity_id, load_keys, relay_post
+from wattdisco.export.strava import (
+    Strava, StravaError, StravaKeys, duplicate_activity_id, load_keys, relay_post, revoke_token, use_api_host,
+)
 
 KEYS = StravaKeys(12345, "shh")
 SHARED = StravaKeys(999, relay_url="https://relay.example")
@@ -21,6 +23,9 @@ class FakeStravaApi:
         self.calls = []
         self.upload_error = None
         self.now = 1_000_000
+
+    def revoke(self, client_id, client_secret, token):
+        self.calls.append(("revoke", client_id, client_secret, token))
 
     def factory(self, access_token=None):
         api = self
@@ -75,7 +80,8 @@ def api():
 
 @pytest.fixture
 def strava(tmp_path, api):
-    return Strava(KEYS, tmp_path, client_factory=api.factory, clock=lambda: api.now, sleep=lambda s: None)
+    return Strava(KEYS, tmp_path, client_factory=api.factory, clock=lambda: api.now, sleep=lambda s: None,
+                  revoke=api.revoke)
 
 
 def sign_in(strava):
@@ -197,7 +203,51 @@ def test_disconnect(strava, api):
     sign_in(strava)
     strava.disconnect()
     assert not strava.connected
-    assert ("deauthorize", "a1") in api.calls
+    assert ("revoke", 12345, "shh", "r1") in api.calls  # oauth/revoke with the refresh token
+    assert not any(c[0] == "deauthorize" for c in api.calls)  # retired by Strava on 1 June 2027
+
+
+def test_disconnect_offline_still_forgets(strava, api):
+    sign_in(strava)
+
+    def offline(*args):
+        raise OSError("no internet")
+
+    strava._revoke = offline
+    strava.disconnect()
+    assert not strava.connected
+
+
+def test_revoke_token_request(monkeypatch):
+    from wattdisco.export import strava as module
+
+    seen = {}
+
+    class Answer:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def urlopen(request, timeout, context):
+        seen.update(url=request.full_url, method=request.get_method(), headers=dict(request.header_items()),
+                    body=request.data.decode())
+        return Answer()
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", urlopen)
+    revoke_token(12345, "abc123", "r1")
+    assert seen["url"] == "https://www.strava.com/oauth/revoke" and seen["method"] == "POST"
+    assert seen["headers"]["Authorization"] == "Basic MTIzNDU6YWJjMTIz"  # Strava's own example: 12345:abc123
+    assert seen["body"] == "token=r1&token_type_hint=refresh_token"  # no token or secret in the URL
+
+
+def test_api_host_is_ready_for_strava_s_new_address():
+    protocol = SimpleNamespace(server="www.strava.com", api_base="/api/v3")
+    client = SimpleNamespace(protocol=protocol)
+    assert use_api_host(client) is client and protocol.server == "www.strava.com"  # unchanged until it is set
+    use_api_host(client, "www.api-v3.strava.com")
+    assert (protocol.server, protocol.api_base) == ("www.api-v3.strava.com", "")
 
 
 def test_duplicate_id_parsing():
@@ -272,10 +322,26 @@ def test_shared_refresh_and_upload(shared, api, tmp_path):
 
 
 def test_shared_disconnect_revokes_at_strava(shared, api):
-    strava, _ = shared
+    strava, relay = shared
     sign_in(strava)
     strava.disconnect()
-    assert not strava.connected and ("deauthorize", "s1") in api.calls
+    assert not strava.connected and relay.calls[-1] == ("https://relay.example/revoke", {"token": "sr1"})
+    assert not any(c[0] in ("deauthorize", "revoke") for c in api.calls)  # the relay holds the secret
+
+
+def test_shared_disconnect_with_an_older_relay(shared, api):
+    strava, relay = shared
+    sign_in(strava)
+    answer = relay.post
+
+    def old_relay(url, payload):
+        if url.endswith("/revoke"):
+            raise StravaError("Strava sign-in failed: unknown path")
+        return answer(url, payload)
+
+    strava._post = old_relay
+    strava.disconnect()
+    assert not strava.connected and ("deauthorize", "s1") in api.calls  # until Strava retires it
 
 
 def test_incomplete_relay_answer_is_a_plain_error(tmp_path, api):

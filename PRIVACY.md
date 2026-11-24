@@ -57,9 +57,11 @@ Discard on its summary); it is gone for good after 7 days, or at once if you als
 ## The Watt Disco relay (Strava sign-in only)
 
 Strava's sign-in needs a secret key that a downloaded app can't keep safe. That key lives in a small relay, a
-Cloudflare Worker run by this project. It is used only for the sign-in and for renewing it every few hours:
+Cloudflare Worker run by this project. It is used only for the sign-in, for renewing it every few hours, and to
+withdraw the access on Strava when you disconnect:
 
-- **What passes through:** the one-time sign-in code from Strava, or the renewal token. The relay adds the secret
+- **What passes through:** the one-time sign-in code from Strava, or the renewal token (to renew it, or to revoke it
+  when you press Disconnect). The relay adds the secret
   key, asks Strava, and passes back the access tokens and your Strava id and name.
 - **What it keeps:** nothing. It has no database and writes no logs. Your rides never go through it; the app
   uploads them straight to Strava.

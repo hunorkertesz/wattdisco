@@ -13,6 +13,7 @@ straight to Strava.
 All calls here block (stravalib uses requests): run them in a thread.
 """
 
+import base64
 import json
 import ssl
 import logging
@@ -21,6 +22,7 @@ import re
 import secrets
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -42,6 +44,11 @@ UPLOAD_TIMEOUT = 180  # seconds to wait for Strava to process an upload
 POLL_INTERVAL = 2.0
 SPORT_TYPES = ("VirtualRide", "Ride")
 RELAY_TIMEOUT = 20
+REVOKE_URL = "https://www.strava.com/oauth/revoke"  # replaces oauth/deauthorize, which Strava retires on 1 June 2027
+# Strava's API moves from https://www.strava.com/api/v3 to https://www.api-v3.strava.com on 1 June 2027. The new
+# address did not answer yet in November 2026; set this to "www.api-v3.strava.com" once it does. Sign-in stays on
+# www.strava.com/oauth.
+API_HOST: str | None = None
 
 # Watt Disco's shared Strava app and its relay (see relay/README.md). Both are public;
 # only the client secret is private, and it lives in the relay (Cloudflare, see relay/README.md).
@@ -125,6 +132,26 @@ def relay_post(url: str, payload: dict) -> dict:
         raise StravaError("could not reach the Watt Disco sign-in service, check the internet connection") from e
 
 
+def revoke_token(client_id: int, client_secret: str, token: str) -> None:
+    """Withdraw the app's access on Strava (oauth/revoke): the app's keys in a Basic header, the token in the body.
+    Revoking the refresh token also revokes its access tokens."""
+    basic = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    body = urllib.parse.urlencode({"token": token, "token_type_hint": "refresh_token"}).encode()
+    request = urllib.request.Request(REVOKE_URL, data=body, method="POST", headers={
+        "Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "wattdisco"})
+    with urllib.request.urlopen(request, timeout=RELAY_TIMEOUT, context=_tls()):
+        pass  # 200 whether or not the token was still valid; errors raise
+
+
+def use_api_host(client: Client, host: str | None = None) -> Client:
+    """Point a signed-in client at Strava's API address (API_HOST), when one is set."""
+    host = host or API_HOST
+    protocol = getattr(client, "protocol", None)
+    if host and protocol is not None:
+        protocol.server, protocol.api_base = host, ""
+    return client
+
+
 def duplicate_activity_id(message: str) -> int | None:
     """Strava says e.g. 'duplicate of <a href='/activities/123'>…' or 'duplicate of activity 123'."""
     if "duplicate" not in message.lower():
@@ -146,9 +173,11 @@ class Strava:
         clock: Callable[[], float] = time.time,
         sleep: Callable[[float], None] = time.sleep,
         post: Callable[[str, dict], dict] = relay_post,
+        revoke: Callable[[int, str, str], None] = revoke_token,
     ) -> None:
         self.keys = keys
         self._post = post
+        self._revoke = revoke
         self.token_path = data_dir / TOKEN_FILE
         self._client_factory = client_factory
         self._clock = clock
@@ -209,10 +238,22 @@ class Strava:
         """Revoke access on Strava (best effort) and forget the tokens."""
         if self.connected:
             try:
-                self._client().deauthorize()
-            except Exception:
-                pass  # offline or already revoked: forgetting locally is what matters
+                self._revoke_access()
+            except Exception as e:  # offline or already revoked: forgetting locally is what matters
+                log.info("Strava access not revoked: %s", e.__class__.__name__)
         self.token_path.unlink(missing_ok=True)
+
+    def _revoke_access(self) -> None:
+        """oauth/revoke needs the app's secret: the shared app asks the relay. A relay from before /revoke
+        existed answers "unknown path"; then the old oauth/deauthorize does it (until Strava retires it)."""
+        token = self._tokens()["refresh_token"]
+        if self.keys.mode == "own":
+            self._revoke(self.keys.client_id, self.keys.client_secret, token)
+            return
+        try:
+            self._post(f"{self.keys.relay_url}/revoke", {"token": token})
+        except StravaError:
+            self._client().deauthorize()
 
     # ---------- upload ----------
 
@@ -275,7 +316,7 @@ class Strava:
                 )
             tokens = {**tokens, **self._token_dict(access)}
             self._save(tokens)
-        return self._client_factory(access_token=tokens["access_token"])
+        return use_api_host(self._client_factory(access_token=tokens["access_token"]))
 
     @staticmethod
     def _token_dict(access) -> dict:

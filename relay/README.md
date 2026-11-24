@@ -5,7 +5,8 @@ Lets riders connect Watt Disco to Strava with one tap, without creating their ow
 Strava's sign-in needs the app's **client secret** twice: to turn the sign-in code into tokens, and to renew them every
 few hours. A downloaded app can't keep a secret, so the secret lives in this small Cloudflare Worker instead. The app
 sends it the code (or the renewal token), the Worker adds the secret, asks Strava and passes back only the tokens and
-the rider's name.
+the rider's name. When a rider presses Disconnect, the app sends the renewal token here too, and the Worker asks Strava
+to revoke it (`oauth/revoke` also needs the secret).
 
 It stores nothing and logs nothing. Rides never pass through it: the app uploads them straight to Strava.
 
@@ -85,7 +86,7 @@ curl -s -X POST https://wattdisco-strava-relay.<subdomain>.workers.dev/token -d 
    ```
    On a Mac, Finder hides names that start with a dot: in Terminal, `open ~/Library/Application\ Support/Watt\ Disco`
    opens the folder, and `nano` or TextEdit (Format → Make Plain Text) can save the file.
-3. Start Watt Disco, finish a short ride, press **Upload ride** → **Connect to Strava**, and allow it on Strava's page.
+3. Start Watt Disco, finish a short ride, press **Upload ride** → **Connect with Strava**, and allow it on Strava's page.
    The screen should say **CONNECTED**, then upload the ride.
 4. If Strava answers "invalid redirect_uri", change **Authorization Callback Domain** on the Strava page to `127.0.0.1`
    and try again: the app returns to `http://127.0.0.1:<port>/api/strava/callback`.
@@ -134,5 +135,7 @@ switches the logs off.
 
 - **New secret** (if it ever leaked): on Strava's API page, generate a new Client Secret, then replace
   `STRAVA_CLIENT_SECRET` in the Worker (step 3.4). Riders may have to connect to Strava again.
-- **New code:** paste the new `strava-relay.js` in **Edit code** and press **Deploy**.
+- **New code:** paste the new `strava-relay.js` in **Edit code** and press **Deploy**. A relay from before `/revoke`
+  still works: Disconnect then uses Strava's older `oauth/deauthorize`, which Strava retires on 1 June 2027, so deploy
+  the new code before then.
 - **Usage:** the Worker's page shows how many requests it gets a day.
