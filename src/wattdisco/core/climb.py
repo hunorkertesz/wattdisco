@@ -10,6 +10,7 @@ Pure logic: time comes in as `now`, distance from the road, so tests never wait.
 """
 
 import math
+from bisect import bisect_left
 from collections import deque
 from dataclasses import dataclass
 from functools import lru_cache
@@ -172,6 +173,8 @@ class ClimbPlayer(WorkoutPlayer):
         self._climbed = deque(maxlen=VAM_WINDOW_S + 1)  # metres climbed at each riding second
         self._power = deque(maxlen=POWER_WINDOW_S)
         self._top_in: tuple[tuple[int, int], int] | None = None  # (watts, 10 m step) -> seconds, cached
+        self._ridden = 0  # riding seconds so far (the clock the ghost rides on)
+        self.ghost: dict | None = None  # your best earlier attempt: set_ghost()
         super().__init__(workout, mode="climb", start=start)
 
     def set_mode(self, mode: str) -> None:
@@ -233,8 +236,38 @@ class ClimbPlayer(WorkoutPlayer):
             return None
         return self._send(want, now)
 
+    def set_ghost(self, ride_id: str, started: str, seconds: int, distances: list[float]) -> None:
+        """Your best earlier attempt, as its distance after each riding second, to ride against."""
+        clean, last = [], 0.0
+        for d in distances:
+            last = max(last, float(d or 0.0))  # never backwards, whatever the file says
+            clean.append(last)
+        if clean:
+            self.ghost = {"ride_id": ride_id, "started": started, "seconds": seconds, "distances": clean}
+
+    def ghost_state(self) -> dict | None:
+        """Where the ghost is now, and how many seconds you are behind (+) or ahead (−) of it here."""
+        g = self.ghost
+        if g is None:
+            return None
+        dist = g["distances"]
+        n = self._ridden
+        here = dist[min(n, len(dist)) - 1] if n else 0.0
+        mine = self.distance
+        i = bisect_left(dist, mine)  # the ghost's second when it was where you are now
+        if mine <= 0 or i >= len(dist):
+            reached = None if mine > 0 else 0.0
+        else:
+            prev = dist[i - 1] if i else 0.0
+            span = dist[i] - prev
+            reached = i + ((mine - prev) / span if span > 0 else 0.0)  # seconds 1.. at index 0..: index i is second i+1
+        gap = None if reached is None else round(n - reached)
+        return {"distance": round(min(here, self.profile.length), 1), "gap": gap, "started": g["started"],
+                "seconds": g["seconds"], "top": n >= len(dist)}
+
     def note(self, power: float | None) -> None:
         """One riding second (after the road moved): feeds the live VAM, W/kg and time to the top."""
+        self._ridden += 1
         self._climbed.append(self.profile.ascent_at(self.distance))
         self._power.append(max(0.0, power or 0.0))
 
@@ -271,6 +304,7 @@ class ClimbPlayer(WorkoutPlayer):
             "ascent": round(self.profile.total_ascent, 1),
             "top": self.done,
             **self.live(),
+            "ghost": self.ghost_state(),
         }
 
 

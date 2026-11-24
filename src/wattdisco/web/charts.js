@@ -830,7 +830,7 @@ export function drawProgressStrip(canvas, workout, ftp, elapsed) {
 // A climb: height over distance, each stretch filled in its gradient's colour, the rider as a dot.
 // `profile` is [[metres, height, gradient %], ...]; `distance` the rider's position (null before the start).
 // `window` (metres) shows that much of the road around the rider, mostly ahead; null shows the whole climb.
-export function drawClimbProfile(canvas, profile, { distance = null, imperial = false, window = null } = {}) {
+export function drawClimbProfile(canvas, profile, { distance = null, imperial = false, window = null, ghost = null } = {}) {
   const { ctx, w, h } = fit(canvas);
   if (!profile || profile.length < 2) return;
   const top = 18;
@@ -900,6 +900,24 @@ export function drawClimbProfile(canvas, profile, { distance = null, imperial = 
   ctx.textAlign = "left";
   const feet = (m) => (imperial ? `${Math.round(m * 3.28084)} FT` : `${Math.round(m)} M`);
   ctx.fillText(span === length ? `+${feet(hi - lo)}` : `+${feet(hi - lo)} IN VIEW`, 4, top - 4);
+
+  // the ghost: your best earlier attempt, a hollow warm-white dot with BEST over it (drawn under you)
+  if (ghost != null && ghost >= from && ghost <= to) {
+    const gx = x(ghost), gy = y(heightAt(ghost));
+    ctx.save();
+    ctx.strokeStyle = hexToRgba("#FFF6E5", 0.9);
+    ctx.fillStyle = hexToRgba("#FFF6E5", 0.18);
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "#FFF6E5";
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(gx, gy, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur = 0;
+    font(ctx, 9, 1);
+    ctx.fillStyle = hexToRgba("#FFF6E5", 0.85);
+    ctx.textAlign = gx < 24 ? "left" : gx > w - 24 ? "right" : "center";
+    ctx.fillText("BEST", gx, gy - 12);
+    ctx.restore();
+  }
 
   if (distance != null) {
     const d = Math.min(length, Math.max(0, distance));

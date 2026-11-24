@@ -268,3 +268,47 @@ def test_climb_summary_time_vam_and_best_times(tmp_path):
         assert [t["id"] for t in client.get("/api/climbs/climb-steady-6k/times").json()] == [other]
         row = next(r for r in client.get("/api/rides").json() if r["id"] == fast)
         assert row["climb_time"]["top"] and row["climb_time"]["seconds"] == c["seconds"]
+
+
+def test_ghost_gap_ahead_and_behind():
+    player = ClimbPlayer(climb_workout("climb-short-steep-2k"), rider_kg=75.0)
+    assert player.climb_state()["ghost"] is None
+    player.set_ghost("best", "2026-11-20T18:00:00+00:00", 400, [5.0 * (i + 1) for i in range(400)])  # 5 m every second
+    for _ in range(60):  # you: 4 m/s, slower than the ghost
+        player.road.distance += 4.0
+        player.note(250)
+    g = player.climb_state()["ghost"]
+    assert g["distance"] == 300.0  # the ghost after 60 s
+    assert g["gap"] == 12  # it was where you are (240 m) at 48 s: 12 s behind
+    for _ in range(60):  # you: 7 m/s now
+        player.road.distance += 7.0
+        player.note(300)
+    g = player.climb_state()["ghost"]
+    assert g["distance"] == 600.0 and g["gap"] == -12  # 660 m: the ghost got there at 132 s, you at 120 s
+    player.set_ghost("bad", "x", 10, [3.0, 2.0, None, 9.0])  # a broken file never runs backwards
+    assert player.ghost["distances"] == [3.0, 3.0, 3.0, 9.0]
+
+
+def test_ghost_rides_along_from_your_best_attempt(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    rides = tmp_path / "rides"
+    day = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+    record_climb(rides, day, 220, 1200)
+    fast = record_climb(rides, day + timedelta(days=1), 300, 1000)
+    workout = default_workout()
+    ride = Ride(SimSource(workout), workout, Clock(speed=40), data_dir=tmp_path, autostart=False)
+    with TestClient(create_app(ride)) as c:
+        time.sleep(0.3)
+        c.post("/api/devices/sim-trainer/connect")
+        assert c.post("/api/ride/start", json={"workout_id": "climb-short-steep-2k", "mode": "climb"}).status_code == 200
+        time.sleep(1.0)
+        ghost = c.get("/api/state").json()["climb"]["ghost"]
+        assert ghost is not None and ghost["seconds"] == next(
+            t["seconds"] for t in c.get("/api/climbs/climb-short-steep-2k/times").json() if t["id"] == fast)
+        assert ghost["distance"] > 0 and ghost["gap"] is not None
+        c.post("/api/ride/stop")
+        c.post("/api/ride/start", json={"workout_id": "climb-steady-6k", "mode": "climb"})
+        time.sleep(0.5)
+        assert c.get("/api/state").json()["climb"]["ghost"] is None  # never ridden: no ghost
+        c.post("/api/ride/stop")

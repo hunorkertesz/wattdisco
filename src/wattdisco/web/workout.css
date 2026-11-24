@@ -531,3 +531,6 @@
 .nerd-target .stat[hidden] { display: none; }
 .is-nerd #interval-group[hidden] { display: none !important; } /* a climb has no interval controls (nerd-only shows with !important) */
 @media (max-width: 600px) { .climb-stat b { font-size: calc(24px * var(--ride-text, 1)); } .climb-stats { gap: 4px 16px; } }
+/* the ghost on a climb: how far ahead (teal) or behind (pink) your best you are */
+#next.is-ahead { color: var(--teal); }
+#next.is-behind { color: #FF6B7A; }

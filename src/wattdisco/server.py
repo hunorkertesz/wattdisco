@@ -263,6 +263,7 @@ class Ride:
         self._device_states: dict[str, str] = {}
         self._calibration: dict | None = None  # the trainer's spin-down calibration, while it runs and after
         self._calibration_task: asyncio.Task | None = None
+        self._ghost_task: asyncio.Task | None = None
         self._trainer_ok: bool | None = None
 
     def _load_review(self) -> str | None:
@@ -354,6 +355,7 @@ class Ride:
             self.player = ClimbPlayer(self.workout, start=now, rider_kg=self.settings.weight_kg,
                                       difficulty=1.0 if difficulty is None else difficulty)
             self.road = self.player.road
+            self._ghost_task = asyncio.get_running_loop().create_task(self._load_ghost(self.player, self.workout_id))
         else:
             self.player = WorkoutPlayer(self.workout, mode=mode or ("erg" if self.player.mode == "climb" else self.player.mode),
                                         start=now, ease=ease)
@@ -393,6 +395,34 @@ class Ride:
         log.info("ride %s started: %s, mode %s%s", ride_id, self.workout.name, self.player.mode, " (simulated)" if sim else "")
         self._tick()
         return ride_id
+
+    def best_climb_rides(self, workout_id: str | None, exclude: str | None = None) -> list[dict]:
+        """Every real ride up this climb that reached the top, fastest first (simulated rides never count)."""
+        rows = self.store.list(exclude=exclude)
+        times = [
+            {"id": r["id"], "started": r["started"], **r["climb_time"]}
+            for r in rows
+            if r.get("workout_id") == workout_id and (r.get("climb_time") or {}).get("top") and r["climb_time"].get("seconds")
+        ]
+        return sorted(times, key=lambda t: t["seconds"])
+
+    async def _load_ghost(self, player: ClimbPlayer, workout_id: str | None) -> None:
+        """Your best earlier attempt on this climb rides along as the ghost (read off the main loop)."""
+        def read() -> tuple[dict, list[float]] | None:
+            best = self.best_climb_rides(workout_id, exclude=self.ride_id)  # never the ride now running
+            if not best:
+                return None
+            data = load_ride(self.store.path(best[0]["id"], ".jsonl"))
+            return best[0], [t.get("distance") or 0.0 for t in data.ticks if "distance" in t]
+
+        try:
+            found = await asyncio.to_thread(read)
+        except Exception:  # noqa: BLE001  no ghost is fine; a broken old file must not stop the ride
+            log.exception("could not load the ghost for %s", workout_id)
+            return
+        if found and found[1]:
+            best, distances = found
+            player.set_ghost(best["id"], best["started"], best["seconds"], distances)
 
     def _find_interrupted(self) -> dict | None:
         """The newest real ride, if it has no end line and started in the last 24 hours."""
@@ -1549,13 +1579,7 @@ def create_app(ride: Ride) -> FastAPI:
     @app.get("/api/climbs/{workout_id}/times")
     async def climb_times(workout_id: str):
         """Every real ride up this climb that reached the top, fastest first (simulated rides never count)."""
-        rows = await asyncio.to_thread(ride.store.list)
-        times = [
-            {"id": r["id"], "started": r["started"], **r["climb_time"]}
-            for r in rows
-            if r.get("workout_id") == workout_id and (r.get("climb_time") or {}).get("top") and r["climb_time"].get("seconds")
-        ]
-        return sorted(times, key=lambda t: t["seconds"])
+        return await asyncio.to_thread(ride.best_climb_rides, workout_id)
 
     @app.get("/api/rides/{ride_id}/summary")
     async def ride_summary(ride_id: str):

@@ -45,6 +45,7 @@
         <a class="chip" href="/big.html" data-view="big">Big <kbd>B</kbd></a>
       </div>
       <a class="btn btn--sm" href="/compare.html">Compare <kbd>C</kbd></a>
+      <button class="chip" type="button" id="ghost-btn" hidden aria-pressed="true" title="Ride against your best time up this climb">Ghost <kbd>G</kbd></button>
       <button class="btn btn--sm btn--icon" type="button" id="help" aria-label="What the numbers mean" title="What the numbers mean">?</button>
       <span id="add-metric"></span>
       <div class="dock__group" role="group" aria-label="Chart zoom">
@@ -232,6 +233,7 @@ const climbHelp = helpCard("climb-nerd", {
     ["Teal ring", "How far your two power sources (trainer and power meter) read apart. The band is ±2 %."],
     ["Average pills", "Power and heart rate averaged over the last 30 s; tap the pill to pick 1, 5 or 10 minutes."],
     ["Zoom", "− / + shows 1, 2, 4 or 6 km of road ahead; Fit shows the whole climb."],
+    ["Ghost", "The BEST dot is your fastest earlier ride up this climb; under the distance it says how far ahead or behind you are. G or the top controls turn it off."],
   ],
   note: "Shown once. The ? button in the top controls brings it back.",
 });
@@ -326,8 +328,24 @@ const dock = setupDock({
     arrowup: () => !nerd || $("harder").disabled || adjust(1),
     arrowdown: () => !nerd || $("easier").disabled || adjust(-1),
     s: () => !nerd || $("skip").disabled || $("skip").click(), // twice to skip, like the button
+    g: () => climbing && setGhost(!ghostOn),
   },
 });
+
+// The ghost on a climb: your best earlier attempt rides along (server: ClimbPlayer.ghost_state). Per browser.
+let ghostOn = true;
+try { ghostOn = localStorage.getItem("wd.ghost") !== "0"; } catch {}
+function setGhost(on) {
+  ghostOn = on;
+  try { localStorage.setItem("wd.ghost", on ? "1" : "0"); } catch {}
+  render(live.store);
+}
+$("ghost-btn").onclick = () => setGhost(!ghostOn);
+const gapText = (g) => {
+  if (g?.gap == null) return null;
+  const s = Math.abs(g.gap);
+  return g.gap === 0 ? "LEVEL WITH YOUR BEST" : `${fmtDuration(s)} ${g.gap > 0 ? "BEHIND" : "AHEAD OF"} YOUR BEST`;
+};
 
 // ERG: the trainer holds the target. FREE: the trainer rides like a flat road.
 const mode = chipGroup(
@@ -456,7 +474,11 @@ function renderClimbHud(store, s, w) {
   badge.classList.toggle("phase-badge--grade", !c.top);
   $("countdown").textContent = c.top ? height(c.ascent) : km(c.left);
   $("countdown").setAttribute("aria-label", c.top ? "Climbed" : "Distance to the top");
-  $("next").textContent = c.top ? "CLIMB COMPLETE" : `TO THE TOP · ${height(c.ascent - c.climbed)} TO CLIMB`;
+  const ghost = ghostOn ? gapText(c.ghost) : null;
+  $("next").textContent = c.top ? "CLIMB COMPLETE" : ghost ? `${ghost} · ${height(c.ascent - c.climbed)} TO CLIMB`
+    : `TO THE TOP · ${height(c.ascent - c.climbed)} TO CLIMB`;
+  $("next").classList.toggle("is-ahead", !!ghost && c.ghost.gap < 0);
+  $("next").classList.toggle("is-behind", !!ghost && c.ghost.gap > 0);
 }
 
 function renderNumbers(store, s, w) {
@@ -676,6 +698,8 @@ function render(store) {
   $("app").classList.toggle("is-climb", climbing);
   $("interval-group").hidden = climbing; // a road has no interval to make harder or skip
   $("climb-stats").hidden = !climbing;
+  $("ghost-btn").hidden = !(climbing && s.climb?.ghost);
+  $("ghost-btn").setAttribute("aria-pressed", String(ghostOn));
   document.querySelector(".nerd-target .stat--target").hidden = climbing;
   showZoomLabel();
 
@@ -694,6 +718,7 @@ function render(store) {
     $("pill").hidden = true;
     drawClimbProfile($("chart"), store.workout.profile, {
       distance: s.climb?.distance ?? null, imperial: imperial(), window: zoom.fit ? null : CLIMB_WINDOW[zoom.span],
+      ghost: ghostOn && s.climb?.ghost ? s.climb.ghost.distance : null,
     });
     return;
   }

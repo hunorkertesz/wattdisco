@@ -164,6 +164,8 @@
           <div class="ease"><span class="mono" id="difficulty-label">Difficulty</span><div id="difficulty"></div></div>
           <p class="hint">100 % feels like the real road. Lower makes the steep parts easier on your legs and your gears.
             Your speed and time always use the real gradient and your weight.</p>
+          <div class="ease"><span class="mono" id="ghost-label">Ghost</span><div id="ghost"></div></div>
+          <p class="hint" id="ghost-hint"></p>
         </div>
         <p class="hint" id="no-trainer" hidden>No trainer with control connected, so ERG has nothing to steer.</p>
         <!-- ERG only: how the trainer moves to a new interval's power -->
@@ -416,6 +418,7 @@ function renderWorkout() {
   resetDelete();
   $("modes").hidden = climb;
   $("climb-row").hidden = !climb;
+  if (climb && ghostFor !== selected.id) { ghostFor = selected.id; loadGhost(selected); }
   $("ease-row").hidden = climb;
   if (climb) $("ease-help").hidden = true;
   $("mode-label").textContent = climb ? "Climb" : "Target mode";
@@ -453,6 +456,32 @@ const difficultyGroup = chipGroup(["0.25", "0.5", "0.75", "1"].map((v) => ({ val
     onChange: (v) => { difficulty = v; try { localStorage.setItem("wd.climbDifficulty", v); } catch {} } });
 difficultyGroup.setAttribute("aria-labelledby", "difficulty-label");
 $("difficulty").replaceWith(difficultyGroup);
+
+// The ghost: your best earlier ride up this climb rides along as a second dot. On or off, per browser
+// (the same setting as G on the ride screen).
+let ghostOn = true;
+try { ghostOn = localStorage.getItem("wd.ghost") !== "0"; } catch {}
+const ghostGroup = chipGroup([{ value: "1", label: "ON" }, { value: "0", label: "OFF" }],
+  { value: ghostOn ? "1" : "0", label: "Ghost",
+    onChange: (v) => { ghostOn = v === "1"; try { localStorage.setItem("wd.ghost", v); } catch {} showGhostHint(); } });
+ghostGroup.setAttribute("aria-labelledby", "ghost-label");
+$("ghost").replaceWith(ghostGroup);
+let ghostBest = null; // the fastest time up the selected climb, or null
+let ghostFor = null; // the climb it was looked up for
+async function loadGhost(climb) {
+  ghostBest = null;
+  if (climb) {
+    const times = await fetch(`/api/climbs/${encodeURIComponent(climb.id)}/times`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+    ghostBest = times[0] ?? null;
+  }
+  showGhostHint();
+}
+function showGhostHint() {
+  const when = ghostBest ? new Date(ghostBest.started).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  $("ghost-hint").textContent = !ghostOn ? "No ghost: just you and the road."
+    : ghostBest ? `You ride against your best: ${fmtClock(ghostBest.seconds)} on ${when}. It shows as the BEST dot, with how far ahead or behind you are.`
+      : "No ghost yet: once you reach the top, your best ride up this climb rides along next time.";
+}
 
 // ERG interval changes: a step (default) or a 3 s ease. Remembered per browser.
 let easeChoice = "step";
