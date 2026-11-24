@@ -96,7 +96,7 @@
   text-transform: uppercase;
 }
 .tag--plan { border-color: var(--teal); color: var(--teal); }
-.tag--climb { border-color: #B6C6BE; color: #E8F1EC; } /* the climb profile's own (gradient) colours */
+.tag--climb { border-color: #FF3D81; color: #FFB3CF; } /* the climb profile's own neon (its steep end) */
 .tag--rpe { --rpe: var(--muted); border-color: var(--rpe); color: var(--rpe); cursor: help; }
 .upload-link.is-failed { color: #FF7FAE; }
 .tag--test { border-color: var(--yellow); color: var(--yellow-soft); box-shadow: 0 0 6px rgba(255, 201, 60, .5); }

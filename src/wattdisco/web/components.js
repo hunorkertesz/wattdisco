@@ -139,15 +139,15 @@ export const PHASE_LABEL = {
   climb: "CLIMB",
 };
 
-// A climb's gradient bands. Their own scale, from dim to bright and pink at the top, apart from the
-// power zone colours: zone colours always mean power.
+// A climb's gradient bands: the app's own neon, cool to hot as the road gets steeper (teal, cyan, pink,
+// magenta, then white-hot), apart from the power zone colours: zone colours always mean power.
 export const GRADE_BANDS = [
-  { upTo: 0, label: "≤ 0 %", color: "#4A5A54" },
-  { upTo: 3, label: "0–3 %", color: "#7E948A" },
-  { upTo: 6, label: "3–6 %", color: "#B6C6BE" },
-  { upTo: 9, label: "6–9 %", color: "#E8F1EC" },
-  { upTo: 12, label: "9–12 %", color: "#FFB0CC" },
-  { upTo: Infinity, label: "12 %+", color: "#FF3D81" },
+  { upTo: 0, label: "≤ 0 %", color: "#2A9D8F" },
+  { upTo: 3, label: "0–3 %", color: "#36E3C4" },
+  { upTo: 6, label: "3–6 %", color: "#3DD9FF" },
+  { upTo: 9, label: "6–9 %", color: "#FF3D81" },
+  { upTo: 12, label: "9–12 %", color: "#FF2DD4" },
+  { upTo: Infinity, label: "12 %+", color: "#FFF6E5" },
 ];
 export function gradeColor(grade) {
   return GRADE_BANDS.find((b) => grade <= b.upTo).color;

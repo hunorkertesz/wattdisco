@@ -490,7 +490,7 @@ export function drawSummaryChart(canvas, summary) {
       if (e0 == null || e1 == null || a0 == null || a1 == null) continue;
       ctx.beginPath();
       ctx.moveTo(x(e0), yA(a0)); ctx.lineTo(x(e1) + 0.5, yA(a1)); ctx.lineTo(x(e1) + 0.5, bottom); ctx.lineTo(x(e0), bottom); ctx.closePath();
-      ctx.fillStyle = hexToRgba(gradeColor(series.grade?.[i] ?? 0), 0.22);
+      ctx.fillStyle = hexToRgba(gradeColor(series.grade?.[i] ?? 0), 0.3);
       ctx.fill();
     }
   }
@@ -868,16 +868,21 @@ export function drawClimbProfile(canvas, profile, { distance = null, imperial = 
     const a0 = heightAt(d0);
     const a1 = heightAt(d1);
     const color = gradeColor((p0[2] + p1[2]) / 2);
-    const ridden = distance != null && d1 <= distance;
+    // before the ride (no position) and the road already ridden glow fully; the road ahead a little less
+    const ahead = distance != null && d0 >= distance;
     const fill = ctx.createLinearGradient(0, Math.min(y(a0), y(a1)), 0, bottom);
-    fill.addColorStop(0, hexToRgba(color, ridden ? 0.75 : 0.5));
-    fill.addColorStop(1, hexToRgba(color, ridden ? 0.2 : 0.06));
+    fill.addColorStop(0, hexToRgba(color, ahead ? 0.5 : 0.8));
+    fill.addColorStop(0.55, hexToRgba(color, ahead ? 0.16 : 0.3));
+    fill.addColorStop(1, hexToRgba(color, ahead ? 0.04 : 0.08));
     ctx.beginPath();
     ctx.moveTo(x(d0), y(a0)); ctx.lineTo(x(d1), y(a1)); ctx.lineTo(x(d1), bottom); ctx.lineTo(x(d0), bottom); ctx.closePath();
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.beginPath(); ctx.moveTo(x(d0), y(a0)); ctx.lineTo(x(d1), y(a1));
+    ctx.save();
+    if (ahead) ctx.globalAlpha = 0.75;
     neonStroke(ctx, color);
+    ctx.restore();
   }
 
   // distance marks along the bottom, the height shown on the left
@@ -904,11 +909,21 @@ export function drawClimbProfile(canvas, profile, { distance = null, imperial = 
     ctx.setLineDash([3, 4]);
     ctx.beginPath(); ctx.moveTo(x(d) + 0.5, y(a)); ctx.lineTo(x(d) + 0.5, bottom); ctx.stroke();
     ctx.restore();
+    // you: a bright dot in the colour of the road under you, with a ring that keeps swelling and fading
+    const here = gradeColor(profile[Math.max(1, profile.findIndex((p) => p[0] >= d))]?.[2] ?? 0);
+    const beat = (performance.now() % 1400) / 1400;
     ctx.save();
-    ctx.shadowColor = css("--white");
-    ctx.shadowBlur = 12;
+    ctx.strokeStyle = hexToRgba(here, 0.8 * (1 - beat));
+    ctx.lineWidth = 2;
+    ctx.shadowColor = here;
+    ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(x(d), y(a), 7 + 14 * beat, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = here;
+    ctx.beginPath(); ctx.arc(x(d), y(a), 7, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.fillStyle = css("--white");
-    ctx.beginPath(); ctx.arc(x(d), y(a), 6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x(d), y(a), 3, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }

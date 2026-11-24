@@ -439,7 +439,7 @@
 .feel__note { height: 34px; font-size: 14px; }
 
 /* A climb: best times up it, this ride marked, the best with a star. */
-.climb-times { --accent: #E8F1EC; }
+.climb-times { --accent: #FF3D81; }
 .climb-times__head { margin: 0; font-size: 15px; color: var(--white); }
 .climb-times__head b { font-size: 22px; font-variant-numeric: tabular-nums; }
 .climb-times__head.is-best b { color: var(--yellow-soft); text-shadow: 0 0 8px rgba(255, 201, 60, .6); }
