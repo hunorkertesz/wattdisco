@@ -26,6 +26,7 @@ Everything is in your own app folder (macOS `~/Library/Application Support/Watt 
 | Your devices: their names and Bluetooth or ANT+ ids, roles, last zero offset | Reconnecting them next time |
 | The Strava sign-in (`strava_tokens.json`, readable only by your user account) | Uploading rides |
 | Deleted rides, in `deleted/`, for 7 days | So a delete can be undone; after that they are removed for good |
+| A log of what the app did (`logs/`, at most about 4 MB): app start, devices found, connected or lost, trainer problems, rides started and ended, failed uploads. No sensor values, sign-ins or anything you type | Finding a problem. **Copy diagnostics** on the Devices screen shows it with the app and system versions and your device names; it is only copied for you to paste into a bug report, never sent by the app |
 
 Heart rate counts as health data. It never leaves your computer unless you upload a ride to Strava.
 

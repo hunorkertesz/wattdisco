@@ -28,6 +28,7 @@
   .row .btn { flex: none; }
   .row--later { opacity: .6; }
   .footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+  .footer__left { margin-right: auto; }
   .live { font-size: 18px; font-weight: 500; min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
   [hidden] { display: none !important; }
   /* Laptop screens: tighter rows so the whole list fits without scrolling. */
@@ -103,6 +104,7 @@
       <span class="mono" id="status" role="status"></span>
 
       <div class="footer">
+        <span class="footer__left" id="diag-slot"></span>
         <button class="btn" type="button" id="rescan">Rescan</button>
         <a class="btn btn--primary" id="continue" href="/ready.html">Continue</a>
       </div>
@@ -111,7 +113,8 @@
 </div>
 
 <script type="module">
-import { ROLE_LABEL, batteryBadge, deviceHelp, el, renderDeviceChips, renderStrip, signalBars } from "/components.js";
+import { ROLE_LABEL, batteryBadge, deviceHelp, diagnosticsButton, el, renderDeviceChips, renderStrip, signalBars } from "/components.js";
+document.getElementById("diag-slot").append(diagnosticsButton()); // versions, devices and the log, for a bug report
 
 const $ = (id) => document.getElementById(id);
 const strip = renderStrip($("strip"), { active: "devices" });

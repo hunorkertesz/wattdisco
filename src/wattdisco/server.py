@@ -36,6 +36,7 @@ from wattdisco.config import (
 )
 from wattdisco.core.bus import Bus
 from wattdisco.core.clock import Clock
+from wattdisco.core import diagnostics
 from wattdisco.core.compare import CompareBench
 from wattdisco.core.climb import DIFFICULTIES, ClimbPlayer, Profile
 from wattdisco.core.climb_import import ClimbFileError, import_climb
@@ -60,7 +61,7 @@ from wattdisco.core.workouts import (
     to_workout,
 )
 from wattdisco.export.strava import SPORT_TYPES, Strava, StravaError
-from wattdisco.models import Device, Phase, TrainerCommand, Workout
+from wattdisco.models import Device, Phase, TrainerCommand, TrainerStatus, Workout
 
 log = logging.getLogger(__name__)
 
@@ -256,7 +257,11 @@ class Ride:
         self.bench = CompareBench(self.bus, clock, name_of=self._device_name)
         self.compare_clients: set[WebSocket] = set()  # browsers with the sensor comparison open
         self.bus.subscribe("device", self._on_device)
+        self.bus.subscribe("device", self._log_device)
+        self.bus.subscribe("trainer_status", self._log_trainer)
         self.bus.subscribe_all(self._record)
+        self._device_states: dict[str, str] = {}
+        self._trainer_ok: bool | None = None
 
     def _load_review(self) -> str | None:
         try:
@@ -383,6 +388,7 @@ class Ride:
         self.auto_paused, self._still, self._pedalling = None, 0, 0
         if wait_for_pedal:
             self.pause(auto="waiting")  # the clock starts with the first pedal strokes
+        log.info("ride %s started: %s, mode %s%s", ride_id, self.workout.name, self.player.mode, " (simulated)" if sim else "")
         self._tick()
         return ride_id
 
@@ -508,6 +514,7 @@ class Ride:
         self.awake.release()
         self.bench.stop()
         recorder, ride_id = self.recorder, self.ride_id
+        log.info("ride %s ended after %d s", ride_id, round(self.clock.now() - self.ride_start))
         recorder.write({"type": "end", "t": round(self.clock.now() - self.ride_start, 3)})
         self.recorder = None
         self.bus.publish("trainer", TrainerCommand("free"))  # let the rider spin down freely
@@ -575,6 +582,34 @@ class Ride:
         self.uploading.pop(ride_id, None)
         if status.get("state") in ("done", "duplicate") and self.review_id == ride_id:
             await asyncio.to_thread(self.set_review, None)  # uploaded: TRAIN is free for the next ride
+
+    # ---------- the diagnostics log (core/diagnostics.py): changes only, never sensor values ----------
+
+    def _log_device(self, device: Device) -> None:
+        if self._device_states.get(device.id) == device.state:
+            return
+        self._device_states[device.id] = device.state
+        roles = ",".join(sorted(device.roles)) or "-"
+        level = logging.WARNING if device.state == "lost" else logging.INFO
+        log.log(level, "device %s: %s (roles %s, battery %s)", device.name, device.state, roles, device.battery)
+
+    def _log_trainer(self, status: TrainerStatus) -> None:
+        if status.ok == self._trainer_ok and status.ok:
+            return
+        self._trainer_ok = status.ok
+        if status.ok:
+            log.info("trainer answers again (%s)", status.mode)
+        else:
+            log.warning("trainer problem (%s): %s", status.mode, status.message)
+
+    def diagnostics(self) -> str:
+        snap = self.session.snapshot()
+        devices = [{**asdict(d), "transport": "ANT+" if d.id.startswith("ant") else "BLE"} for d in snap.devices]
+        trainer = asdict(snap.trainer) if snap.trainer else None
+        return diagnostics.report(
+            self.data_dir, sim=type(self.source).__name__.startswith("Sim"), devices=devices, trainer=trainer,
+            ride={"active": self.active, "paused": self.paused}, settings=asdict(self.settings),
+            strava_connected=self.strava.connected, rides=len(self.store.list()))
 
     def _on_device(self, device: Device) -> None:
         if device.state != "connected":
@@ -1114,6 +1149,11 @@ def create_app(ride: Ride) -> FastAPI:
             raise HTTPException(status_code=409, detail=str(e)) from e
 
     # ---------- devices ----------
+
+    @app.get("/api/diagnostics")
+    async def get_diagnostics():
+        """Plain text for a bug report (the Copy diagnostics button); nothing is sent anywhere."""
+        return {"text": await asyncio.to_thread(ride.diagnostics)}
 
     @app.get("/api/devices")
     async def get_devices():

@@ -524,3 +524,48 @@ export function helpCard(key, { title, items, note = "" }) {
   };
   return { open, maybeOpen: () => { if (!seen()) open(); } };
 }
+
+// "Copy diagnostics": the app's version, devices and the end of its log (/api/diagnostics), shown before it is
+// copied, so the rider sees what they paste into a bug report. Nothing is sent anywhere.
+export async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* the app window may not allow it */ }
+  const area = el("textarea", { class: "visually-hidden" });
+  area.value = text;
+  document.body.append(area);
+  area.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  area.remove();
+  return ok;
+}
+
+export function diagnosticsButton() {
+  let card = null;
+  const close = () => { card?.remove(); card = null; removeEventListener("keydown", onKey, true); };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  const open = async () => {
+    if (card) return;
+    const text = await fetch("/api/diagnostics").then((r) => r.json()).then((d) => d.text)
+      .catch(() => "The app didn't answer, so no diagnostics could be read.");
+    const area = el("textarea", { class: "diag__text", readonly: "", spellcheck: "false", "aria-label": "Diagnostics" });
+    area.value = text;
+    const status = el("span", { class: "mono diag__status", role: "status" });
+    const copy = el("button", { class: "btn btn--sm btn--primary", type: "button", text: "Copy" });
+    copy.onclick = async () => {
+      const ok = await copyText(text);
+      if (!ok) { area.focus(); area.select(); }
+      status.textContent = ok ? "Copied · paste it into your bug report" : "Selected · press Ctrl+C or ⌘C to copy";
+    };
+    card = el("div", { class: "help-card diag", role: "dialog", "aria-modal": "false", "aria-label": "Diagnostics" },
+      el("div", { class: "help-card__head" }, el("span", { class: "mono", text: "Diagnostics" }),
+        el("div", { class: "diag__actions" }, copy, el("button", { class: "btn btn--sm", type: "button", text: "Close", onclick: close }))),
+      el("p", { class: "help-card__note", text: "App and system versions, your devices and the end of the app's log. "
+        + "No passwords, sign-ins or ride data. Read it before you send it; nothing leaves your computer unless you paste it somewhere." }),
+      area, status);
+    document.body.append(card);
+    addEventListener("keydown", onKey, true);
+    copy.focus();
+  };
+  return el("button", { class: "btn", type: "button", text: "Copy diagnostics", onclick: open,
+    title: "Versions, devices and the app's log, to paste into a bug report" });
+}

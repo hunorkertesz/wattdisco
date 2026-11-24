@@ -69,6 +69,17 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         return 0
 
 
+def _log_to_file() -> None:
+    """The diagnostics log in the data folder (core/diagnostics.py)."""
+    from wattdisco.config import DATA_DIR
+    from wattdisco.core.diagnostics import setup_logging
+
+    try:
+        setup_logging(DATA_DIR)
+    except OSError as e:  # a read-only or full disk must not stop the app
+        print(f"No log file: {e}", file=sys.stderr)
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Server only, for development in a normal browser."""
     import uvicorn
@@ -76,6 +87,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     from wattdisco.app import build_ride
     from wattdisco.server import create_app
 
+    _log_to_file()
     ride = build_ride(args.sim, args.speed, args.timeout, args.smoothing)
     print(f"Watt Disco on http://{args.host}:{args.port}  ({'simulated sensors' if args.sim else 'Bluetooth'})")
     uvicorn.run(create_app(ride), host=args.host, port=args.port, log_level="warning")
@@ -86,6 +98,7 @@ def _cmd_app(args: argparse.Namespace) -> int:
     """The app in its own window."""
     from wattdisco.app import run_window
 
+    _log_to_file()
     return run_window(args.sim, args.speed, args.timeout, args.smoothing, fullscreen=args.fullscreen)
 
 

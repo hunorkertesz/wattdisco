@@ -746,3 +746,11 @@ body.clean { background: var(--clean-bg); }
 .help-card__list dd { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
 .help-card__note { margin: 0; font-size: 12px; color: var(--muted); }
 @media (max-width: 520px) { .help-card__list { grid-template-columns: 1fr; } .help-card__list dd { margin-bottom: 4px; } }
+
+/* Copy diagnostics (components.js diagnosticsButton) */
+.diag { width: min(720px, calc(100vw - 32px)); }
+.diag__actions { display: flex; gap: 8px; }
+.diag__text { width: 100%; height: min(46vh, 420px); resize: vertical; background: var(--row); color: var(--cyan-soft);
+  border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px; font-family: var(--font-mono); font-size: 11px; line-height: 1.45; }
+.diag__status { min-height: 1em; font-size: 11px; color: var(--teal); text-transform: none; }
+.visually-hidden { position: fixed; left: -9999px; top: 0; width: 1px; height: 1px; opacity: 0; }
