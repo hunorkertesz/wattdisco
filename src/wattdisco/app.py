@@ -149,7 +149,7 @@ def run_window(sim: bool = False, speed: float = 1.0, scan_seconds: float = 10.0
     files = Files(f"http://127.0.0.1:{port}", lambda name: ask_save_path(window, name))
     window = webview.create_window(
         "Watt Disco", f"http://127.0.0.1:{port}/", width=geometry["width"], height=geometry["height"],
-        x=geometry["x"], y=geometry["y"], min_size=MIN_SIZE, background_color="#0A0612", fullscreen=fullscreen,
+        x=geometry["x"], y=geometry["y"], min_size=MIN_SIZE, background_color="#070B0A", fullscreen=fullscreen,
         js_api=files,
     )
     window.events.closing += lambda: save_geometry(window)

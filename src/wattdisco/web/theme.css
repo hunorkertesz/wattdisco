@@ -80,8 +80,7 @@
   --white: #FFF6E5;
   --muted: #A99BC9;
   --neon-muted: #A99BC9; /* stays neon inside .clean, for buttons */
-  --bg: #0A0612;
-  --bg-glow: #150B22;
+  --bg: #070B0A; /* black, the same as the ride screen, on every page */
   --card: #110A1C;
   --row: #0F0819;
   --line: #2A1A44;
@@ -133,7 +132,7 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
-  background: radial-gradient(ellipse at 50% 45%, var(--bg-glow) 0%, var(--bg) 70%) fixed, var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
@@ -724,7 +723,7 @@ body.clean { background: var(--clean-bg); }
   position: fixed; left: 50%; bottom: 24px; z-index: 50; max-width: calc(100vw - 32px);
   transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
   padding: 10px 18px; border: 1.5px solid var(--teal); border-radius: 999px;
-  background: rgba(10, 6, 18, .94); color: var(--white); box-shadow: 0 0 14px rgba(54, 227, 196, .45);
+  background: rgba(7, 11, 10, .94); color: var(--white); box-shadow: 0 0 14px rgba(54, 227, 196, .45);
   font: 500 13px/1.3 var(--font-mono); overflow-wrap: anywhere; transition: opacity .2s, transform .2s;
 }
 .toast__action { margin-left: 10px; padding: 2px 12px; border: 1.5px solid var(--cyan); border-radius: 999px; background: transparent;
