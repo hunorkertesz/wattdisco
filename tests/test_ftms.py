@@ -154,9 +154,9 @@ class SpinDownTrainer:
             return
         bike, status = self.callbacks[ftms.INDOOR_BIKE_DATA], self.callbacks[ftms.FITNESS_MACHINE_STATUS]
         for i, kmh in enumerate((28.0, 33.0, 36.5)):
-            loop.call_later(0.01 * (i + 1), bike, None, bytearray((0x0044).to_bytes(2, "little") + round(kmh * 100).to_bytes(2, "little")))
-        loop.call_later(0.05, status, None, bytearray([0x14, 0x04]))  # stop pedalling
-        loop.call_later(0.08, status, None, bytearray([0x14, self.finish]))
+            loop.call_later(0.02 * (i + 1), bike, None, bytearray((0x0044).to_bytes(2, "little") + round(kmh * 100).to_bytes(2, "little")))
+        loop.call_later(0.15, status, None, bytearray([0x14, 0x04]))  # stop pedalling
+        loop.call_later(0.25, status, None, bytearray([0x14, self.finish]))
 
 
 def test_spin_down_parsers():
@@ -181,9 +181,10 @@ def test_spin_down_runs_through_its_stages():
         await c.calibrate(seen.append)
 
     run(go())
-    stages = [s["stage"] for s in seen if "stage" in s]
-    assert stages == ["speed_up", "stop", "success"]
-    assert seen[0] == {"stage": "speed_up", "low": 30.0, "high": 35.0}
+    stages = [s for s in seen if "stage" in s]
+    assert [s["stage"] for s in stages] == ["speed_up", "stop", "success"]
+    assert stages[0] == {"stage": "speed_up", "low": 30.0, "high": 35.0}
+    # speed can come in before the trainer's answer is handled (Windows timers are coarse): only the values count
     assert [s["speed"] for s in seen if "speed" in s] == [28.0, 33.0, 36.5]
     assert ftms.INDOOR_BIKE_DATA not in trainer.callbacks  # notifications stopped afterwards
     assert ftms.CONTROL_POINT in trainer.callbacks  # control stays
