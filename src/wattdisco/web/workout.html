@@ -89,6 +89,13 @@
         <svg class="ring" id="ring" viewBox="0 0 120 120" role="img" aria-label="Power against target"></svg>
         <div class="stat stat--target"><span class="mono" id="n-stat-label">On target · this interval</span>
           <div class="num"><span id="n-on-target">--</span><span class="num__u" id="n-stat-unit">%</span></div></div>
+        <!-- A climb in nerd mode: speed, VAM, W/kg and the time to the top at your recent power. -->
+        <div class="climb-stats" id="climb-stats" hidden>
+          <div class="climb-stat"><span class="mono">Speed</span><b id="c-speed">--</b><span class="mono climb-stat__u" id="c-speed-u">km/h</span></div>
+          <div class="climb-stat" title="Metres climbed per hour, over the last minute"><span class="mono">VAM</span><b id="c-vam">--</b><span class="mono climb-stat__u" id="c-vam-u">m/h</span></div>
+          <div class="climb-stat" title="Your power over the last 30 s per kilogram of body weight"><span class="mono">W/kg</span><b id="c-wkg">--</b><span class="mono climb-stat__u">30 s</span></div>
+          <div class="climb-stat climb-stat--top" title="Time to the top if you keep your last 30 s of power"><span class="mono">Top in</span><b id="c-top">--</b><span class="mono climb-stat__u" id="c-top-u">at -- W</span></div>
+        </div>
       </div>
       <span class="mono trainer-status" id="trainer-status" role="status"></span>
     </div>
@@ -218,6 +225,9 @@ const climbHelp = helpCard("climb-nerd", {
   items: [
     ["Gradient ring", "The road's gradient here. The dot moves right as it gets steeper, left on a descent; the marked band is ±5 %."],
     ["Speed", "Your speed on this road, from your power, your weight and the real gradient."],
+    ["VAM", "Metres climbed per hour over the last minute: how fast you gain height, whatever the gradient."],
+    ["W/kg", "Your last 30 s of power per kilogram of your weight: what decides how fast you climb."],
+    ["Top in", "How long to the top if you keep your last 30 s of power, on the real gradients ahead."],
     ["Trainer line", "What the trainer simulates: the gradient a moment ahead, scaled by the difficulty you chose."],
     ["Teal ring", "How far your two power sources (trainer and power meter) read apart. The band is ±2 %."],
     ["Average pills", "Power and heart rate averaged over the last 30 s; tap the pill to pick 1, 5 or 10 minutes."],
@@ -572,6 +582,21 @@ function makeCadenceBar(box) {
 }
 const cadBars = [makeCadenceBar($("cad-bar")), makeCadenceBar($("n-cad-bar"))];
 
+// Live climb numbers (core/climb.py ClimbPlayer.live): VAM over the last minute, W/kg and the time to the top
+// at the last 30 s of power, with the finish time on the climb clock in its tooltip.
+function renderClimbStats(c, w) {
+  $("c-speed").textContent = fmtNum(inSpeed(c.speed * 3.6), 1);
+  $("c-speed-u").textContent = speedUnit();
+  $("c-vam").textContent = c.vam == null ? "--" : fmtNum(imperial() ? c.vam * 3.28084 : c.vam);
+  $("c-vam-u").textContent = imperial() ? "ft/h" : "m/h";
+  $("c-wkg").textContent = c.w_kg == null ? "--" : c.w_kg.toFixed(2);
+  const top = c.top_in;
+  $("c-top").textContent = top == null ? "--" : fmtClock(top);
+  $("c-top-u").textContent = c.power == null ? "at -- W" : `at ${c.power} W`;
+  $("c-top").parentElement.title = top == null ? "Time to the top if you keep your last 30 s of power"
+    : `Time to the top at ${c.power} W · finish at ${fmtClock(Math.round(w.elapsed + top))} on the climb clock`;
+}
+
 function renderNerd(s, w) {
   const n = s.nerd ?? {};
   const c = climbing ? s.climb : null;
@@ -586,7 +611,7 @@ function renderNerd(s, w) {
       text: c.difficulty < 1 ? `TRAINER ${pct(c.trainer_grade)} %` : `${height(c.ascent - c.climbed)} TO CLIMB`,
       off: false,
     });
-    $("n-on-target").textContent = fmtNum(inSpeed(c.speed * 3.6), 1);
+    renderClimbStats(c, w);
   } else targetRing({
     value: w.target ?? "--",
     unit: w.adjust ? `W TARGET ${w.adjust > 0 ? "+" : "−"}${Math.abs(w.adjust)}` : "W TARGET",
@@ -650,6 +675,8 @@ function render(store) {
   if (!helpShown) { helpShown = true; if (nerd) help().maybeOpen(); }
   $("app").classList.toggle("is-climb", climbing);
   $("interval-group").hidden = climbing; // a road has no interval to make harder or skip
+  $("climb-stats").hidden = !climbing;
+  document.querySelector(".nerd-target .stat--target").hidden = climbing;
   showZoomLabel();
 
   renderDeviceChips(strip.devices, s.devices);

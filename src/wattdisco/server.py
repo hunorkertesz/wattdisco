@@ -818,6 +818,8 @@ class Ride:
         snap = self.session.snapshot()
         if self.road is not None:
             self.road.step(snap.power_raw)
+        if isinstance(self.player, ClimbPlayer):
+            self.player.note(snap.power_raw)
         pos = self.player.position(self.clock.now())
         self._count_nerd(pos, snap.power_raw)
         self._recent_hr.append(snap.hr)

@@ -518,3 +518,16 @@
 
 /* A climb: the badge takes the gradient's colour (teal, cyan, pink, magenta, white-hot), so its text stays dark. */
 .phase-badge--grade { color: #070B0A; }
+
+/* A climb in nerd mode: four live numbers next to the gradient ring */
+.climb-stats { display: grid; grid-template-columns: repeat(2, max-content); gap: 4px clamp(8px, 1.2vw, 16px); align-items: start; }
+.climb-stats[hidden] { display: none; }
+.climb-stat { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.climb-stat > .mono { font-size: 10px; letter-spacing: .08em; color: var(--clean-muted, #8FA3A0); text-transform: uppercase; }
+.climb-stat b { font-family: var(--font-mono); font-size: calc(clamp(14px, min(1.9vw, 2.9vh), 26px) * var(--ride-text, 1)); font-weight: 600;
+  color: var(--clean-text); font-variant-numeric: tabular-nums; }
+.climb-stat .climb-stat__u { font-size: 9px; letter-spacing: .06em; text-transform: none; color: var(--clean-muted, #8FA3A0); }
+.climb-stat--top b { color: var(--effort-color, var(--clean-text)); }
+.nerd-target .stat[hidden] { display: none; }
+.is-nerd #interval-group[hidden] { display: none !important; } /* a climb has no interval controls (nerd-only shows with !important) */
+@media (max-width: 600px) { .climb-stat b { font-size: calc(24px * var(--ride-text, 1)); } .climb-stats { gap: 4px 16px; } }

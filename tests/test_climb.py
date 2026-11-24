@@ -13,6 +13,7 @@ from wattdisco.core.climb import (
     ClimbPlayer,
     Profile,
     estimate_seconds,
+    seconds_to_top,
     trainer_grade,
 )
 from wattdisco.core.recorder import load_ride
@@ -144,6 +145,27 @@ class FeatureTrainer:
         asyncio.get_running_loop().call_soon(self.callback, None, bytearray([0x80, data[0], 0x01]))
 
 
+def test_live_vam_wkg_and_time_to_the_top():
+    workout = climb_workout()  # 6 km at 7 %
+    player = ClimbPlayer(workout, rider_kg=75.0)
+    assert player.climb_state()["vam"] is None and player.climb_state()["top_in"] is None  # nothing ridden yet
+    for _ in range(120):
+        player.road.step(250)
+        player.note(250)
+    live = player.climb_state()
+    speed = steady_speed(250, 75.0, grade=7.0)
+    assert live["w_kg"] == pytest.approx(250 / 75, abs=0.01) and live["power"] == 250
+    assert live["vam"] == pytest.approx(speed * 0.07 * 3600, rel=0.06)  # metres up per hour over the last minute
+    left = player.profile.length - player.distance
+    assert live["top_in"] == pytest.approx(left / speed, rel=0.03)
+    assert seconds_to_top(player.profile, 0, 250) > seconds_to_top(player.profile, 0, 300)  # more watts, sooner
+    assert seconds_to_top(player.profile, player.profile.length, 250) == 0
+    for _ in range(30):
+        player.road.step(0)
+        player.note(0)
+    assert player.climb_state()["top_in"] is None  # coasting: no time to the top
+
+
 def test_ftms_sends_the_gradient_or_says_it_cannot():
     async def run(simulation):
         trainer, results = FeatureTrainer(simulation), []
@@ -173,6 +195,7 @@ def test_climb_ride_end_to_end_with_the_simulator(tmp_path):
         time.sleep(2.0)
         state = c.get("/api/state").json()
         assert state["climb"]["distance"] > 50 and state["workout"]["target"] is None
+        assert state["climb"]["vam"] > 0 and state["climb"]["w_kg"] > 0 and state["climb"]["top_in"] > 0  # live numbers
         sims = [cmd for cmd in source.trainer_log if cmd.mode == "sim"]
         assert sims and max(cmd.grade for cmd in sims) <= 6.0  # 12 % at most, at half difficulty
         ride_id = c.post("/api/ride/stop").json()["id"]

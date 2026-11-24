@@ -10,7 +10,9 @@ Pure logic: time comes in as `now`, distance from the road, so tests never wait.
 """
 
 import math
+from collections import deque
 from dataclasses import dataclass
+from functools import lru_cache
 
 from wattdisco.core.speed import BIKE_KG, Road, steady_speed
 from wattdisco.core.workout import Position, WorkoutPlayer
@@ -27,6 +29,10 @@ MIN_TRAINER_GRADE = -5.0
 DIFFICULTIES = (0.25, 0.5, 0.75, 1.0)  # share of the uphill gradient the trainer simulates
 PACE = 0.75  # share of FTP behind the estimated time on the Ready screen
 ESTIMATE_KG = 75.0
+VAM_WINDOW_S = 60  # live VAM: metres climbed over the last minute of riding
+POWER_WINDOW_S = 30  # live W/kg and the time to the top use the last 30 s of power
+MIN_LIVE_S = 10  # seconds of riding before the live numbers show
+MIN_PROJECT_W = 30  # below this the rider is coasting: no time to the top
 
 
 @dataclass(frozen=True)
@@ -122,6 +128,23 @@ def estimate_seconds(profile: Profile, watts: float, rider_kg: float = ESTIMATE_
     return max(60, round(total))
 
 
+@lru_cache(maxsize=4096)
+def _speed(watts: int, rider_kg: float, grade: float) -> float:
+    return max(0.5, steady_speed(watts, rider_kg, BIKE_KG, grade))
+
+
+def seconds_to_top(profile: Profile, distance: float, watts: float, rider_kg: float = ESTIMATE_KG) -> int:
+    """Time from `distance` to the top at steady watts, on the real gradients ahead."""
+    w = int(round(watts))
+    total, d = 0.0, max(0.0, distance)
+    while d < profile.length - 1e-6:
+        end = min(profile.length, (math.floor(d / STEP_M) + 1) * STEP_M)
+        grade = round(profile.grade_at((d + end) / 2), 1)  # 0.1 % steps: the speeds are cached
+        total += (end - d) / _speed(w, rider_kg, grade)
+        d = end
+    return round(total)
+
+
 def describe(climb: dict) -> str:
     """e.g. '6.0 KM · 7.0 % AVERAGE · 421 M UP'."""
     profile = Profile.from_segments(climb["segments"])
@@ -145,6 +168,10 @@ class ClimbPlayer(WorkoutPlayer):
         self.difficulty = difficulty
         self.road = Road(rider_kg, grade_at=self.profile.grade_at)
         self.road.distance = max(0.0, distance)
+        self.rider_kg = rider_kg
+        self._climbed = deque(maxlen=VAM_WINDOW_S + 1)  # metres climbed at each riding second
+        self._power = deque(maxlen=POWER_WINDOW_S)
+        self._top_in: tuple[tuple[int, int], int] | None = None  # (watts, 10 m step) -> seconds, cached
         super().__init__(workout, mode="climb", start=start)
 
     def set_mode(self, mode: str) -> None:
@@ -206,6 +233,28 @@ class ClimbPlayer(WorkoutPlayer):
             return None
         return self._send(want, now)
 
+    def note(self, power: float | None) -> None:
+        """One riding second (after the road moved): feeds the live VAM, W/kg and time to the top."""
+        self._climbed.append(self.profile.ascent_at(self.distance))
+        self._power.append(max(0.0, power or 0.0))
+
+    def live(self) -> dict:
+        """VAM over the last minute, W/kg and time to the top at the last 30 s of power (None until known)."""
+        out = {"vam": None, "w_kg": None, "power": None, "top_in": None}
+        if len(self._power) < MIN_LIVE_S or self.done:
+            return out
+        watts = sum(self._power) / len(self._power)
+        out["power"] = round(watts)
+        out["w_kg"] = round(watts / self.rider_kg, 2)
+        span = len(self._climbed) - 1
+        out["vam"] = round((self._climbed[-1] - self._climbed[0]) / span * 3600) if span else None
+        if watts >= MIN_PROJECT_W:
+            key = (int(round(watts / 5) * 5), int(self.distance // STEP_M))
+            if self._top_in is None or self._top_in[0] != key:
+                self._top_in = (key, seconds_to_top(self.profile, self.distance, key[0], self.rider_kg))
+            out["top_in"] = self._top_in[1]
+        return out
+
     def climb_state(self) -> dict:
         d = self.distance
         sent = self._sent
@@ -221,6 +270,7 @@ class ClimbPlayer(WorkoutPlayer):
             "climbed": round(self.profile.ascent_at(d), 1),
             "ascent": round(self.profile.total_ascent, 1),
             "top": self.done,
+            **self.live(),
         }
 
 
