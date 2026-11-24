@@ -233,11 +233,6 @@ BUILTIN = {
         _phase("cooldown", 600, 0.60, 0.40),
         test="20min", mode="free"),
 }
-# Climbs: a road whose gradient sets the trainer's resistance (core/climb.py). One "climb" phase whose
-# length is only an estimate at 75 % FTP; the ride ends at the top. Built in, so read-only.
-for _id, (_name, _segments) in climb.BUILTIN_CLIMBS.items():
-    BUILTIN[_id] = {"name": _name, "category": "climb", "mode": "climb", "climb": {"segments": _segments},
-                    "phases": [{"kind": "climb", "seconds": 0, "pct": climb.PACE, "pct_end": None, "cadence": None}]}
 DEFAULT_WORKOUT_ID = "sweet-spot-3x4"
 
 
@@ -349,11 +344,47 @@ def default_workout(ftp: int = DEFAULT_FTP) -> Workout:
 sweet_spot_3x4 = default_workout
 
 
+MAX_CLIMB_SEGMENTS = 5000
+MAX_CLIMB_M = 200_000
+
+
+def climb_spec(name: str, segments: list) -> dict:
+    """A climb as the library keeps it: segments of [metres, gradient %] and one estimated "climb" phase."""
+    return {"name": name, "category": "climb", "mode": "climb", "climb": {"segments": segments},
+            "phases": [{"kind": "climb", "seconds": 0, "pct": climb.PACE, "pct_end": None, "cadence": None}]}
+
+
+# Climbs: a road whose gradient sets the trainer's resistance (core/climb.py). One "climb" phase whose
+# length is only an estimate at 75 % FTP; the ride ends at the top. Built in, so read-only.
+for _id, (_name, _segments) in climb.BUILTIN_CLIMBS.items():
+    BUILTIN[_id] = climb_spec(_name, _segments)
+
+
+def _validate_climb(name: str, data: dict) -> dict:
+    segments = (data.get("climb") or {}).get("segments")
+    if not isinstance(segments, list) or not 1 <= len(segments) <= MAX_CLIMB_SEGMENTS:
+        raise ValueError(f"a climb needs 1 to {MAX_CLIMB_SEGMENTS} segments")
+    clean = []
+    for i, seg in enumerate(segments, 1):
+        try:
+            metres, grade = float(seg[0]), float(seg[1])
+        except (TypeError, ValueError, IndexError, KeyError) as e:
+            raise ValueError(f"climb segment {i} is incomplete") from e
+        if not (1 <= metres <= 10_000 and -25 <= grade <= 30) or not (math.isfinite(metres) and math.isfinite(grade)):
+            raise ValueError(f"climb segment {i}: length or gradient out of range")
+        clean.append([round(metres, 1), round(grade, 2)])
+    if sum(m for m, _ in clean) > MAX_CLIMB_M:
+        raise ValueError(f"a climb can be up to {MAX_CLIMB_M // 1000} km long")
+    return climb_spec(name, clean)
+
+
 def validate(data: dict) -> dict:
-    """A clean copy of a workout from the editor, or ValueError with a plain message."""
+    """A clean copy of a workout from the editor (or a climb), or ValueError with a plain message."""
     name = str(data.get("name", "")).strip()
     if not 1 <= len(name) <= 80:
         raise ValueError("give the workout a name (up to 80 characters)")
+    if data.get("climb") is not None or data.get("category") == "climb":
+        return _validate_climb(name, data)
     phases = data.get("phases")
     if not isinstance(phases, list) or not 1 <= len(phases) <= MAX_PHASES:
         raise ValueError(f"a workout needs 1 to {MAX_PHASES} phases")

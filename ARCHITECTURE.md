@@ -69,6 +69,7 @@ wattdisco/
 │   │   ├── plans.py         training plans (weeks of built-ins) and the rider's progress
 │   │   ├── hrv.py           DFA alpha 1 from RR intervals, aerobic threshold per ride
 │   │   ├── speed.py          estimated speed and distance from power and weight, flat or on a gradient
+│   │   ├── climb_import.py   a .gpx file -> a climb: distance on the earth's surface, heights every 10 m smoothed over 100 m, 100 m segments, gradients −10 to +20 %; positions dropped
 │   │   ├── climb.py          climbs: profile from segments, built-in climbs, ClimbPlayer (position by distance, gradient to the trainer)
 │   │   ├── workout.py        workout player: current phase, countdown, target, ERG commands
 │   │   ├── stats.py          on-target %, difference, weighted power, intensity, training load, VI, HR drift

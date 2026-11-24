@@ -38,6 +38,7 @@ from wattdisco.core.bus import Bus
 from wattdisco.core.clock import Clock
 from wattdisco.core.compare import CompareBench
 from wattdisco.core.climb import DIFFICULTIES, ClimbPlayer, Profile
+from wattdisco.core.climb_import import ClimbFileError, import_climb
 from wattdisco.core.metrics import metric_value
 from wattdisco.core import plans, progress
 from wattdisco.core.ftp_history import FtpHistory, rebuild
@@ -1178,6 +1179,19 @@ def create_app(ride: Ride) -> FastAPI:
         try:
             spec, notes = await asyncio.to_thread(run)
         except WorkoutFileError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        return {"workout": workout_info(spec), "notes": notes}
+
+    @app.post("/api/climbs/import")
+    async def import_climb_file(body: WorkoutFileIn):
+        """A .gpx file, saved as one of the rider's own climbs (distance and gradients only, no positions)."""
+        def run() -> tuple[dict, list[str]]:
+            spec, notes = import_climb(body.filename, body.text)
+            return ride.workouts.get(ride.workouts.save(spec)), notes
+
+        try:
+            spec, notes = await asyncio.to_thread(run)
+        except ClimbFileError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         return {"workout": workout_info(spec), "notes": notes}
 

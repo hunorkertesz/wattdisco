@@ -103,6 +103,10 @@
         <span id="workout"></span>
         <button class="btn btn--sm btn--icon fav" type="button" id="fav" aria-pressed="false" title="Favourite: listed first">☆</button>
         <a class="btn btn--sm" id="edit" href="/editor.html">Edit</a>
+        <!-- climbs: bring your own from a GPX file (only distance and gradients are kept), delete your own -->
+        <button class="btn btn--sm" type="button" id="import-gpx" hidden title="A route or ride from a .gpx file: only its distance and gradients are kept">Import GPX</button>
+        <button class="btn btn--sm" type="button" id="delete-climb" hidden>Delete</button>
+        <input type="file" id="gpx-file" accept=".gpx" hidden>
         <span id="length"></span>
       </div>
       <div class="plan-next" id="plan-next" hidden>
@@ -324,6 +328,51 @@ function choose(id) {
   suggestMode();
 }
 
+// Your own climbs: import from GPX, delete (a second tap within 3 s).
+async function reloadLibrary(pick) {
+  const lib = await (await fetch("/api/workouts")).json();
+  workouts = lib.workouts;
+  picker.setOptions(options());
+  pickWorkout(pick ?? workouts.find((w) => w.climb)?.id ?? workouts[0].id);
+}
+$("import-gpx").addEventListener("click", () => $("gpx-file").click());
+$("gpx-file").addEventListener("change", async () => {
+  const file = $("gpx-file").files[0];
+  $("gpx-file").value = "";
+  if (!file) return;
+  $("status").textContent = `Reading ${file.name}…`;
+  try {
+    const r = await fetch("/api/climbs/import", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name, text: await file.text() }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) { $("status").textContent = `Could not import ${file.name}: ${body.detail ?? "unknown error"}`; return; }
+    await reloadLibrary(body.workout.id);
+    $("status").textContent = `Imported “${body.workout.name}” · ${body.notes.join(" · ")}`;
+  } catch {
+    $("status").textContent = `Could not read ${file.name}`;
+  }
+});
+let deleteArmed = null;
+function resetDelete() {
+  clearTimeout(deleteArmed);
+  deleteArmed = null;
+  $("delete-climb").textContent = "Delete";
+}
+$("delete-climb").addEventListener("click", async () => {
+  if (!deleteArmed) {
+    $("delete-climb").textContent = "Tap again to delete";
+    deleteArmed = setTimeout(resetDelete, 3000);
+    return;
+  }
+  resetDelete();
+  const gone = selected;
+  const r = await fetch(`/api/workouts/${encodeURIComponent(gone.id)}`, { method: "DELETE" });
+  if (!r.ok) { $("status").textContent = "Could not delete the climb"; return; }
+  try { localStorage.removeItem("wd.lastClimb"); } catch {}
+  await reloadLibrary();
+  $("status").textContent = `Deleted “${gone.name}” · its rides stay in your history`;
+});
+
 // The training plan's next session: say so when it is picked, offer it when another workout is.
 function renderPlanNext() {
   $("plan-next").hidden = !planNext;
@@ -362,6 +411,9 @@ function renderWorkout() {
   $("load").textContent = Math.round(selected.load);
   $("edit").href = `/editor.html?id=${selected.id}`;
   $("edit").hidden = climb; // a climb is a road, not phases
+  $("import-gpx").hidden = !climb;
+  $("delete-climb").hidden = !climb || selected.builtin;
+  resetDelete();
   $("modes").hidden = climb;
   $("climb-row").hidden = !climb;
   $("ease-row").hidden = climb;

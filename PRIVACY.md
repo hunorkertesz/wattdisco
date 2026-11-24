@@ -22,6 +22,7 @@ Everything is in your own app folder (macOS `~/Library/Application Support/Watt 
 | Rides: every sample from your sensors (power, cadence, heart rate and beat-to-beat intervals, left/right balance, temperature where a sensor sends it), the workout, your FTP and weight at the time; on a climb also the virtual distance, height, speed and gradient each second | The ride summary, history, progress and the files you export |
 | Settings: FTP, weight, heart rate zones, units, favourites, sound on or off | Zones and targets |
 | Training plan progress, FTP history, how each ride felt and your notes | Plans, progress and history |
+| Climbs you import from a GPX file: their name, distance and gradients only. The GPS positions in the file are not kept | Riding that climb |
 | Your devices: their names and Bluetooth or ANT+ ids, roles, last zero offset | Reconnecting them next time |
 | The Strava sign-in (`strava_tokens.json`, readable only by your user account) | Uploading rides |
 | Deleted rides, in `deleted/`, for 7 days | So a delete can be undone; after that they are removed for good |
