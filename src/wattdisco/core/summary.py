@@ -8,7 +8,7 @@ from wattdisco.core.recorder import RideData
 from wattdisco.core.speed import virtual_ride
 
 # Bump when the summary gains or changes fields, so cached summaries and .fit files are rebuilt.
-SUMMARY_VERSION = 13  # 10: left/right balance; 11: climbs (recorded distance, height); 12: climb power, W/kg, speed; 13: HR drift halves
+SUMMARY_VERSION = 14  # 10: left/right balance; 11: climbs (recorded distance, height); 12: climb power, W/kg, speed; 13: HR drift halves; 14: climb power by gradient
 
 
 def build_summary(ride: RideData) -> dict:
@@ -147,7 +147,35 @@ def _climb(meta: dict, ticks: list[dict]) -> dict:
         "avg_power": None if power is None else round(power),
         "w_per_kg": None if power is None or not weight else round(power / weight, 2),
         "avg_speed": round(ridden / seconds, 2) if seconds else None,  # m/s
+        "by_grade": _by_grade(up, weight),
     }
+
+
+GRADE_BANDS = ((None, 0.0, "Downhill"), (0.0, 3.0, "0–3 %"), (3.0, 6.0, "3–6 %"), (6.0, 9.0, "6–9 %"),
+               (9.0, 12.0, "9–12 %"), (12.0, None, "12 % +"))  # the climb profile's colour bands (components.js)
+
+
+def _by_grade(ticks: list[dict], weight: float | None) -> list[dict]:
+    """How hard you pushed on each kind of road: time, distance, power, W/kg, cadence, heart rate and speed
+    for every gradient band you rode (the road's gradient, whatever the difficulty)."""
+    out = []
+    for lo, hi, label in GRADE_BANDS:
+        part = [t for t in ticks if t.get("grade") is not None
+                and (lo is None or t["grade"] >= lo) and (hi is None or t["grade"] < hi)]
+        if not part:
+            continue
+        power = stats.mean([t.get("power") for t in part])
+        speed = [t.get("speed") for t in part if t.get("speed") is not None]
+        out.append({
+            "label": label, "lo": lo, "hi": hi, "seconds": len(part),
+            "distance": round(sum(speed), 1),
+            "avg_power": None if power is None else round(power),
+            "w_per_kg": None if power is None or not weight else round(power / weight, 2),
+            "avg_cadence": None if (c := stats.mean([t.get("cadence") for t in part])) is None else round(c),
+            "avg_hr": None if (h := stats.mean([t.get("hr") for t in part])) is None else round(h),
+            "avg_speed": round(sum(speed) / len(speed), 2) if speed else None,  # m/s
+        })
+    return out
 
 
 def _left_share(samples: list[tuple[float, float, int]]) -> float | None:

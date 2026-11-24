@@ -161,6 +161,21 @@
             </table>
           </div>
         </section>
+        <!-- a climb: how hard you pushed on the flatter and the steeper parts (in place of the intervals) -->
+        <section class="panel dash__grades" id="by-grade" hidden>
+          <span class="mono panel__title">Power by gradient · the way up</span>
+          <div class="table-scroll">
+            <table class="intervals grades">
+              <thead><tr>
+                <th class="mono" scope="col">Gradient</th><th class="mono" scope="col">Time</th>
+                <th class="mono" scope="col">Avg</th><th class="mono" scope="col">W/kg</th>
+                <th class="mono" scope="col">Cadence</th><th class="mono" scope="col">HR</th>
+                <th class="mono" scope="col" id="grades-speed">Speed</th>
+              </tr></thead>
+              <tbody id="grades"></tbody>
+            </table>
+          </div>
+        </section>
         <section class="panel dash__dev" id="deviation">
           <span class="mono panel__title">Deviation from target</span>
           <div class="dev__band" id="dev-band" role="img"></div>
@@ -244,7 +259,7 @@
 </div>
 
 <script type="module">
-import { chipGroup, effortColor, el, fmtClock, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor } from "/components.js";
+import { chipGroup, effortColor, el, fmtClock, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf } from "/components.js";
 import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
 import { distance, distanceUnit, imperial, speed, speedUnit } from "/units.js";
 import { METRIC, METRICS, averageMetrics, comparisonChoices, delta, drawCurves, drawOverlay, drawSparkline, fmtMetric,
@@ -313,6 +328,29 @@ function renderClimbTiles(s) {
   accent("climb_wkg", c.avg_power, s.ftp);
 }
 
+// Power by gradient on a climb (core/summary.py _by_grade): one row per gradient band you rode, its swatch
+// in the profile's colour, the time share as a bar under the label.
+function renderByGrade(s) {
+  const bands = s.climb?.by_grade ?? [];
+  const show = !!s.climb;
+  $("by-grade").hidden = !show;
+  document.querySelector(".dash__intervals").hidden = show;
+  if (!show) return;
+  const total = bands.reduce((sum, b) => sum + b.seconds, 0) || 1;
+  $("grades-speed").textContent = `Speed ${speedUnit()}`;
+  const mid = (b) => (b.lo == null ? -2 : b.hi == null ? 13 : (b.lo + b.hi) / 2);
+  $("grades").replaceChildren(...(bands.length ? bands.map((b) => el("tr", {},
+    el("td", { class: "grades__band", style: `--band:${gradeColor(mid(b))}` },
+      el("i"), b.label, el("span", { class: "grades__share", style: `--share:${(100 * b.seconds) / total}%` })),
+    el("td", { text: `${duration(b.seconds)}` }),
+    el("td", { style: b.avg_power == null ? "" : `color:${zoneColor(zoneOf(b.avg_power, s.ftp))}`, text: b.avg_power == null ? "--" : `${b.avg_power} W` }),
+    el("td", { text: b.w_per_kg == null ? "--" : b.w_per_kg.toFixed(2) }),
+    el("td", { text: b.avg_cadence == null ? "--" : `${b.avg_cadence}` }),
+    el("td", { class: "grades__hr", text: b.avg_hr == null ? "--" : `${b.avg_hr}` }),
+    el("td", { text: b.avg_speed == null ? "--" : num(speed(b.avg_speed * 3.6), 1) }),
+  )) : [el("tr", {}, el("td", { colspan: "7", class: "mono", text: "No gradients recorded on this ride." }))]));
+}
+
 // Best times up this climb: real rides that reached the top, fastest first; this ride marked.
 async function renderClimbTimes(s) {
   const c = s.climb;
@@ -366,6 +404,7 @@ function renderNerd(s) {
   accent("wp", n.wp, s.ftp);
   accent("intensity", n.intensity == null ? null : n.intensity * s.ftp, s.ftp);
 
+  renderByGrade(s);
   const work = s.intervals.filter((i) => i.work);
   const kinds = [...new Set(work.map((i) => LABEL[i.kind] ?? i.kind))];
   $("intervals-title").textContent =

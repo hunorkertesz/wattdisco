@@ -112,7 +112,7 @@
   .dash .panel { min-width: 0; min-height: 0; padding: clamp(8px, 1.4vh, 14px) 16px; gap: clamp(4px, .9vh, 10px); }
   .dash__chart { flex: 1.9 1 0; }
   .dash__zones { flex: 1 1 0; }
-  .dash__intervals { flex: 1.25 1 0; }
+  .dash__intervals, .dash__grades { flex: 1.25 1 0; }
   .dash__dev { flex: 1.1 1 0; }
   .dash__sources { flex: .7 1 0; }
   .chart--fill { flex: 1; min-height: 40px; height: auto; }
@@ -125,8 +125,8 @@
   .dash .intervals .col-lr { padding-left: 10px; white-space: nowrap; }
   .dash .intervals:has(.col-lr:not([hidden])) td { font-size: clamp(13px, 2vh, 16px); }
   .dev__figs { flex: 1; align-content: space-evenly; }
-  .dash__intervals .table-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
-  .dash__intervals thead th { position: sticky; top: 0; background: var(--card); }
+  .dash__intervals .table-scroll, .dash__grades .table-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; }
+  .dash__intervals thead th, .dash__grades thead th { position: sticky; top: 0; background: var(--card); }
 }
 
 /* time in zones, power and heart rate side by side */
@@ -253,7 +253,7 @@
   .is-nerd .dash { flex: none; }
   .is-nerd .dash__row--top { flex: none; height: clamp(360px, 48vh, 460px); }
   .is-nerd .dash__row--bottom { flex: none; flex-wrap: wrap; }
-  .is-nerd .dash__intervals { flex: 1 1 100%; }
+  .is-nerd .dash__intervals, .is-nerd .dash__grades { flex: 1 1 100%; }
   .is-nerd .dash__dev, .is-nerd .dash__sources { flex: 1 1 0; min-height: 220px; }
 }
 
@@ -460,3 +460,13 @@
 .drift__pct { grid-column: 2 / -1; color: #FF6B7A; }
 .drift__none { grid-column: 1 / -1; font-size: 11px; text-transform: none; color: var(--muted); }
 .aet__label.drift__label-up { text-transform: uppercase; }
+
+/* Power by gradient on a climb (nerd view) */
+.dash__grades[hidden], .dash__intervals[hidden] { display: none; }
+.dash__grades { --accent: var(--pink); }
+.grades__band { position: relative; white-space: nowrap; padding-bottom: 6px; }
+.grades__band i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px;
+  background: var(--band); box-shadow: 0 0 6px var(--band); }
+.grades__share { position: absolute; left: 0; bottom: 1px; height: 3px; width: var(--share); max-width: 100%; border-radius: 2px;
+  background: var(--band); opacity: .7; }
+.grades__hr { color: #FF6B7A; }

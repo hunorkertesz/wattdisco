@@ -312,3 +312,20 @@ def test_ghost_rides_along_from_your_best_attempt(tmp_path):
         time.sleep(0.5)
         assert c.get("/api/state").json()["climb"]["ghost"] is None  # never ridden: no ghost
         c.post("/api/ride/stop")
+
+
+def test_climb_summary_power_by_gradient(tmp_path):
+    from datetime import datetime, timezone
+
+    rides = tmp_path / "rides"
+    ride_id = record_climb(rides, datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc), 250, 1500, climb_id="climb-rolling-8k")
+    summary = build_summary(load_ride(rides / f"{ride_id}.jsonl"))
+    bands = summary["climb"]["by_grade"]
+    labels = [b["label"] for b in bands]
+    assert "Downhill" in labels and labels == sorted(labels, key=["Downhill", "0–3 %", "3–6 %", "6–9 %", "9–12 %", "12 % +"].index)
+    assert sum(b["seconds"] for b in bands) == summary["climb"]["seconds"]  # every second of the way up, once
+    assert all(b["avg_power"] == 250 and b["w_per_kg"] == round(250 / 75, 2) for b in bands)  # steady watts
+    down = next(b for b in bands if b["label"] == "Downhill")
+    steepest = bands[-1]
+    assert down["avg_speed"] > steepest["avg_speed"]  # same watts: faster downhill
+    assert sum(b["distance"] for b in bands) == pytest.approx(summary["climb"]["distance"], rel=0.02)
