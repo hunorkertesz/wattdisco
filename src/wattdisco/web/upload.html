@@ -47,6 +47,10 @@
   .footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
   .footer__left, .footer__right { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
   .footer .btn--primary { height: 52px; padding: 0 28px; font-size: 16px; }
+  /* Strava's own button image, unchanged and 48 px high (Strava brand guidelines) */
+  .strava-connect:not([hidden]) { display: inline-flex; justify-content: center; align-items: center; border-radius: 6px; }
+  .strava-connect img { display: block; width: 237px; height: 48px; }
+  .strava-connect:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
   .tagline {
     height: 64px; display: flex; align-items: center; justify-content: center; text-align: center;
     font-size: 18px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase;
@@ -168,7 +172,8 @@
         </div>
         <div class="footer__right">
           <a class="btn" id="skip" href="/summary.html">Skip</a>
-          <a class="btn btn--primary" id="connect" href="#" hidden>Connect to Strava</a>
+          <a class="strava-connect" id="connect" href="#" hidden><img src="/img/btn_strava_connect_with_orange.png"
+            srcset="/img/btn_strava_connect_with_orange_x2.png 2x" width="237" height="48" alt="Connect with Strava"></a>
           <button class="btn btn--primary" type="submit" form="form" id="upload" hidden>Upload to Strava</button>
         </div>
       </div>

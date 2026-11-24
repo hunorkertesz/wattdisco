@@ -176,7 +176,7 @@ Move the mouse or tap the screen to show the controls; they fade away again on t
 
 ## Strava
 
-Press **Upload ride** after a ride, **Connect to Strava** once, and switch on automatic upload if you like. New uploads are
+Press **Upload ride** after a ride, **Connect with Strava** once, and switch on automatic upload if you like. New uploads are
 visible to "only you" until you change it. Simulated rides are never uploaded on their own.
 
 The sign-in goes through a small relay (`relay/`, a Cloudflare Worker) that keeps the shared app's secret and never sees
@@ -193,7 +193,7 @@ The app can also use your own Strava API app:
    `localhost`.
 2. Copy `.env.example` to `.env` and fill in `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET`. Running an installed app?
    Put `.env` in the data folder (see [Your data](#your-data)).
-3. Restart Watt Disco, finish a ride, press **Upload ride** and **Connect to Strava**. The sign-in is kept in
+3. Restart Watt Disco, finish a ride, press **Upload ride** and **Connect with Strava**. The sign-in is kept in
    `strava_tokens.json` in the data folder (readable only by you) and refreshed automatically.
 
 Your own keys always win over the shared app. `relay/README.md` explains how to set up the relay.

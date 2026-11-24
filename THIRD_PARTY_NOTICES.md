@@ -61,8 +61,10 @@ and the licence is at <https://mozilla.org/MPL/2.0/>.
 
 ## Strava
 
-Watt Disco contains no Strava logos or images; the name is used in plain text only. Watt Disco is not affiliated with
-or endorsed by Strava.
+The upload screen shows Strava's official "Connect with Strava" button (`src/wattdisco/web/img/btn_strava_connect_with_orange*.png`),
+unchanged, from Strava's brand guidelines (<https://developers.strava.com/guidelines/>). It belongs to Strava and is
+not covered by Watt Disco's licence. Watt Disco contains no other Strava logos or images; the name is used in plain
+text only. Watt Disco is not affiliated with or endorsed by Strava.
 
 ## Licence texts inside the app
 

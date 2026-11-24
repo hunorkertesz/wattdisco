@@ -285,6 +285,14 @@ def test_strava_not_set_up(client):
     assert client.get("/upload.html").status_code == 200
 
 
+def test_strava_connect_button_is_the_official_image(client):
+    page = client.get("/upload.html").text
+    assert 'id="connect"' in page and "/img/btn_strava_connect_with_orange.png" in page
+    for name in ("btn_strava_connect_with_orange.png", "btn_strava_connect_with_orange_x2.png"):
+        r = client.get(f"/img/{name}")
+        assert r.status_code == 200 and r.content.startswith(b"\x89PNG")
+
+
 def test_strava_sign_in_and_options(tmp_path):
     from urllib.parse import parse_qs, urlparse
 
