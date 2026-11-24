@@ -8,7 +8,7 @@ from wattdisco.core.recorder import RideData
 from wattdisco.core.speed import virtual_ride
 
 # Bump when the summary gains or changes fields, so cached summaries and .fit files are rebuilt.
-SUMMARY_VERSION = 11  # 10: left/right balance; 11: climbs (recorded distance, height)
+SUMMARY_VERSION = 12  # 10: left/right balance; 11: climbs (recorded distance, height); 12: climb power, W/kg, speed
 
 
 def build_summary(ride: RideData) -> dict:
@@ -129,6 +129,10 @@ def _climb(meta: dict, ticks: list[dict]) -> dict:
     top = next((i for i, t in enumerate(ticks) if (t.get("distance") or 0) >= profile.length - 0.5), None)
     seconds = top + 1 if top is not None else len(ticks)  # moving seconds to the top (or all that was ridden)
     climbed = profile.ascent_at(max((t.get("distance") or 0) for t in ticks))
+    up = ticks[:seconds]  # the way up (all that was ridden, if the top was not reached)
+    power = stats.mean([t.get("power") for t in up])
+    weight = meta.get("weight_kg")
+    ridden = max((t.get("distance") or 0) for t in up) if up else 0.0
     return {
         "length": round(profile.length, 1),
         "ascent": round(profile.total_ascent, 1),
@@ -138,6 +142,10 @@ def _climb(meta: dict, ticks: list[dict]) -> dict:
         "seconds": seconds,
         "vam": round(climbed / seconds * 3600) if seconds else None,  # metres climbed per hour
         "difficulty": meta.get("climb_difficulty", 1.0),
+        "distance": round(ridden, 1),
+        "avg_power": None if power is None else round(power),
+        "w_per_kg": None if power is None or not weight else round(power / weight, 2),
+        "avg_speed": round(ridden / seconds, 2) if seconds else None,  # m/s
     }
 
 

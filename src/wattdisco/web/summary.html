@@ -35,15 +35,20 @@
 
     <!-- basic -->
     <div class="stats" data-view="basic">
+      <!-- a climb: its own tiles (time to the top, W/kg, VAM, climbed) in place of duration, max HR, cadence, distance -->
+      <div class="stat stat--climb" data-metric="climb_time" style="display: none"><span class="mono" id="climb-time-label">To the top</span><div class="stat__v"><b id="climb-time">--</b></div></div>
       <div class="stat" data-metric="duration"><span class="mono">Duration</span><div class="stat__v"><b id="duration">--</b></div></div>
       <div class="stat" data-metric="avg_power"><span class="mono">Avg power</span><div class="stat__v"><b id="avg-power">--</b><span>W</span></div></div>
+      <div class="stat stat--climb" data-metric="climb_wkg" style="display: none" title="Average power on the way up ÷ your weight"><span class="mono">W/kg</span><div class="stat__v"><b id="climb-wkg">--</b><span>W/kg</span></div></div>
+      <div class="stat stat--climb stat--est" data-metric="vam" style="display: none" title="Metres climbed per hour"><span class="mono">VAM</span><div class="stat__v"><b id="climb-vam">--</b><span>m/h</span></div></div>
       <div class="stat stat--hr" data-metric="avg_hr"><span class="mono">Avg HR</span><div class="stat__v"><b id="avg-hr">--</b><span>bpm</span></div></div>
       <div class="stat stat--hr" data-metric="max_hr"><span class="mono">Max HR</span><div class="stat__v"><b id="max-hr">--</b><span>bpm</span></div></div>
       <div class="stat stat--cad" data-metric="avg_cadence"><span class="mono">Avg cadence</span><div class="stat__v"><b id="avg-cad">--</b><span>rpm</span></div></div>
-      <div class="stat stat--est" title="Estimated for a flat road with no wind, from power and your weight">
-        <span class="mono">Avg speed (est.)</span><div class="stat__v"><b id="avg-speed">--</b><span id="speed-unit">km/h</span></div></div>
+      <div class="stat stat--est" id="speed-tile" title="Estimated for a flat road with no wind, from power and your weight">
+        <span class="mono" id="speed-label">Avg speed (est.)</span><div class="stat__v"><b id="avg-speed">--</b><span id="speed-unit">km/h</span></div></div>
       <div class="stat stat--est" data-metric="distance" title="Estimated for a flat road with no wind, from power and your weight">
         <span class="mono">Distance (est.)</span><div class="stat__v"><b id="distance">--</b><span id="distance-unit">km</span></div></div>
+      <div class="stat stat--climb stat--load" data-metric="climbed" style="display: none"><span class="mono">Climbed</span><div class="stat__v"><b id="climb-up">--</b><span id="climb-up-unit">m</span></div></div>
     </div>
     <section class="panel panel--ride" data-view="basic">
       <canvas class="chart chart--ride" id="ride-chart" role="img" aria-label="Power and heart rate over the workout"></canvas>
@@ -58,6 +63,12 @@
       <section class="panel efforts" aria-labelledby="efforts-title">
         <span class="mono panel__title" id="efforts-title">Best efforts <a class="efforts__more" href="/progress.html">power curve ›</a></span>
         <div class="efforts__row" id="efforts"></div>
+      </section>
+      <!-- a climb: your fastest times up it (real rides only), this ride marked -->
+      <section class="panel climb-times" id="climb-times" aria-labelledby="climb-times-title" hidden>
+        <span class="mono panel__title" id="climb-times-title">Best times · this climb</span>
+        <p class="climb-times__head" id="climb-times-head"></p>
+        <ol class="climb-times__list" id="climb-times-list"></ol>
       </section>
       <!-- how hard it felt (1 very easy … 10 all out) and a note: kept with the ride, shown in the history -->
       <section class="panel feel" aria-labelledby="feel-title">
@@ -219,7 +230,7 @@
 <script type="module">
 import { chipGroup, effortColor, el, fmtClock, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor } from "/components.js";
 import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
-import { distance, distanceUnit, speed, speedUnit } from "/units.js";
+import { distance, distanceUnit, imperial, speed, speedUnit } from "/units.js";
 import { METRIC, METRICS, averageMetrics, comparisonChoices, delta, drawCurves, drawOverlay, drawSparkline, fmtMetric,
   metricsOfRow, metricsOfSummary, trendOf } from "/summary-compare.js";
 
@@ -255,12 +266,69 @@ function renderBasic(s) {
   $("speed-unit").textContent = speedUnit();
   $("distance-unit").textContent = distanceUnit();
   accent("avg_power", s.basic.avg_power, s.ftp);
+  if (s.climb) renderClimbTiles(s);
 
   const used = s.zones.filter((z) => z.seconds > 0);
   $("zonebar").replaceChildren(...used.map((z) =>
     el("span", { style: `flex:${z.seconds};--zone:${zoneColor(z.n)}`, title: `Z${z.n} ${z.name} ${duration(z.seconds)}` })));
   $("legend").replaceChildren(...used.map((z) =>
     el("span", { class: "mono", style: `--zone:${zoneColor(z.n)}` }, el("i"), `Z${z.n} ${z.name} ${duration(z.seconds)}`)));
+}
+
+// A climb: time to the top, W/kg, VAM and metres climbed take the places of duration, max HR, cadence and distance.
+function renderClimbTiles(s) {
+  const c = s.climb;
+  const show = (metric, on) => { document.querySelector(`[data-metric="${metric}"]`).style.display = on ? "" : "none"; };
+  for (const m of ["climb_time", "climb_wkg", "vam", "climbed"]) show(m, true);
+  for (const m of ["duration", "max_hr", "avg_cadence", "distance"]) show(m, false);
+  const km = (m) => `${distance(m / 1000).toFixed(1)}`;
+  $("climb-time-label").textContent = c.top ? "To the top" : "Not at the top";
+  $("climb-time-label").title = c.top ? "Moving time from the start to the top"
+    : `${km(c.distance)} of ${km(c.length)} ${distanceUnit()} ridden; the time is the whole ride`;
+  $("climb-time").textContent = c.top ? duration(c.seconds) : duration(s.duration);
+  $("climb-wkg").textContent = num(c.w_per_kg, 2);
+  $("climb-vam").textContent = num(c.vam);
+  $("climb-up").textContent = imperial() ? num(c.climbed * 3.28084) : num(c.climbed);
+  $("climb-up-unit").textContent = imperial() ? "ft" : "m";
+  // speed on the climb's road, not a flat-road estimate
+  $("speed-label").textContent = "Avg speed";
+  $("speed-tile").title = "On the climb's road, from your power, your weight and the real gradient";
+  $("avg-speed").textContent = num(speed(c.avg_speed * 3.6), 1);
+  accent("climb_wkg", c.avg_power, s.ftp);
+}
+
+// Best times up this climb: real rides that reached the top, fastest first; this ride marked.
+async function renderClimbTimes(s) {
+  const c = s.climb;
+  $("climb-times").hidden = !c;
+  document.querySelector(".efforts").hidden = !!c; // a climb shows its times instead of the power bests
+  if (!c) return;
+  let times = [];
+  try { times = await (await fetch(`/api/climbs/${encodeURIComponent(s.workout_id)}/times`)).json(); } catch { /* none shown */ }
+  const rank = times.findIndex((t) => t.id === s.id);
+  const head = $("climb-times-head");
+  head.classList.toggle("is-best", rank === 0 && times.length > 0);
+  if (!c.top) head.replaceChildren(`Top not reached this time · ${num(c.climbed)} of ${num(c.ascent)} m climbed`);
+  else if (s.sim) head.replaceChildren(el("b", { text: duration(c.seconds) }), " · simulated, so not in your best times");
+  else if (rank === 0) head.replaceChildren(el("b", { text: `${duration(c.seconds)} ★` }), times.length > 1 ? " · your best time up this climb" : " · your first time up this climb");
+  else if (rank > 0) head.replaceChildren(el("b", { text: duration(c.seconds) }),
+    ` · ${rank + 1}${["st", "nd", "rd"][rank] ?? "th"} of ${times.length} · ${duration(c.seconds - times[0].seconds)} behind your best`);
+  else head.replaceChildren(el("b", { text: duration(c.seconds) }));
+  const thisYear = new Date().getFullYear();
+  const when = (t) => {
+    const d = new Date(t.started);
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(d.getFullYear() !== thisYear ? { year: "2-digit" } : {}) });
+  };
+  const shown = times.slice(0, 5);
+  if (rank >= 5) shown.push(times[rank]); // this ride, even when it is not among the five fastest
+  $("climb-times-list").replaceChildren(...(shown.length ? shown.map((t) => el("li", { class: t.id === s.id ? "is-this" : "" },
+    el("span", { text: String(times.indexOf(t) + 1) }),
+    el("a", { href: `/summary.html?ride=${t.id}`, text: t.id === s.id ? "This ride" : when(t) }),
+    el("b", { text: duration(t.seconds) }),
+    el("span", { text: t.w_per_kg == null ? "--" : `${t.w_per_kg.toFixed(2)} W/kg` }),
+    el("span", { text: t.difficulty < 1 ? `${Math.round(t.difficulty * 100)} %` : t.vam == null ? "" : `${t.vam} m/h`,
+      title: t.difficulty < 1 ? "Difficulty: the share of the gradient the trainer simulated" : "VAM: metres climbed per hour" })))
+    : [el("li", {}, el("span"), el("span", { text: "No times yet: reach the top on a real ride to set one." }))]));
 }
 
 // A power tile takes the zone colour of its own number (avg power, weighted power, intensity).
@@ -709,6 +777,7 @@ if (summary) {
   renderFtp(summary);
   renderPlan(summary);
   renderEfforts(summary);
+  renderClimbTimes(summary);
   renderFeel(summary);
   renderAet(summary);
   setupCompare(summary);

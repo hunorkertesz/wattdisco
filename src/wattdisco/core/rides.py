@@ -95,6 +95,10 @@ class RideStore:
             **{k: summary.get(k) for k in ("id", "name", "started", "duration", "ftp", "sim")},
             "test": (summary.get("workout") or {}).get("test"),
             "climb": bool((summary.get("workout") or {}).get("climb")),
+            # a climb's time and pace, for best times per climb and the change against the last attempt
+            "climb_time": {k: (summary.get("climb") or {}).get(k) for k in
+                           ("seconds", "top", "vam", "w_per_kg", "avg_power", "difficulty", "climbed")}
+            if summary.get("climb") else None,
             **{k: basic.get(k) for k in ("avg_power", "avg_hr", "distance_km", "work_kj", "max_hr", "avg_cadence",
                                          "avg_speed_kmh")},
             **{k: nerd.get(k) for k in ("wp", "load", "intensity", "vi", "on_target_pct", "hr_drift_pct")},

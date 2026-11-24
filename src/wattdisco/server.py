@@ -1379,6 +1379,17 @@ def create_app(ride: Ride) -> FastAPI:
                 row["strava"] = {**ride.uploading[row["id"]], "url": None}
         return rows
 
+    @app.get("/api/climbs/{workout_id}/times")
+    async def climb_times(workout_id: str):
+        """Every real ride up this climb that reached the top, fastest first (simulated rides never count)."""
+        rows = await asyncio.to_thread(ride.store.list)
+        times = [
+            {"id": r["id"], "started": r["started"], **r["climb_time"]}
+            for r in rows
+            if r.get("workout_id") == workout_id and (r.get("climb_time") or {}).get("top") and r["climb_time"].get("seconds")
+        ]
+        return sorted(times, key=lambda t: t["seconds"])
+
     @app.get("/api/rides/{ride_id}/summary")
     async def ride_summary(ride_id: str):
         return await asyncio.to_thread(ride.store.summary, known_ride(ride_id))

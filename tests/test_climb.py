@@ -192,3 +192,56 @@ def test_climb_ride_end_to_end_with_the_simulator(tmp_path):
     records = read_fit(build_fit(data, build_summary(data)))["record"]
     assert records[-1].altitude == pytest.approx(ticks[-1]["altitude"], abs=0.5)
     assert records[-1].distance == pytest.approx(ticks[-1]["distance"], abs=1)
+
+
+def record_climb(rides_dir, started, watts, seconds, climb_id="climb-short-steep-2k", weight=75.0):
+    """A real (not simulated) ride up a climb at steady watts, as the app records it."""
+    from dataclasses import asdict
+
+    from wattdisco.core.recorder import Recorder, new_ride_id, ride_path
+
+    workout = climb_workout(climb_id)
+    player = ClimbPlayer(workout, rider_kg=weight)
+    ride_id = new_ride_id(started)
+    rec = Recorder(ride_path(rides_dir, ride_id), {
+        "id": ride_id, "started": started.isoformat(), "workout": {**asdict(workout), "seconds": workout.seconds},
+        "workout_id": climb_id, "ftp": 240, "weight_kg": weight, "speed": 1.0, "sim": False, "climb_difficulty": 1.0,
+    })
+    for t in range(1, seconds + 1):
+        player.road.step(watts)
+        c = player.climb_state()
+        rec.write({"type": "tick", "t": t, "elapsed": t, "index": 0, "kind": "climb", "target": None, "mode": "climb",
+                   "power": watts, "hr": 140, "cadence": 80, "distance": c["distance"], "altitude": c["altitude"],
+                   "grade": c["grade"], "trainer_grade": c["grade"], "speed": c["speed"]})
+    rec.write({"type": "end", "t": seconds})
+    rec.close()
+    return ride_id
+
+
+def test_climb_summary_time_vam_and_best_times(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    rides = tmp_path / "rides"
+    day = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+    slow = record_climb(rides, day, 220, 1200)  # reaches the top
+    fast = record_climb(rides, day + timedelta(days=1), 300, 1000)
+    short = record_climb(rides, day + timedelta(days=2), 300, 120)  # stopped early: no time
+    other = record_climb(rides, day + timedelta(days=3), 300, 1500, climb_id="climb-steady-6k")
+
+    summary = build_summary(load_ride(rides / f"{fast}.jsonl"))
+    c = summary["climb"]
+    assert c["top"] and c["distance"] == pytest.approx(2000, abs=1)
+    assert c["avg_power"] == 300 and c["w_per_kg"] == 4.0
+    assert c["vam"] == round(c["climbed"] / c["seconds"] * 3600)
+    assert c["avg_speed"] == pytest.approx(2000 / c["seconds"], abs=0.02)
+    assert not build_summary(load_ride(rides / f"{short}.jsonl"))["climb"]["top"]
+
+    workout = default_workout()
+    ride = Ride(SimSource(workout), workout, Clock(speed=40), data_dir=tmp_path, autostart=False)
+    with TestClient(create_app(ride)) as client:
+        times = client.get("/api/climbs/climb-short-steep-2k/times").json()
+        assert [t["id"] for t in times] == [fast, slow]  # fastest first; no time without the top, other climbs apart
+        assert times[0]["seconds"] < times[1]["seconds"] and times[0]["w_per_kg"] == 4.0
+        assert [t["id"] for t in client.get("/api/climbs/climb-steady-6k/times").json()] == [other]
+        row = next(r for r in client.get("/api/rides").json() if r["id"] == fast)
+        assert row["climb_time"]["top"] and row["climb_time"]["seconds"] == c["seconds"]

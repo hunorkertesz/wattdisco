@@ -463,7 +463,7 @@ export function drawSummaryChart(canvas, summary) {
   const seconds = Math.max(60, last);
   const x = (s) => (s / seconds) * w;
 
-  const maxTarget = Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)));
+  const maxTarget = workout.climb ? 0 : Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)));
   const maxPower = Math.max(maxTarget, ...series.power.filter((p) => p != null));
   const pMax = Math.ceil((maxPower * 1.15) / 50) * 50;
   const yP = (watts) => bottom - (Math.max(0, watts) / pMax) * plotH;
@@ -479,9 +479,25 @@ export function drawSummaryChart(canvas, summary) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
   }
 
+  // a climb: the road ridden, by time, in the colour of its gradient (it has no target power to draw)
+  if (workout.climb && series.altitude) {
+    const alts = series.altitude.filter((a) => a != null);
+    const aLo = Math.min(...alts);
+    const aHi = Math.max(aLo + 20, ...alts);
+    const yA = (a) => bottom - ((a - aLo) / (aHi - aLo)) * plotH * 0.75;
+    for (let i = 1; i < series.elapsed.length; i++) {
+      const [e0, e1, a0, a1] = [series.elapsed[i - 1], series.elapsed[i], series.altitude[i - 1], series.altitude[i]];
+      if (e0 == null || e1 == null || a0 == null || a1 == null) continue;
+      ctx.beginPath();
+      ctx.moveTo(x(e0), yA(a0)); ctx.lineTo(x(e1) + 0.5, yA(a1)); ctx.lineTo(x(e1) + 0.5, bottom); ctx.lineTo(x(e0), bottom); ctx.closePath();
+      ctx.fillStyle = hexToRgba(gradeColor(series.grade?.[i] ?? 0), 0.22);
+      ctx.fill();
+    }
+  }
+
   // workout blocks up to where the ride ended
   let s0 = 0;
-  for (const phase of workout.phases) {
+  for (const phase of workout.climb ? [] : workout.phases) {
     const s1 = Math.min(s0 + phase.seconds, seconds);
     if (s0 >= seconds) break;
     const w0 = phase.watts;

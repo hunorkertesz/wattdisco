@@ -28,6 +28,14 @@ export const METRICS = [
   { key: "distance", label: "Distance (est.)", get unit() { return distanceUnit(); }, digits: 1,
     s: (s) => distance(s.basic.distance_km), r: (r) => distance(r.distance_km) },
   { key: "work", label: "Work", unit: "kJ", digits: 0, s: (s) => s.basic.work_kj, r: (r) => r.work_kj },
+  // a climb (empty for workouts, so they never show there): faster to the top is better
+  { key: "climb_time", label: "Time to the top", unit: "", fmt: dur, better: "down",
+    s: (s) => (s.climb?.top ? s.climb.seconds : null), r: (r) => (r.climb_time?.top ? r.climb_time.seconds : null) },
+  { key: "climb_wkg", label: "W/kg on the climb", unit: "W/kg", digits: 2, better: "up",
+    s: (s) => s.climb?.w_per_kg, r: (r) => r.climb_time?.w_per_kg },
+  { key: "vam", label: "VAM", unit: "m/h", digits: 0, better: "up", title: "Metres climbed per hour",
+    s: (s) => s.climb?.vam, r: (r) => r.climb_time?.vam },
+  { key: "climbed", label: "Climbed", unit: "m", digits: 0, s: (s) => s.climb?.climbed, r: (r) => r.climb_time?.climbed },
 ];
 export const METRIC = Object.fromEntries(METRICS.map((m) => [m.key, m]));
 
@@ -48,10 +56,10 @@ export function metricsOfRow(r) {
 export function delta(m, mine, other) {
   if (mine == null || other == null) return null;
   const d = mine - other;
-  const digits = m.key === "duration" ? 0 : m.digits ?? 0;
+  const digits = m.fmt ? 0 : m.digits ?? 0;
   const zero = Math.abs(d) < 0.5 * 10 ** -digits;
-  const text = zero ? "same" : m.key === "duration"
-    ? `${d > 0 ? "▲" : "▼"} ${dur(Math.abs(d))}`
+  const text = zero ? "same" : m.fmt
+    ? `${d > 0 ? "▲" : "▼"} ${m.fmt(Math.abs(d))}`
     : `${d > 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(digits)}${m.unit ? ` ${m.unit}` : ""}`;
   const tone = zero || !m.better ? "" : (d > 0) === (m.better === "up") ? "good" : "bad";
   return { text, tone, d };
