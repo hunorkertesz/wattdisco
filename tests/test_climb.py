@@ -329,3 +329,22 @@ def test_climb_summary_power_by_gradient(tmp_path):
     steepest = bands[-1]
     assert down["avg_speed"] > steepest["avg_speed"]  # same watts: faster downhill
     assert sum(b["distance"] for b in bands) == pytest.approx(summary["climb"]["distance"], rel=0.02)
+
+
+def test_best_times_per_climb_on_progress(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from wattdisco.core import progress
+    from wattdisco.core.rides import RideStore
+
+    rides = tmp_path / "rides"
+    day = datetime(2026, 11, 20, 18, 0, tzinfo=timezone.utc)
+    record_climb(rides, day, 220, 1200)  # short and steep, to the top
+    fast = record_climb(rides, day + timedelta(days=1), 300, 1000)  # faster
+    record_climb(rides, day + timedelta(days=2), 150, 200)  # stopped early: an attempt, no time
+    record_climb(rides, day + timedelta(days=3), 250, 3000, climb_id="climb-steady-6k")
+    climbs = progress.best_climbs(RideStore(rides).list())
+    assert [c["workout_id"] for c in climbs] == ["climb-steady-6k", "climb-short-steep-2k"]  # most recent first
+    steep = climbs[1]
+    assert steep["attempts"] == 3 and steep["tops"] == 2 and steep["best"]["id"] == fast
+    assert steep["best"]["seconds"] < 1000 and steep["best"]["w_per_kg"] == 4.0

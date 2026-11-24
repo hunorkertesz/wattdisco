@@ -1427,6 +1427,7 @@ def create_app(ride: Ride) -> FastAPI:
                 "ftp": ride.ftp_entries(),
                 "sensors": progress.sensor_trend(rows),
                 "cp": progress.critical_power(rows, ride.settings.ftp, today),
+                "climbs": progress.best_climbs(rows),
                 "weight_kg": ride.settings.weight_kg,
                 "ftp_now": ride.settings.ftp,
             }

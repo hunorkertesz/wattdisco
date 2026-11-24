@@ -45,6 +45,19 @@
 .src-tag--test { border-color: var(--yellow); color: var(--yellow-soft); }
 .src-tag--best20 { border-color: var(--teal); color: var(--teal); }
 
+/* with climbs ridden: three panels in the bottom row (FTP, power sources, best times per climb) */
+.grid--climbs { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.grid--climbs > .tile:nth-child(1), .grid--climbs > .tile:nth-child(2) { grid-column: span 3; }
+.grid--climbs > .tile:nth-child(n + 3) { grid-column: span 2; }
+.grid--climbs .ftp { grid-template-columns: minmax(0, 1fr) minmax(150px, 1fr); }
+.climbs { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0 4px 0 0; list-style: none; display: flex; flex-direction: column; gap: 4px; scrollbar-color: var(--line-strong) transparent; }
+.climbs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 2px 10px; padding: 6px 10px; background: var(--row); border: 1px solid var(--line); border-left: 3px solid var(--pink); border-radius: 10px; font-size: 13px; }
+.climbs__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--white); font-weight: 600; }
+.climbs__time { font-size: 16px; font-weight: 700; color: var(--pink-soft); text-decoration: none; font-variant-numeric: tabular-nums; text-shadow: 0 0 8px rgba(255, 61, 129, .6); white-space: nowrap; }
+a.climbs__time:hover { color: var(--white); }
+.climbs__time.is-none { font-size: 11px; font-weight: 400; color: var(--muted); text-shadow: none; font-family: var(--font-mono); }
+.climbs .when { color: var(--muted); font-size: 11px; font-family: var(--font-mono); grid-column: 1 / -1; }
+
 .empty { margin: auto; max-width: 420px; text-align: center; text-transform: none; letter-spacing: .04em; line-height: 1.5; }
 
 /* half a screen and phones: one column, the page scrolls */
@@ -56,4 +69,7 @@
   .ftp { grid-template-columns: 1fr; }
   .ftp .chart { height: 180px; }
   .ftp__list { max-height: 220px; }
+  .grid--climbs { grid-template-columns: 1fr; }
+  .grid--climbs > .tile:nth-child(n) { grid-column: auto; }
+  .climbs { max-height: 260px; }
 }

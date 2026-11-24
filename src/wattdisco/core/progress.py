@@ -161,3 +161,26 @@ def sensor_trend(rows: list[dict]) -> list[dict]:
                     "trend_pct_per_week": None if (t := _slope_per_week(points)) is None else round(t, 2),
                     "mean_lag_s": round(sum(lags) / len(lags), 2) if lags else None})
     return sorted(out, key=lambda p: -p["count"])
+
+
+def best_climbs(rows: list[dict]) -> list[dict]:
+    """Your best time up each climb you have ridden: one line per climb, the one ridden most recently first.
+
+    Only real rides that reached the top set a time; every ride up it counts as an attempt."""
+    climbs: dict[str, dict] = {}
+    for row in real_rides(rows):
+        if not row.get("climb") or not row.get("workout_id"):
+            continue
+        c = climbs.setdefault(row["workout_id"], {"workout_id": row["workout_id"], "name": row.get("name"),
+                                                  "attempts": 0, "tops": 0, "last": row["started"], "best": None})
+        c["attempts"] += 1
+        if row["started"] > c["last"]:
+            c["last"], c["name"] = row["started"], row.get("name")
+        t = row.get("climb_time") or {}
+        if not (t.get("top") and t.get("seconds")):
+            continue
+        c["tops"] += 1
+        if c["best"] is None or t["seconds"] < c["best"]["seconds"]:
+            c["best"] = {"id": row["id"], "started": row["started"], "seconds": t["seconds"], "vam": t.get("vam"),
+                         "w_per_kg": t.get("w_per_kg"), "avg_power": t.get("avg_power"), "difficulty": t.get("difficulty")}
+    return sorted(climbs.values(), key=lambda c: c["last"], reverse=True)

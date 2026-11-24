@@ -68,6 +68,15 @@
           <canvas class="chart" id="src-chart" role="img" aria-label="Difference between the two power sources per ride"></canvas>
           <p class="empty mono" id="src-empty" hidden>Ride with two power sources (a trainer and a power meter) to see how they compare over weeks.</p>
         </section>
+
+        <!-- best time up each climb (only when you have ridden a climb) -->
+        <section class="panel tile tile--climbs" aria-labelledby="climbs-title" id="climbs-panel" hidden>
+          <div class="tile__head">
+            <span class="mono panel__title" id="climbs-title">Best times · climbs</span>
+            <span class="mono readout" id="climbs-count"></span>
+          </div>
+          <ol class="climbs" id="climbs-list" aria-label="Your best time up each climb, most recently ridden first"></ol>
+        </section>
       </div>
     </div>
   </main>

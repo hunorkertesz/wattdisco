@@ -320,7 +320,31 @@ function drawSources() {
 
 if (data.cp) $("cp").replaceWith(criticalPowerLine(data.cp));
 
+// ---------- best time up each climb (core/progress.py best_climbs) ----------
+function drawClimbs() {
+  const climbs = data.climbs ?? [];
+  $("climbs-panel").hidden = !climbs.length;
+  document.querySelector(".grid").classList.toggle("grid--climbs", climbs.length > 0);
+  if (!climbs.length) return;
+  const clock = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+    : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+  $("climbs-count").textContent = `${climbs.length} climb${climbs.length === 1 ? "" : "s"}`;
+  $("climbs-list").replaceChildren(...climbs.map((c) => {
+    const b = c.best;
+    const tries = `${c.attempts} ride${c.attempts === 1 ? "" : "s"}${c.tops < c.attempts ? ` · ${c.tops} to the top` : ""}`;
+    return el("li", {},
+      el("span", { class: "climbs__name", text: c.name ?? c.workout_id, title: c.name ?? "" }),
+      b ? el("a", { class: "climbs__time", href: `/summary.html?ride=${encodeURIComponent(b.id)}`, title: "Open that ride",
+        text: `${clock(b.seconds)} ★` }) : el("span", { class: "climbs__time is-none", text: "not at the top yet" }),
+      el("span", { class: "when" },
+        b ? `${dayText(new Date(b.started).getTime())} · ${b.w_per_kg?.toFixed(2) ?? "--"} W/kg · VAM ${b.vam ?? "--"} m/h`
+          + (b.difficulty < 1 ? ` · difficulty ${Math.round(b.difficulty * 100)} %` : "") : "",
+        el("span", { class: "climbs__tries", text: b ? ` · ${tries}` : tries })));
+  }));
+}
+
 function drawAll() { drawFitness(); drawCurve(); drawFtp(); drawSources(); }
+drawClimbs();
 drawAll();
 let raf = 0;
 new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); }).observe(document.querySelector(".grid"));
