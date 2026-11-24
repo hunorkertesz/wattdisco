@@ -48,7 +48,7 @@ from wattdisco.core.rides import RideStore
 from wattdisco.core.session import Session
 from wattdisco.core.speed import FlatRoad
 from wattdisco.core.sources import SensorSource
-from wattdisco.core.workout import MODES, Position, WorkoutPlayer
+from wattdisco.core.workout import MODES, OpenRidePlayer, Position, WorkoutPlayer
 from wattdisco.core.workout_import import WorkoutFileError, import_workout
 from wattdisco.core.workouts import (
     CATEGORIES,
@@ -356,6 +356,9 @@ class Ride:
                                       difficulty=1.0 if difficulty is None else difficulty)
             self.road = self.player.road
             self._ghost_task = asyncio.get_running_loop().create_task(self._load_ghost(self.player, self.workout_id))
+        elif self.workout.open:  # just riding: no target, a flat road for the trainer, the clock counts up
+            self.player = OpenRidePlayer(self.workout, start=now)
+            self.road = FlatRoad(self.settings.weight_kg)
         else:
             self.player = WorkoutPlayer(self.workout, mode=mode or ("erg" if self.player.mode == "climb" else self.player.mode),
                                         start=now, ease=ease)
@@ -468,7 +471,7 @@ class Ride:
         data = load_ride(self.store.path(info["id"]))
         spec = data.meta["workout"]
         self.workout = Workout(spec["name"], spec["ftp"], [Phase(**{k: p[k] for k in ("kind", "seconds", "watts", "watts_end", "cadence") if k in p}) for p in spec["phases"]],
-                               spec.get("test"), spec.get("climb"))
+                               spec.get("test"), spec.get("climb"), bool(spec.get("open")))
         self.workout_id = data.meta.get("workout_id")
         set_workout = getattr(self.source, "set_workout", None)
         if set_workout:
@@ -484,6 +487,9 @@ class Ride:
             self.player = ClimbPlayer(self.workout, start=now - info["elapsed"], rider_kg=weight,
                                       difficulty=data.meta.get("climb_difficulty", 1.0), distance=distance)
             self.road = self.player.road
+        elif self.workout.open:
+            self.player = OpenRidePlayer(self.workout, start=now - info["elapsed"])
+            self.road = FlatRoad(weight)
         else:
             mode = next((t["mode"] for t in reversed(data.ticks) if t.get("mode") in MODES), "erg")
             self.player = WorkoutPlayer(self.workout, mode=mode, start=now - info["elapsed"], ease=bool(data.meta.get("erg_ease")))

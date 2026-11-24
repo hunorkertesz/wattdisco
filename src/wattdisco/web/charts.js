@@ -105,7 +105,8 @@ export function drawWorkoutChart(canvas, { workout, history, t, span, ftp }) {
   const start = span == null ? 0 : Math.max(0, t - NOW_AT * span);
   const x = (s) => ((s - start) / visible) * w;
 
-  const maxTarget = Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)));
+  const maxTarget = workout.phases.length ? Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)))
+    : Math.max((ftp ?? workout.ftp) * 0.9, ...(history ?? []).map((pt) => (pt?.[1] ?? 0) * 0.8)); // no target: scale to the ride
   const step = niceStep(maxTarget * 1.4, 5);
   const pMax = Math.ceil((maxTarget * 1.4) / step) * step;
   const yP = (watts) => bottom - (Math.max(0, watts) / pMax) * plotH;
@@ -463,7 +464,7 @@ export function drawSummaryChart(canvas, summary) {
   const seconds = Math.max(60, last);
   const x = (s) => (s / seconds) * w;
 
-  const maxTarget = workout.climb ? 0 : Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)));
+  const maxTarget = workout.climb || workout.open ? 0 : Math.max(...workout.phases.map((p) => Math.max(p.watts, p.watts_end ?? 0)));
   const maxPower = Math.max(maxTarget, ...series.power.filter((p) => p != null));
   const pMax = Math.ceil((maxPower * 1.15) / 50) * 50;
   const yP = (watts) => bottom - (Math.max(0, watts) / pMax) * plotH;
@@ -497,7 +498,7 @@ export function drawSummaryChart(canvas, summary) {
 
   // workout blocks up to where the ride ended
   let s0 = 0;
-  for (const phase of workout.climb ? [] : workout.phases) {
+  for (const phase of workout.climb || workout.open ? [] : workout.phases) {
     const s1 = Math.min(s0 + phase.seconds, seconds);
     if (s0 >= seconds) break;
     const w0 = phase.watts;

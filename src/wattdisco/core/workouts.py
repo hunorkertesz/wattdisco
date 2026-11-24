@@ -30,6 +30,7 @@ CATEGORIES = {
     "strength": "Strength",
     "test": "FTP tests",
     "climb": "Climbs",
+    "ride": "Just ride",
     "custom": "My workouts",
 }
 
@@ -333,7 +334,8 @@ def to_workout(spec: dict, ftp: int) -> Workout:
     if spec.get("climb"):  # a climb's one phase lasts as long as the climb takes at a steady pace (an estimate)
         profile = climb.Profile.from_segments(spec["climb"]["segments"])
         phases = [Phase("climb", climb.estimate_seconds(profile, climb.PACE * ftp), w(climb.PACE))]
-    return Workout(name=spec["name"], ftp=ftp, phases=phases, test=spec.get("test"), climb=spec.get("climb"))
+    return Workout(name=spec["name"], ftp=ftp, phases=phases, test=spec.get("test"), climb=spec.get("climb"),
+                   open=bool(spec.get("open")))
 
 
 def default_workout(ftp: int = DEFAULT_FTP) -> Workout:
@@ -358,6 +360,14 @@ def climb_spec(name: str, segments: list) -> dict:
 # length is only an estimate at 75 % FTP; the ride ends at the top. Built in, so read-only.
 for _id, (_name, _segments) in climb.BUILTIN_CLIMBS.items():
     BUILTIN[_id] = climb_spec(_name, _segments)
+
+
+# "Just ride": no workout, no target, no end (core/workout.OpenRidePlayer). Its one long phase at an easy
+# endurance pace only paces the simulated rider; screens and summaries treat it as having no target.
+JUST_RIDE_ID = "just-ride"
+OPEN_RIDE_SECONDS = 6 * 3600
+BUILTIN[JUST_RIDE_ID] = {"name": "Just ride", "category": "ride", "mode": "free", "open": True,
+                         "phases": [{"kind": "ride", "seconds": OPEN_RIDE_SECONDS, "pct": 0.65, "pct_end": None, "cadence": None}]}
 
 
 def _validate_climb(name: str, data: dict) -> dict:
@@ -422,6 +432,9 @@ def validate(data: dict) -> dict:
 
 def describe(spec: dict, ftp: int) -> dict:
     """Numbers for the Ready screen and the editor: duration, average, intervals, intensity, training load."""
+    if spec.get("open"):  # Just ride: nothing planned, so nothing to add up
+        return {"seconds": 0, "avg_power": None, "wp": None, "intensity": None, "load": None, "intervals": 0,
+                "text": "NO WORKOUT · NO TARGET · RIDE AS YOU LIKE"}
     workout = to_workout(spec, ftp)
     targets = [workout.target_at(t) for t in range(workout.seconds)]
     wp = stats.weighted_power(targets)

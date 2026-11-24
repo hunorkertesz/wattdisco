@@ -170,8 +170,8 @@ async function api(url, options = {}) {
 }
 
 // climbs are roads, not phases: ridden from the Ready screen, never edited here
-const editable = (lib) => ({ ...lib, workouts: lib.workouts.filter((w) => !w.climb),
-  categories: lib.categories.filter((c) => c.id !== "climb") });
+const editable = (lib) => ({ ...lib, workouts: lib.workouts.filter((w) => !w.climb && !w.open), // climbs and Just ride: not phases
+  categories: lib.categories.filter((c) => c.id !== "climb" && c.id !== "ride") });
 const settings = await api("/api/settings");
 setZoneTops(settings.zone_tops);
 const FTP = settings.ftp;

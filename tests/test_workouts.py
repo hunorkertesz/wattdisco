@@ -81,7 +81,7 @@ def test_builtin_library_by_type():
 
     counts = Counter(w["category"] for w in BUILTIN.values())
     six = {"endurance", "sweetspot", "threshold", "vo2", "sprint"}
-    expected = {"test": 2, "tempo": 4, "strength": 5, "climb": 4}
+    expected = {"test": 2, "tempo": 4, "strength": 5, "climb": 4, "ride": 1}
     assert counts == {c: 6 if c in six else expected[c] for c in CATEGORIES if c != "custom"}
     for wid, spec in BUILTIN.items():  # strength stays seated above the 50 rpm where ERG lets go
         if spec["category"] == "strength":
@@ -90,6 +90,8 @@ def test_builtin_library_by_type():
         if spec.get("climb"):  # a climb is a road, not phases: never edited, timed by its estimate
             d = describe(spec, 250)
             assert 10 * 60 <= d["seconds"] <= 2 * 3600 and "M UP" in d["text"], wid
+            continue
+        if spec.get("open"):  # Just ride: no workout, never edited or validated as one
             continue
         validate(spec)  # every built-in passes the editor's own rules
         d = describe(spec, 250)

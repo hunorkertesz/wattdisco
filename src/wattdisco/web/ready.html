@@ -16,6 +16,7 @@
   .right__scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); scrollbar-width: thin; }
   .ride-kind .chip { height: 38px; padding: 0 22px; font-size: 13px; letter-spacing: .12em; }
   .pick-workout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pick-workout.is-open-ride { display: none; } /* just riding: nothing to pick */
   .title .neon-title { font-size: clamp(28px, min(4.4vw, 6vh), 52px); }
   .preview { width: 100%; flex: 1; min-height: 110px; max-height: 300px; display: block; }
   .stats { display: flex; flex-wrap: wrap; gap: 16px 48px; }
@@ -167,6 +168,8 @@
           <div class="ease"><span class="mono" id="ghost-label">Ghost</span><div id="ghost"></div></div>
           <p class="hint" id="ghost-hint"></p>
         </div>
+        <p class="hint" id="ride-row" hidden>No workout and no target: ride as you like. The trainer rides like a flat road,
+          so shift gears to make it harder or easier. Everything is recorded as usual; end the ride when you're done.</p>
         <p class="hint" id="no-trainer" hidden>No trainer with control connected, so ERG has nothing to steer.</p>
         <!-- ERG only: how the trainer moves to a new interval's power -->
         <div class="ease" id="ease-row">
@@ -267,13 +270,15 @@ let favourites = settings.favourites ?? [];
 let length = "all";
 try { length = localStorage.getItem("wd.length") ?? "all"; } catch {}
 // Workouts and climbs are listed apart: the switch picks which, and each remembers its last pick.
-let kind = selected.climb ? "climb" : "workout";
-const ofKind = (k) => workouts.filter((w) => !!w.climb === (k === "climb"));
+// Three kinds of ride: workouts, climbs, or just riding (no workout, no target).
+const kindOf = (w) => (w.open ? "ride" : w.climb ? "climb" : "workout");
+let kind = kindOf(selected);
+const ofKind = (k) => workouts.filter((w) => kindOf(w) === k);
 const lastKey = (k) => (k === "climb" ? "wd.lastClimb" : "wd.lastWorkout");
 const options = () => workoutOptions(ofKind(kind), library.categories,
   { favourites, length: kind === "climb" ? "all" : length, keep: selected?.id });
-const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }],
-  { value: kind, label: "Workouts or climbs", onChange: (k) => switchKind(k) });
+const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }, { value: "ride", label: "JUST RIDE" }],
+  { value: kind, label: "Workouts, climbs or just ride", onChange: (k) => switchKind(k) });
 $("ride-kind").replaceWith(kindGroup);
 kindGroup.classList.add("ride-kind");
 function switchKind(k) {
@@ -285,14 +290,15 @@ function switchKind(k) {
   if (next) pickWorkout(next.id);
 }
 function showKind() {
-  const k = selected.climb ? "climb" : "workout";
+  const k = kindOf(selected);
   const changed = k !== kind;
   kind = k;
   kindGroup.set(k);
-  lengthGroup.hidden = k === "climb"; // a few climbs: no length filter
+  lengthGroup.hidden = k !== "workout"; // a few climbs: no length filter; just riding: nothing to pick
+  document.querySelector(".pick-workout").classList.toggle("is-open-ride", k === "ride");
   $("pick-label").textContent = k === "climb" ? "Climb" : "Workout";
   $("ready-line").textContent = k === "climb" ? "Ready to climb" : "Ready to ride";
-  try { localStorage.setItem(lastKey(k), selected.id); } catch {}
+  if (k !== "ride") try { localStorage.setItem(lastKey(k), selected.id); } catch {}
   if (changed) { picker.setOptions(options()); picker.set(selected.id); }
 }
 const picker = neonSelect({
@@ -395,34 +401,53 @@ const inWatts = (w) => ({
   phases: w.phases.map((p) => ({ ...p, watts: Math.round(p.pct * w.ftp), watts_end: p.pct_end == null ? null : Math.round(p.pct_end * w.ftp) })),
 });
 
-const drawPreview = () => (selected.climb
+// Just riding: no blocks to show, only a flat road line and what this ride is.
+function drawOpenRide(canvas) {
+  const r = canvas.getBoundingClientRect();
+  const dpr = devicePixelRatio || 1;
+  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = r.width, h = r.height, y = h * 0.72;
+  ctx.strokeStyle = "#3DD9FF"; ctx.lineWidth = 2; ctx.shadowColor = "#3DD9FF"; ctx.shadowBlur = 12;
+  ctx.setLineDash([18, 12]);
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  ctx.setLineDash([]); ctx.shadowBlur = 0;
+  ctx.fillStyle = "#A99BC9"; ctx.textAlign = "center";
+  ctx.font = "500 12px 'Martian Mono', monospace";
+  ctx.fillText("NO TARGET · YOUR GEARS · YOUR PACE", w / 2, y - 18);
+}
+const drawPreview = () => (selected.open ? drawOpenRide($("preview")) : selected.climb
   ? drawClimbProfile($("preview"), selected.profile, { imperial: imperial() })
   : drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp));
 
 function renderWorkout() {
   const climb = !!selected.climb;
+  const open = !!selected.open; // just riding: no workout, no target
   $("title").textContent = selected.name;
   document.title = `Watt Disco – ${selected.name}`;
   $("desc").textContent = selected.text;
-  $("duration").textContent = `${climb ? "~" : ""}${fmtClock(selected.seconds)}`; // a climb: at 75 % FTP
-  $("avg-label").textContent = climb ? "Distance" : "Avg power";
-  $("avg").textContent = climb ? `${inDistance(selected.length / 1000).toFixed(1)} ${distanceUnit()}` : `${Math.round(selected.avg_power)} W`;
-  $("intervals-label").textContent = climb ? "Climbing" : "Intervals";
-  $("intervals").textContent = climb ? (imperial() ? `${Math.round(selected.ascent * 3.28084)} ft` : `${Math.round(selected.ascent)} m`) : selected.intervals;
+  $("duration").textContent = open ? "Open" : `${climb ? "~" : ""}${fmtClock(selected.seconds)}`; // a climb: at 75 % FTP
+  $("avg-label").textContent = climb ? "Distance" : open ? "Target" : "Avg power";
+  $("avg").textContent = climb ? `${inDistance(selected.length / 1000).toFixed(1)} ${distanceUnit()}` : open ? "None" : `${Math.round(selected.avg_power)} W`;
+  $("intervals-label").textContent = climb ? "Climbing" : open ? "Trainer" : "Intervals";
+  $("intervals").textContent = climb ? (imperial() ? `${Math.round(selected.ascent * 3.28084)} ft` : `${Math.round(selected.ascent)} m`)
+    : open ? "Flat road" : selected.intervals;
   $("ftp").textContent = `${selected.ftp} W`;
-  $("load").textContent = Math.round(selected.load);
+  $("load").textContent = open ? "--" : Math.round(selected.load);
   $("edit").href = `/editor.html?id=${selected.id}`;
-  $("edit").hidden = climb; // a climb is a road, not phases
+  $("edit").hidden = climb || open; // a climb is a road, not phases; just riding has none
+  $("ride-row").hidden = !open;
   $("import-gpx").hidden = !climb;
   $("delete-climb").hidden = !climb || selected.builtin;
   resetDelete();
-  $("modes").hidden = climb;
+  $("modes").hidden = climb || open;
   $("climb-row").hidden = !climb;
   if (climb && ghostFor !== selected.id) { ghostFor = selected.id; loadGhost(selected); }
-  $("ease-row").hidden = climb;
-  if (climb) $("ease-help").hidden = true;
-  $("mode-label").textContent = climb ? "Climb" : "Target mode";
-  $("start").textContent = climb ? "Start climb" : "Start workout";
+  $("ease-row").hidden = climb || open;
+  if (climb || open) $("ease-help").hidden = true;
+  $("mode-label").textContent = climb ? "Climb" : open ? "Just ride" : "Target mode";
+  $("start").textContent = climb ? "Start climb" : open ? "Start ride" : "Start workout";
   drawPreview();
   renderPlanNext();
 }

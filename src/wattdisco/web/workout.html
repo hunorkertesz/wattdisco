@@ -97,6 +97,13 @@
           <div class="climb-stat" title="Your power over the last 30 s per kilogram of body weight"><span class="mono">W/kg</span><b id="c-wkg">--</b><span class="mono climb-stat__u">30 s</span></div>
           <div class="climb-stat climb-stat--top" title="Time to the top if you keep your last 30 s of power"><span class="mono">Top in</span><b id="c-top">--</b><span class="mono climb-stat__u" id="c-top-u">at -- W</span></div>
         </div>
+        <!-- Just riding in nerd mode: no target ring, the ride's own numbers instead -->
+        <div class="climb-stats" id="open-stats" hidden>
+          <div class="climb-stat" title="Estimated for a flat road with no wind"><span class="mono">Speed</span><b id="o-speed">--</b><span class="mono climb-stat__u" id="o-speed-u">km/h</span></div>
+          <div class="climb-stat" title="Estimated for a flat road with no wind"><span class="mono">Distance</span><b id="o-dist">--</b><span class="mono climb-stat__u" id="o-dist-u">km</span></div>
+          <div class="climb-stat" title="Your power over the last 30 s per kilogram of body weight"><span class="mono">W/kg</span><b id="o-wkg">--</b><span class="mono climb-stat__u">30 s</span></div>
+          <div class="climb-stat" title="Riding time (pauses don't count)"><span class="mono">Time</span><b id="o-time">--</b><span class="mono climb-stat__u">riding</span></div>
+        </div>
       </div>
       <span class="mono trainer-status" id="trainer-status" role="status"></span>
     </div>
@@ -164,6 +171,7 @@ const ALERT_SECONDS = 10;
 const ZOOMS = [300, 600, 1200, 1800];
 const CLIMB_WINDOW = { 300: 1000, 600: 2000, 1200: 4000, 1800: 6000 }; // a climb's zoom: metres of road in view
 let climbing = false; // the ride is a climb: same screen, the road instead of the workout
+let openRide = false; // just riding: no workout, no target, the clock counts up
 
 const strip = renderStrip($("strip"), { active: "train" });
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -420,6 +428,7 @@ function renderHud(store, s, w) {
   $("title").title = workout.name; // the full name, when two lines cut it short
   document.title = `Watt Disco – ${workout.name}`;
   if (climbing && s.climb) return renderClimbHud(store, s, w);
+  if (openRide) return renderOpenHud(store, s, w);
   const parts = [];
   if (w.interval && w.interval.n > 0 && !w.done) parts.push(`INTERVAL ${w.interval.n} / ${w.interval.of}`);
   parts.push(`${fmtClock(Math.min(w.elapsed, w.total))} / ${fmtClock(w.total)}`);
@@ -461,6 +470,25 @@ function renderPhase(w) {
   }
 }
 
+// Just riding: the clock counts up; no phases, no target.
+function renderOpenHud(store, s, w) {
+  const parts = [fmtClock(Math.round(w.elapsed))];
+  const dist = metricValue(s, "distance");
+  if (dist != null) parts.push(`${inDistance(dist).toFixed(1)} ${distanceUnit().toUpperCase()} (EST.)`);
+  if (store.speed !== 1) parts.push(`SIM ×${store.speed}`);
+  $("progress").textContent = parts.join(" · ");
+  renderHeartRate(s);
+  const badge = $("phase-badge");
+  badge.classList.remove("phase-badge--grade");
+  badge.textContent = w.done ? "DONE" : "JUST RIDE";
+  badge.style.background = "";
+  $("countdown").textContent = fmtClock(Math.round(w.elapsed));
+  $("countdown").setAttribute("aria-label", "Riding time");
+  $("next").textContent = "NO TARGET · RIDE AS YOU LIKE";
+  $("next").classList.remove("is-ahead", "is-behind");
+}
+const metricValue = (s, key) => s.metrics?.find((m) => m.key === key)?.value ?? null;
+
 // A climb: where you are on the road, the gradient here, and how far to the top.
 function renderClimbHud(store, s, w) {
   const c = s.climb;
@@ -499,6 +527,8 @@ function renderNumbers(store, s, w) {
 
   if (climbing && s.climb) {
     renderClimbTarget(s, s.climb);
+  } else if (openRide) {
+    renderOpenTarget(s);
   } else {
     renderTarget(s, w);
   }
@@ -520,6 +550,19 @@ function renderClimbTarget(s, c) {
   $("target-unit").textContent = "%";
   box.style.setProperty("--effort-color", gradeColor(c.grade));
   $("target-diff").textContent = `${fmtNum(inSpeed(c.speed * 3.6), 1)} ${speedUnit()}`; // the trainer's gradient: in the trainer line
+  $("target-diff").classList.remove("is-off");
+}
+
+// Just riding has no target: the box shows the estimated speed and distance instead.
+function renderOpenTarget(s) {
+  const box = $("target-box");
+  document.querySelector(".target-label").textContent = "Speed (est.)";
+  const kmh = metricValue(s, "speed");
+  $("target").textContent = kmh == null ? "--" : fmtNum(inSpeed(kmh), 1);
+  $("target-unit").textContent = speedUnit();
+  box.style.removeProperty("--effort-color");
+  const km = metricValue(s, "distance");
+  $("target-diff").textContent = km == null ? "" : `${inDistance(km).toFixed(2)} ${distanceUnit()}`;
   $("target-diff").classList.remove("is-off");
 }
 
@@ -619,8 +662,22 @@ function renderClimbStats(c, w) {
     : `Time to the top at ${c.power} W · finish at ${fmtClock(Math.round(w.elapsed + top))} on the climb clock`;
 }
 
+function renderOpenStats(s, w) {
+  const kmh = metricValue(s, "speed"), km = metricValue(s, "distance"), wkg = metricValue(s, "w_per_kg");
+  $("o-speed").textContent = kmh == null ? "--" : fmtNum(inSpeed(kmh), 1);
+  $("o-speed-u").textContent = speedUnit();
+  $("o-dist").textContent = km == null ? "--" : inDistance(km).toFixed(2);
+  $("o-dist-u").textContent = distanceUnit();
+  const avg = s.nerd?.avg?.["30"];
+  const kg = store30kg(s);
+  $("o-wkg").textContent = avg != null && kg ? (avg / kg).toFixed(2) : wkg == null ? "--" : wkg.toFixed(2);
+  $("o-time").textContent = fmtClock(Math.round(w.elapsed));
+}
+const store30kg = () => live.store.settings?.weight_kg ?? null;
+
 function renderNerd(s, w) {
   const n = s.nerd ?? {};
+  if (openRide) renderOpenStats(s, w);
   const c = climbing ? s.climb : null;
   $("n-stat-label").textContent = c ? "Speed" : "On target · this interval";
   $("n-stat-unit").textContent = c ? speedUnit() : "%";
@@ -654,8 +711,8 @@ function renderNerd(s, w) {
 }
 
 function renderTrainer(s, w) {
-  mode.style.display = climbing ? "none" : ""; // a climb has no ERG: the road sets the resistance
-  if (!climbing) mode.set(w.mode);
+  mode.style.display = climbing || openRide ? "none" : ""; // a climb has no ERG: the road sets the resistance
+  if (!climbing && !openRide) mode.set(w.mode);
   const trainerUp = s.devices.some((d) => d.roles.includes("control") && d.state === "connected");
   const t = s.trainer;
   let text;
@@ -671,6 +728,13 @@ function renderTrainer(s, w) {
     } else text = "TALKING TO TRAINER…";
     $("trainer-status").textContent = text;
     $("trainer-status").classList.toggle("is-warn", warn);
+    return;
+  }
+  if (openRide) {
+    text = w.paused ? "PAUSED · TRAINER ON A FLAT ROAD" : !trainerUp ? "JUST RIDE · NO TRAINER CONNECTED"
+      : t && !t.ok ? `TRAINER · ${t.message.toUpperCase()}` : "JUST RIDE · FLAT ROAD · SHIFT GEARS FOR MORE OR LESS";
+    $("trainer-status").textContent = text;
+    $("trainer-status").classList.toggle("is-warn", !!(t && !t.ok));
     return;
   }
   if (w.paused) text = "PAUSED · TRAINER RELEASED";
@@ -694,13 +758,17 @@ function render(store) {
   setZoneTops(store.settings?.zone_tops);
   setUnits(store.settings?.units);
   climbing = !!store.workout.climb;
+  openRide = !!store.workout.open;
   if (!helpShown) { helpShown = true; if (nerd) help().maybeOpen(); }
   $("app").classList.toggle("is-climb", climbing);
-  $("interval-group").hidden = climbing; // a road has no interval to make harder or skip
+  $("interval-group").hidden = climbing || openRide; // a road (or no workout) has no interval to make harder or skip
+  $("app").classList.toggle("is-open-ride", openRide);
+  $("open-stats").hidden = !openRide;
+  $("ring").style.display = openRide ? "none" : "";
   $("climb-stats").hidden = !climbing;
   $("ghost-btn").hidden = !(climbing && s.climb?.ghost);
   $("ghost-btn").setAttribute("aria-pressed", String(ghostOn));
-  document.querySelector(".nerd-target .stat--target").hidden = climbing;
+  document.querySelector(".nerd-target .stat--target").hidden = climbing || openRide;
   showZoomLabel();
 
   renderDeviceChips(strip.devices, s.devices);
@@ -722,8 +790,9 @@ function render(store) {
     });
     return;
   }
+  const openSpan = Math.max(20 * 60, Math.ceil((w.elapsed + 5 * 60) / 600) * 600); // just riding: the axis grows with the ride
   const nowX = drawWorkoutChart($("chart"), {
-    workout: adjustedWorkout(store.workout, w.adjustments),
+    workout: openRide ? { ...store.workout, phases: [], seconds: openSpan } : adjustedWorkout(store.workout, w.adjustments),
     history: store.history,
     t: w.elapsed,
     span: zoom.fit ? null : zoom.span,

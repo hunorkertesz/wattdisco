@@ -56,6 +56,7 @@ class Workout:
     phases: list[Phase]
     test: str | None = None  # "ramp" or "20min" for an FTP test
     climb: dict | None = None  # a climb: {"segments": [[metres, gradient %], ...]} (core/climb.py)
+    open: bool = False  # "Just ride": no target, no end; the one phase only paces the simulated rider
 
     @property
     def seconds(self) -> int:

@@ -232,3 +232,29 @@ class WorkoutPlayer:
         self._sent = cmd
         self._sent_at = now
         return cmd
+
+
+class OpenRidePlayer(WorkoutPlayer):
+    """"Just ride": no workout and no target. The trainer rides like a flat road (gears set the effort), the
+    clock counts up, and the ride goes on until the rider ends it (at the latest after the one long phase)."""
+
+    def __init__(self, workout: Workout, start: float = 0.0) -> None:
+        super().__init__(workout, mode="free", start=start)
+
+    def set_mode(self, mode: str) -> None:
+        if mode != "free":
+            raise ValueError("just riding has no ERG target")
+        self.mode = mode
+
+    def position(self, now: float) -> Position:
+        elapsed = self.elapsed(now)
+        limit = self.workout.seconds
+        return Position(elapsed=elapsed, total=round(elapsed), done=elapsed >= limit, index=None if elapsed >= limit else 0,
+                        kind="ride", target=None, cadence=None, seconds_left=max(0.0, limit - elapsed), next=None,
+                        interval=None, paused=self.paused)
+
+    def adjust_phase(self, now: float, steps: int) -> int:
+        return 0  # nothing to make harder: change gear
+
+    def skip_phase(self, now: float) -> None:
+        return None
