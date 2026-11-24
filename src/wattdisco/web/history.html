@@ -112,6 +112,7 @@ function row(r) {
     el("span", { class: "ride__name" },
       el("a", { class: "ride__link", href: `/summary.html?ride=${r.id}`, text: r.name || "Ride" }),
       r.test ? el("span", { class: "tag tag--test", text: "FTP test" }) : null,
+      r.climb ? el("span", { class: "tag tag--climb", text: "Climb" }) : null,
       planRides.has(r.id) ? el("span", { class: "tag tag--plan", text: "Plan" }) : null,
       r.rpe ? el("span", { class: "tag tag--rpe", style: `--rpe:${rpeColor(r.rpe)}`, text: `Feel ${r.rpe}`,
         title: r.note ? `Felt ${r.rpe} of 10 · ${r.note}` : `Felt ${r.rpe} of 10` }) : null,

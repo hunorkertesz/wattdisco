@@ -14,6 +14,7 @@
   }
   .left, .right { display: flex; flex-direction: column; gap: clamp(8px, 1.8vh, 18px); min-width: 0; min-height: 0; }
   .right__scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); scrollbar-width: thin; }
+  .ride-kind .chip { height: 38px; padding: 0 22px; font-size: 13px; letter-spacing: .12em; }
   .pick-workout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .title .neon-title { font-size: clamp(28px, min(4.4vw, 6vh), 52px); }
   .preview { width: 100%; flex: 1; min-height: 110px; max-height: 300px; display: block; }
@@ -95,8 +96,10 @@
         <a class="home__item" id="home-form" href="/progress.html"><span class="mono">Form</span><b></b><small></small></a>
         <a class="home__item" id="home-last" href="/history.html"><span class="mono">Last ride</span><b></b><small></small></a>
       </div>
+      <!-- two kinds of ride: structured workouts in watts, or climbs where the road sets the resistance -->
+      <div class="ride-kind" id="ride-kind"></div>
       <div class="pick-workout">
-        <label class="mono" for="workout">Workout</label>
+        <label class="mono" for="workout" id="pick-label">Workout</label>
         <span id="workout"></span>
         <button class="btn btn--sm btn--icon fav" type="button" id="fav" aria-pressed="false" title="Favourite: listed first">☆</button>
         <a class="btn btn--sm" id="edit" href="/editor.html">Edit</a>
@@ -107,7 +110,7 @@
         <span id="plan-what"></span>
       </div>
       <div class="title">
-        <span class="mono">Ready to ride</span>
+        <span class="mono" id="ready-line">Ready to ride</span>
         <h1 class="neon-title" id="title">Workout</h1>
         <span class="mono" id="desc"></span>
       </div>
@@ -257,7 +260,35 @@ const pickWorkout = (id) => { picker.set?.(id); choose(id); };
 let favourites = settings.favourites ?? [];
 let length = "all";
 try { length = localStorage.getItem("wd.length") ?? "all"; } catch {}
-const options = () => workoutOptions(workouts, library.categories, { favourites, length, keep: selected?.id });
+// Workouts and climbs are listed apart: the switch picks which, and each remembers its last pick.
+let kind = selected.climb ? "climb" : "workout";
+const ofKind = (k) => workouts.filter((w) => !!w.climb === (k === "climb"));
+const lastKey = (k) => (k === "climb" ? "wd.lastClimb" : "wd.lastWorkout");
+const options = () => workoutOptions(ofKind(kind), library.categories,
+  { favourites, length: kind === "climb" ? "all" : length, keep: selected?.id });
+const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }],
+  { value: kind, label: "Workouts or climbs", onChange: (k) => switchKind(k) });
+$("ride-kind").replaceWith(kindGroup);
+kindGroup.classList.add("ride-kind");
+function switchKind(k) {
+  if (k === kind) return;
+  let id = null;
+  try { id = localStorage.getItem(lastKey(k)); } catch {}
+  const list = ofKind(k);
+  const next = list.find((w) => w.id === id) ?? (k === "workout" ? list.find((w) => w.id === library.selected) : null) ?? list[0];
+  if (next) pickWorkout(next.id);
+}
+function showKind() {
+  const k = selected.climb ? "climb" : "workout";
+  const changed = k !== kind;
+  kind = k;
+  kindGroup.set(k);
+  lengthGroup.hidden = k === "climb"; // a few climbs: no length filter
+  $("pick-label").textContent = k === "climb" ? "Climb" : "Workout";
+  $("ready-line").textContent = k === "climb" ? "Ready to climb" : "Ready to ride";
+  try { localStorage.setItem(lastKey(k), selected.id); } catch {}
+  if (changed) { picker.setOptions(options()); picker.set(selected.id); }
+}
 const picker = neonSelect({
   label: "Workout",
   options: options(),
@@ -286,6 +317,7 @@ $("fav").addEventListener("click", async () => {
 
 function choose(id) {
   selected = workouts.find((w) => w.id === id);
+  showKind();
   showFav();
   history.replaceState(null, "", `?workout=${selected.id}`);
   renderWorkout();
@@ -339,6 +371,7 @@ function renderWorkout() {
   drawPreview();
   renderPlanNext();
 }
+showKind();
 showFav();
 renderWorkout();
 new ResizeObserver(drawPreview).observe($("preview"));

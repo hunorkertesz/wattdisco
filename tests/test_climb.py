@@ -169,7 +169,7 @@ def test_climb_ride_end_to_end_with_the_simulator(tmp_path):
         time.sleep(0.3)
         r = c.post("/api/ride/start", json={"workout_id": "climb-short-steep-2k", "mode": "climb", "difficulty": 0.5})
         assert r.status_code == 200
-        assert c.get("/workout.html").status_code == 200 and c.get("/climb.html").status_code == 200
+        assert c.get("/workout.html").status_code == 200  # the same ride screen as a workout
         time.sleep(2.0)
         state = c.get("/api/state").json()
         assert state["climb"]["distance"] > 50 and state["workout"]["target"] is None
@@ -178,6 +178,8 @@ def test_climb_ride_end_to_end_with_the_simulator(tmp_path):
         ride_id = c.post("/api/ride/stop").json()["id"]
         assert source.trainer_log[-1] == TrainerCommand("free")  # the end: a flat road to spin down on
         summary = c.get(f"/api/rides/{ride_id}/summary").json()
+        row = next(r for r in c.get("/api/rides?include_sim=true").json() if r["id"] == ride_id)
+        assert row["climb"] is True  # tagged CLIMB in the history
         assert c.post("/api/ride/start", json={"workout_id": "sweet-spot-3x4", "mode": "climb"}).status_code == 409
 
     climb = summary["climb"]

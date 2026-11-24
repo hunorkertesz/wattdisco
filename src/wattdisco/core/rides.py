@@ -94,6 +94,7 @@ class RideStore:
         return {
             **{k: summary.get(k) for k in ("id", "name", "started", "duration", "ftp", "sim")},
             "test": (summary.get("workout") or {}).get("test"),
+            "climb": bool((summary.get("workout") or {}).get("climb")),
             **{k: basic.get(k) for k in ("avg_power", "avg_hr", "distance_km", "work_kj", "max_hr", "avg_cadence",
                                          "avg_speed_kmh")},
             **{k: nerd.get(k) for k in ("wp", "load", "intensity", "vi", "on_target_pct", "hr_drift_pct")},
