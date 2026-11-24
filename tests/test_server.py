@@ -425,7 +425,7 @@ def test_workout_library_and_ride_start_options(tmp_path):
         assert lib["selected"] == "sweet-spot-3x4"
         first = next(w for w in lib["workouts"] if w["id"] == "sweet-spot-3x4")
         assert first["builtin"] and first["seconds"] == 1680 and first["text"].startswith("3 × 4 MIN")
-        assert first["category"] == "sweetspot" and len(lib["categories"]) == 9
+        assert first["category"] == "sweetspot" and len(lib["categories"]) == 10  # with Climbs
 
         mine = c.post("/api/workouts", json={"name": "Short test", "phases": [
             {"kind": "warmup", "seconds": 60, "pct": 0.4, "pct_end": 0.6, "cadence": 85},

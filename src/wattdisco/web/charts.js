@@ -1,6 +1,6 @@
 // Canvas drawing: the workout chart and the live traces under the big numbers.
 
-import { PHASE_LABEL, effortColor, fmtClock, getZoneTops, phaseWatts, zoneColor, zoneOf } from "./components.js";
+import { PHASE_LABEL, effortColor, fmtClock, getZoneTops, gradeColor, phaseWatts, zoneColor, zoneOf } from "./components.js";
 
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -809,4 +809,80 @@ export function drawProgressStrip(canvas, workout, ftp, elapsed) {
   ctx.strokeStyle = css("--clean-text");
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(nx, 0); ctx.lineTo(nx, h); ctx.stroke();
+}
+
+// A climb: height over distance, each stretch filled in its gradient's colour, the rider as a dot.
+// `profile` is [[metres, height, gradient %], ...]; `distance` the rider's position (null before the start).
+export function drawClimbProfile(canvas, profile, { distance = null, imperial = false } = {}) {
+  const { ctx, w, h } = fit(canvas);
+  if (!profile || profile.length < 2) return;
+  const top = 18;
+  const bottom = h - 22;
+  const length = profile[profile.length - 1][0];
+  const alts = profile.map((p) => p[1]);
+  const lo = Math.min(...alts);
+  const hi = Math.max(...alts);
+  const span = Math.max(20, hi - lo);
+  const x = (d) => (d / length) * w;
+  const y = (a) => bottom - ((a - lo) / (span * 1.12)) * (bottom - top);
+
+  ctx.strokeStyle = css("--line");
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const yy = Math.round(top + ((bottom - top) * i) / 3) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(w, yy); ctx.stroke();
+  }
+
+  for (let i = 1; i < profile.length; i++) {
+    const [d0, a0] = profile[i - 1];
+    const [d1, a1, g] = profile[i];
+    const grade = (g + profile[i - 1][2]) / 2;
+    const color = gradeColor(grade);
+    const ridden = distance != null && d1 <= distance;
+    const fill = ctx.createLinearGradient(0, Math.min(y(a0), y(a1)), 0, bottom);
+    fill.addColorStop(0, hexToRgba(color, ridden ? 0.75 : 0.5));
+    fill.addColorStop(1, hexToRgba(color, ridden ? 0.2 : 0.06));
+    ctx.beginPath();
+    ctx.moveTo(x(d0), y(a0)); ctx.lineTo(x(d1), y(a1)); ctx.lineTo(x(d1), bottom); ctx.lineTo(x(d0), bottom); ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x(d0), y(a0)); ctx.lineTo(x(d1), y(a1));
+    neonStroke(ctx, color);
+  }
+
+  // distance marks along the bottom, height of the top on the left
+  font(ctx, 10, 1);
+  ctx.fillStyle = css("--muted");
+  ctx.textBaseline = "alphabetic";
+  const unit = imperial ? 1609.344 : 1000;
+  const total = length / unit;
+  const step = [0.5, 1, 2, 5, 10].find((s) => total / s <= Math.max(2, Math.floor(w / 90))) ?? 20;
+  for (let k = 0; k * step <= total + 1e-9; k++) {
+    const xx = x(k * step * unit);
+    ctx.textAlign = k === 0 ? "left" : xx > w - 30 ? "right" : "center";
+    ctx.fillText(`${+(k * step).toFixed(1)}${k === 0 ? (imperial ? " MI" : " KM") : ""}`, xx, h - 6);
+  }
+  ctx.textAlign = "left";
+  const feet = (m) => (imperial ? `${Math.round(m * 3.28084)} FT` : `${Math.round(m)} M`);
+  ctx.fillText(`+${feet(hi - lo)}`, 4, top - 4);
+
+  if (distance != null) {
+    const d = Math.min(length, Math.max(0, distance));
+    let i = profile.findIndex((p) => p[0] >= d);
+    if (i <= 0) i = 1;
+    const [d0, a0] = profile[i - 1];
+    const [d1, a1] = profile[i];
+    const a = a0 + ((a1 - a0) * (d - d0)) / Math.max(1, d1 - d0);
+    ctx.save();
+    ctx.strokeStyle = css("--white");
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(x(d) + 0.5, y(a)); ctx.lineTo(x(d) + 0.5, bottom); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.shadowColor = css("--white");
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = css("--white");
+    ctx.beginPath(); ctx.arc(x(d), y(a), 6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 }

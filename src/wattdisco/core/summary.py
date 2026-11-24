@@ -8,7 +8,7 @@ from wattdisco.core.recorder import RideData
 from wattdisco.core.speed import virtual_ride
 
 # Bump when the summary gains or changes fields, so cached summaries and .fit files are rebuilt.
-SUMMARY_VERSION = 10  # 10: left/right balance
+SUMMARY_VERSION = 11  # 10: left/right balance; 11: climbs (recorded distance, height)
 
 
 def build_summary(ride: RideData) -> dict:
@@ -22,8 +22,16 @@ def build_summary(ride: RideData) -> dict:
     seconds = len(ticks)  # moving time: no ticks are written while paused
     span = int(ticks[-1]["t"]) if ticks else 0  # ride time including pauses
 
-    # Estimated flat-road speed and distance (no real speed sensor indoors).
-    speeds, distances = virtual_ride(power, meta.get("weight_kg") or DEFAULT_WEIGHT_KG)
+    # Estimated flat-road speed and distance (no real speed sensor indoors); a climb recorded its own on the road.
+    climbing = bool(meta["workout"].get("climb")) and any(t.get("distance") is not None for t in ticks)
+    if climbing:
+        speeds, distances, last = [], [], 0.0
+        for t in ticks:
+            last = t.get("distance") if t.get("distance") is not None else last
+            speeds.append(t.get("speed") or 0.0)
+            distances.append(last)
+    else:
+        speeds, distances = virtual_ride(power, meta.get("weight_kg") or DEFAULT_WEIGHT_KG)
     distance = distances[-1] if distances else 0.0
 
     avg_power = stats.mean(power)
@@ -93,6 +101,7 @@ def build_summary(ride: RideData) -> dict:
         "deviation": stats.deviation(power, target),
         "bests": stats.best_efforts(power),
         "dfa": _dfa(ride, span + 1),
+        "climb": _climb(meta, ticks) if climbing else None,
         "balance": _balance(ride, intervals),
         "ftp_estimate": stats.ftp_estimate(power, [t.get("kind") for t in ticks], meta["workout"].get("test"), ftp),
         "intervals": intervals,
@@ -107,7 +116,28 @@ def build_summary(ride: RideData) -> dict:
             "target": target,
             "speed": [round(v, 3) for v in speeds],  # m/s, estimated
             "distance": [round(d, 1) for d in distances],  # m, estimated
+            **({"altitude": [t.get("altitude") for t in ticks], "grade": [t.get("grade") for t in ticks]} if climbing else {}),
         },
+    }
+
+
+def _climb(meta: dict, ticks: list[dict]) -> dict:
+    """A climb's numbers: how far and how high, whether the top was reached and how fast."""
+    from wattdisco.core.climb import Profile  # here: the summary needs it only for climbs
+
+    profile = Profile.from_segments(meta["workout"]["climb"]["segments"])
+    top = next((i for i, t in enumerate(ticks) if (t.get("distance") or 0) >= profile.length - 0.5), None)
+    seconds = top + 1 if top is not None else len(ticks)  # moving seconds to the top (or all that was ridden)
+    climbed = profile.ascent_at(max((t.get("distance") or 0) for t in ticks))
+    return {
+        "length": round(profile.length, 1),
+        "ascent": round(profile.total_ascent, 1),
+        "climbed": round(climbed, 1),
+        "avg_grade": round(profile.avg_grade, 1),
+        "top": top is not None,
+        "seconds": seconds,
+        "vam": round(climbed / seconds * 3600) if seconds else None,  # metres climbed per hour
+        "difficulty": meta.get("climb_difficulty", 1.0),
     }
 
 

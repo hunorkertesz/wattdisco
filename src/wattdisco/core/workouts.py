@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 
 from wattdisco.config import DEFAULT_FTP
-from wattdisco.core import stats
+from wattdisco.core import climb, stats
 from wattdisco.models import Phase, Workout
 
 KINDS = ("warmup", "endurance", "tempo", "sweetspot", "threshold", "vo2", "sprint", "recovery", "cooldown", "test")
@@ -29,6 +29,7 @@ CATEGORIES = {
     "sprint": "Sprints",
     "strength": "Strength",
     "test": "FTP tests",
+    "climb": "Climbs",
     "custom": "My workouts",
 }
 
@@ -232,6 +233,11 @@ BUILTIN = {
         _phase("cooldown", 600, 0.60, 0.40),
         test="20min", mode="free"),
 }
+# Climbs: a road whose gradient sets the trainer's resistance (core/climb.py). One "climb" phase whose
+# length is only an estimate at 75 % FTP; the ride ends at the top. Built in, so read-only.
+for _id, (_name, _segments) in climb.BUILTIN_CLIMBS.items():
+    BUILTIN[_id] = {"name": _name, "category": "climb", "mode": "climb", "climb": {"segments": _segments},
+                    "phases": [{"kind": "climb", "seconds": 0, "pct": climb.PACE, "pct_end": None, "cadence": None}]}
 DEFAULT_WORKOUT_ID = "sweet-spot-3x4"
 
 
@@ -325,15 +331,14 @@ def to_workout(spec: dict, ftp: int) -> Workout:
     def w(pct: float) -> int:
         return round(pct * ftp)
 
-    return Workout(
-        name=spec["name"],
-        ftp=ftp,
-        phases=[
-            Phase(p["kind"], p["seconds"], w(p["pct"]), None if p.get("pct_end") is None else w(p["pct_end"]), p.get("cadence"))
-            for p in spec["phases"]
-        ],
-        test=spec.get("test"),
-    )
+    phases = [
+        Phase(p["kind"], p["seconds"], w(p["pct"]), None if p.get("pct_end") is None else w(p["pct_end"]), p.get("cadence"))
+        for p in spec["phases"]
+    ]
+    if spec.get("climb"):  # a climb's one phase lasts as long as the climb takes at a steady pace (an estimate)
+        profile = climb.Profile.from_segments(spec["climb"]["segments"])
+        phases = [Phase("climb", climb.estimate_seconds(profile, climb.PACE * ftp), w(climb.PACE))]
+    return Workout(name=spec["name"], ftp=ftp, phases=phases, test=spec.get("test"), climb=spec.get("climb"))
 
 
 def default_workout(ftp: int = DEFAULT_FTP) -> Workout:
@@ -409,6 +414,8 @@ def _minutes(seconds: int) -> str:
 
 def _text(spec: dict) -> str:
     """e.g. '3 × 4 MIN @ 90 % FTP · 2 MIN RECOVERY'."""
+    if spec.get("climb"):
+        return climb.describe(spec["climb"])
     if spec.get("test") == "ramp":
         return "1 MIN STEPS UNTIL YOU CANNOT HOLD ONE · FTP = 75 % OF YOUR BEST MINUTE"
     if spec.get("test") == "20min":

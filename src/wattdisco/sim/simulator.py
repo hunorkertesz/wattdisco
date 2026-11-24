@@ -43,11 +43,19 @@ class SimRider:
         self._last_t: float | None = None
         self.erg_target: int | None = None  # set: the trainer holds this power
         self.follow: tuple[int, int | None] | None = None  # (target, cadence) shown to the rider
+        self.grade: float | None = None  # a climb: the gradient the trainer simulates
         self._erg_power = 0.0
         self.core_temp = 37.1
         self.skin_temp = 33.4
 
     def _target(self, t: float) -> tuple[float, float]:
+        power, cadence = self._planned(t)
+        if self.grade is not None:  # on a climb: push a little harder and spin a little slower where it is steep
+            g = max(-5.0, min(15.0, self.grade))
+            power, cadence = power * (1 + 0.02 * g), max(62.0, cadence - 1.2 * max(0.0, g))
+        return power, cadence
+
+    def _planned(self, t: float) -> tuple[float, float]:
         if self.follow is not None:  # the workout player tells the rider what to ride
             target, cadence = self.follow
             return float(target), float(cadence or 88)
@@ -127,6 +135,7 @@ class SimSource:
         self._scan_until = 0.0
         self._bus: Bus | None = None
         self._rng = random.Random(seed + 7)
+        self.trainer_log: list[TrainerCommand] = []  # what the app asked the trainer to do (tests look at it)
 
     def _device(self, device_id: str) -> Device:
         for d in self.devices:
@@ -172,7 +181,9 @@ class SimSource:
             if trainer.state != "connected" or "control" not in trainer.roles:
                 return  # nobody listening, like a real trainer that is off or not used for control
             self.rider.erg_target = cmd.watts if cmd.mode == "erg" else None
-            bus.publish("trainer_status", TrainerStatus(TRAINER.id, True, cmd.mode, cmd.watts, "ok"))
+            self.rider.grade = cmd.grade if cmd.mode == "sim" else None
+            self.trainer_log.append(cmd)
+            bus.publish("trainer_status", TrainerStatus(TRAINER.id, True, cmd.mode, cmd.watts, "ok", cmd.grade))
 
         def on_workout(pos) -> None:
             if pos.paused:

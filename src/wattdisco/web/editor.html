@@ -169,10 +169,13 @@ async function api(url, options = {}) {
   return body;
 }
 
+// climbs are roads, not phases: ridden from the Ready screen, never edited here
+const editable = (lib) => ({ ...lib, workouts: lib.workouts.filter((w) => !w.climb),
+  categories: lib.categories.filter((c) => c.id !== "climb") });
 const settings = await api("/api/settings");
 setZoneTops(settings.zone_tops);
 const FTP = settings.ftp;
-let library = await api("/api/workouts");
+let library = editable(await api("/api/workouts"));
 const DEFAULTS = library.phase_defaults;
 const KINDS = Object.keys(DEFAULTS);
 $("ftp-line").textContent = `Workout editor · FTP ${FTP} W`;
@@ -279,7 +282,7 @@ $("import-file").addEventListener("change", async () => {
     }
   }
   if (last) {
-    library = await api("/api/workouts");
+    library = editable(await api("/api/workouts"));
     sel = 0;
     load(last);
   }
@@ -489,7 +492,7 @@ $("save").addEventListener("click", async () => {
     const saved = current.id
       ? await api(`/api/workouts/${current.id}`, { method: "PUT", body })
       : await api("/api/workouts", { method: "POST", body });
-    library = await api("/api/workouts");
+    library = editable(await api("/api/workouts"));
     load(saved);
     setStatus(saved.builtin ? "Saved" : "Saved", "ok", { href: `/ready.html?workout=${saved.id}`, text: "Ride it ›" });
   } catch (e) {
@@ -502,7 +505,7 @@ $("delete-workout").addEventListener("click", async () => {
   if (!confirm(`Delete "${current.name}"? This cannot be undone.`)) return;
   try {
     await api(`/api/workouts/${current.id}`, { method: "DELETE" });
-    library = await api("/api/workouts");
+    library = editable(await api("/api/workouts"));
     sel = 0;
     load(library.workouts[0]);
     setStatus("Workout deleted", "ok");

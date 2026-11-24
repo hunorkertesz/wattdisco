@@ -46,7 +46,7 @@ def _message(cls, fields: dict):
 # Fields with a scale in the FIT profile: keep the decimals, fit-tool scales them.
 FLOAT_FIELDS = {
     "total_elapsed_time", "total_timer_time", "intensity_factor", "training_stress_score", "core_temperature",
-    "speed", "distance", "avg_speed", "max_speed", "total_distance",
+    "speed", "distance", "avg_speed", "max_speed", "total_distance", "altitude",
 }
 
 
@@ -97,6 +97,7 @@ def build_fit(ride: RideData, summary: dict, sport_type: str = "VirtualRide") ->
             "timestamp": at(t),
             "distance": distances[i],
             "speed": speeds[i],
+            "altitude": tick.get("altitude"),  # a climb: height on the virtual road
             "power": tick.get("power"),
             "heart_rate": tick.get("hr"),
             "cadence": tick.get("cadence"),
@@ -158,6 +159,7 @@ def build_fit(ride: RideData, summary: dict, sport_type: str = "VirtualRide") ->
         "total_distance": basic["distance_km"] * 1000,
         "avg_speed": None if basic["avg_speed_kmh"] is None else basic["avg_speed_kmh"] / 3.6,
         "max_speed": None if basic["max_speed_kmh"] is None else basic["max_speed_kmh"] / 3.6,
+        "total_ascent": None if not summary.get("climb") else round(summary["climb"]["climbed"]),
         "total_calories": basic["work_kj"],  # ≈ kcal: ~24 % efficiency cancels the kJ→kcal factor
         "first_lap_index": 0,
         "num_laps": len(summary["intervals"]),

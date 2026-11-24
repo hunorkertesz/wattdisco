@@ -114,8 +114,8 @@
       <canvas class="preview" id="preview" role="img" aria-label="Workout preview"></canvas>
       <div class="stats">
         <div><span class="mono">Duration</span><b id="duration">--</b></div>
-        <div><span class="mono">Avg power</span><b id="avg">--</b></div>
-        <div><span class="mono">Intervals</span><b id="intervals">--</b></div>
+        <div><span class="mono" id="avg-label">Avg power</span><b id="avg">--</b></div>
+        <div><span class="mono" id="intervals-label">Intervals</span><b id="intervals">--</b></div>
         <div><span class="mono">FTP</span><b id="ftp">--</b></div>
         <div title="Hours × intensity² × 100: one hour at FTP is 100"><span class="mono">Load (est.)</span><b id="load">--</b></div>
       </div>
@@ -138,7 +138,7 @@
 
       <div class="panel">
         <span class="mono panel__title" id="mode-label">Target mode</span>
-        <div role="radiogroup" aria-labelledby="mode-label" style="display: flex; flex-direction: column; gap: 10px">
+        <div role="radiogroup" id="modes" aria-labelledby="mode-label" style="display: flex; flex-direction: column; gap: 10px">
           <button class="pick" type="button" role="radio" data-mode="erg" title="Trainer holds the target power. Pedal at any cadence.">
             <span class="pick__radio" aria-hidden="true"></span>
             <span class="pick__text"><span class="pick__name">ERG</span>
@@ -149,6 +149,14 @@
             <span class="pick__text"><span class="pick__name">Free ride</span>
               <span class="pick__desc">Trainer resistance stays as it is. Follow the target on screen.</span></span>
           </button>
+        </div>
+        <!-- a climb: the road's gradient sets the trainer's resistance; the rider picks how much of it -->
+        <div id="climb-row" hidden style="display: flex; flex-direction: column; gap: 8px">
+          <p class="hint">The trainer gets harder as the road gets steeper. You choose your power, cadence and gears,
+            as on a real climb. Downhills feel lighter. The ride ends at the top.</p>
+          <div class="ease"><span class="mono" id="difficulty-label">Difficulty</span><div id="difficulty"></div></div>
+          <p class="hint">100 % feels like the real road. Lower makes the steep parts easier on your legs and your gears.
+            Your speed and time always use the real gradient and your weight.</p>
         </div>
         <p class="hint" id="no-trainer" hidden>No trainer with control connected, so ERG has nothing to steer.</p>
         <!-- ERG only: how the trainer moves to a new interval's power -->
@@ -206,7 +214,8 @@
 
 <script type="module">
 import { LENGTHS, LOW_BATTERY, chipGroup, el, fmtClock, neonSelect, renderDeviceChips, renderStrip, setZoneTops, workoutOptions } from "/components.js";
-import { drawWorkoutPreview } from "/charts.js";
+import { drawClimbProfile, drawWorkoutPreview } from "/charts.js";
+import { distance as inDistance, distanceUnit, imperial, setUnits } from "/units.js";
 import { connectLive } from "/live.js";
 import { addSoundButton, cue, setSound, soundOn, syncSound, unlockSound } from "/sound.js";
 
@@ -218,6 +227,7 @@ const params = new URLSearchParams(location.search);
 const library = await (await fetch(`/api/workouts${params.get("workout") ? `?include=${encodeURIComponent(params.get("workout"))}` : ""}`)).json();
 const settings = await (await fetch("/api/settings")).json();
 setZoneTops(settings.zone_tops);
+setUnits(settings.units);
 syncSound(settings);
 let workouts = library.workouts;
 let selected = workouts.find((w) => w.id === params.get("workout")) ?? workouts.find((w) => w.id === library.selected) ?? workouts[0];
@@ -302,29 +312,44 @@ const inWatts = (w) => ({
   phases: w.phases.map((p) => ({ ...p, watts: Math.round(p.pct * w.ftp), watts_end: p.pct_end == null ? null : Math.round(p.pct_end * w.ftp) })),
 });
 
+const drawPreview = () => (selected.climb
+  ? drawClimbProfile($("preview"), selected.profile, { imperial: imperial() })
+  : drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp));
+
 function renderWorkout() {
+  const climb = !!selected.climb;
   $("title").textContent = selected.name;
   document.title = `Watt Disco – ${selected.name}`;
   $("desc").textContent = selected.text;
-  $("duration").textContent = fmtClock(selected.seconds);
-  $("avg").textContent = `${Math.round(selected.avg_power)} W`;
-  $("intervals").textContent = selected.intervals;
+  $("duration").textContent = `${climb ? "~" : ""}${fmtClock(selected.seconds)}`; // a climb: at 75 % FTP
+  $("avg-label").textContent = climb ? "Distance" : "Avg power";
+  $("avg").textContent = climb ? `${inDistance(selected.length / 1000).toFixed(1)} ${distanceUnit()}` : `${Math.round(selected.avg_power)} W`;
+  $("intervals-label").textContent = climb ? "Climbing" : "Intervals";
+  $("intervals").textContent = climb ? (imperial() ? `${Math.round(selected.ascent * 3.28084)} ft` : `${Math.round(selected.ascent)} m`) : selected.intervals;
   $("ftp").textContent = `${selected.ftp} W`;
   $("load").textContent = Math.round(selected.load);
   $("edit").href = `/editor.html?id=${selected.id}`;
-  drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp);
+  $("edit").hidden = climb; // a climb is a road, not phases
+  $("modes").hidden = climb;
+  $("climb-row").hidden = !climb;
+  $("ease-row").hidden = climb;
+  if (climb) $("ease-help").hidden = true;
+  $("mode-label").textContent = climb ? "Climb" : "Target mode";
+  $("start").textContent = climb ? "Start climb" : "Start workout";
+  drawPreview();
   renderPlanNext();
 }
 showFav();
 renderWorkout();
-new ResizeObserver(() => drawWorkoutPreview($("preview"), inWatts(selected), selected.ftp)).observe($("preview"));
+new ResizeObserver(drawPreview).observe($("preview"));
 
 // ---------- choices ----------
 let mode = "erg";
 let modeTouched = false;
 // FTP tests suggest their mode: the ramp in ERG, the 20 min test in free ride (you pace it).
 function suggestMode() {
-  if (selected.mode) { setMode(selected.mode); modeTouched = true; }
+  if (selected.mode) { setMode(selected.mode); modeTouched = selected.mode !== "climb"; }
+  else if (mode === "climb") setMode("erg"); // back from a climb to a workout
 }
 function setMode(m) {
   mode = m;
@@ -334,6 +359,15 @@ function setMode(m) {
 for (const b of document.querySelectorAll("[data-mode]")) b.addEventListener("click", () => { modeTouched = true; setMode(b.dataset.mode); });
 setMode("erg");
 suggestMode();
+
+// A climb's difficulty: the share of the uphill gradient the trainer simulates. Remembered per browser.
+let difficulty = "1";
+try { difficulty = localStorage.getItem("wd.climbDifficulty") ?? "1"; } catch {}
+const difficultyGroup = chipGroup(["0.25", "0.5", "0.75", "1"].map((v) => ({ value: v, label: `${Math.round(v * 100)} %` })),
+  { value: ["0.25", "0.5", "0.75", "1"].includes(difficulty) ? difficulty : "1", label: "Climb difficulty",
+    onChange: (v) => { difficulty = v; try { localStorage.setItem("wd.climbDifficulty", v); } catch {} } });
+difficultyGroup.setAttribute("aria-labelledby", "difficulty-label");
+$("difficulty").replaceWith(difficultyGroup);
 
 // ERG interval changes: a step (default) or a 3 s ease. Remembered per browser.
 let easeChoice = "step";
@@ -406,8 +440,11 @@ function render(store) {
   if (!smoothingTouched) smoothing.set(s.smoothing);
   const connected = s.devices.filter((d) => d.state === "connected");
   const trainer = connected.some((d) => d.roles.includes("control"));
-  $("no-trainer").hidden = trainer || mode !== "erg";
-  if (!trainer && !modeTouched) setMode("free"); // nothing to steer: suggest free ride
+  $("no-trainer").hidden = trainer || (mode !== "erg" && mode !== "climb");
+  $("no-trainer").textContent = mode === "climb"
+    ? "No trainer with control connected, so nothing changes the resistance. Speed and distance still follow the climb."
+    : "No trainer with control connected, so ERG has nothing to steer.";
+  if (!trainer && !modeTouched && mode !== "climb") setMode("free"); // nothing to steer: suggest free ride
   $("no-sensors").hidden = connected.length > 0;
   // a sensor that may not last the ride: say so before it starts
   const low = connected.filter((d) => d.battery != null && d.battery <= LOW_BATTERY);
@@ -472,6 +509,7 @@ $("start").addEventListener("click", async () => {
   if (begin === "now" && !(await countIn())) { $("start").disabled = false; return; }
   const body = { workout_id: selected.id, mode, smoothing: pressed(smoothing), ease: easeChoice === "ease",
     wait_for_pedal: begin === "pedal" };
+  if (selected.climb) body.difficulty = Number(difficultyGroup.querySelector('[aria-pressed="true"]')?.dataset.value ?? difficulty);
   const source = powerGroup ? pressed(powerGroup) : null;
   if (source) body.power_source = source;
   const r = await fetch("/api/ride/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

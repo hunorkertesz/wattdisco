@@ -55,6 +55,7 @@ class Workout:
     ftp: int
     phases: list[Phase]
     test: str | None = None  # "ramp" or "20min" for an FTP test
+    climb: dict | None = None  # a climb: {"segments": [[metres, gradient %], ...]} (core/climb.py)
 
     @property
     def seconds(self) -> int:
@@ -76,8 +77,9 @@ class Workout:
 
 @dataclass(frozen=True)
 class TrainerCommand:
-    mode: str  # "erg": hold `watts`; "free": flat-road resistance, rider sets the power
+    mode: str  # "erg": hold `watts`; "free": flat-road resistance; "sim": a road of `grade` %; the rider sets the power
     watts: int | None = None
+    grade: float | None = None  # % for "sim" (negative downhill)
 
 
 @dataclass(frozen=True)
@@ -87,6 +89,7 @@ class TrainerStatus:
     mode: str | None = None
     watts: int | None = None
     message: str = ""
+    grade: float | None = None
 
 
 @dataclass(frozen=True)

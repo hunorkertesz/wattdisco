@@ -1,7 +1,8 @@
 """Trainer control over the Fitness Machine Service (FTMS, 0x1826).
 
 ERG: Set Target Power. Free ride: Indoor Bike Simulation on a flat road, so the
-trainer stops holding power and the rider sets it with gears and cadence.
+trainer stops holding power and the rider sets it with gears and cadence. A climb:
+the same simulation with the road's gradient, so the trainer gets harder uphill.
 Encoders and parsers are pure functions; FtmsController talks to a connected client.
 """
 
@@ -20,6 +21,9 @@ log = logging.getLogger(__name__)
 
 CONTROL_POINT = normalize_uuid_16(0x2AD9)
 SUPPORTED_POWER_RANGE = normalize_uuid_16(0x2AD8)
+FITNESS_MACHINE_FEATURE = normalize_uuid_16(0x2ACC)
+TARGET_SIMULATION_BIT = 13  # target setting features: "Indoor Bike Simulation Parameters Supported"
+NO_SIMULATION = "this trainer can't simulate climbs"
 
 OP_REQUEST_CONTROL = 0x00
 OP_RESET = 0x01
@@ -96,6 +100,12 @@ def parse_power_range(data: bytes | bytearray) -> PowerRange:
     return PowerRange(lo, hi, step or 1)
 
 
+def supports_simulation(data: bytes | bytearray) -> bool:
+    """From the Fitness Machine Feature characteristic: machine features (uint32), then target settings (uint32)."""
+    _machine, targets = struct.unpack_from("<II", data, 0)
+    return bool(targets >> TARGET_SIMULATION_BIT & 1)
+
+
 class FtmsController:
     """Sends commands to the control point one at a time and waits for each answer.
 
@@ -109,6 +119,7 @@ class FtmsController:
         self.client = client
         self.on_result = on_result
         self.power_range: PowerRange | None = None
+        self.simulation: bool | None = None  # the trainer can simulate a gradient (None: it didn't say)
         self._pending: tuple[int, asyncio.Future] | None = None
         self._lock = asyncio.Lock()
 
@@ -135,6 +146,10 @@ class FtmsController:
             self.power_range = parse_power_range(await self.client.read_gatt_char(SUPPORTED_POWER_RANGE))
         except (BleakError, ValueError, struct.error, KeyError):
             self.power_range = None  # optional characteristic
+        try:
+            self.simulation = supports_simulation(await self.client.read_gatt_char(FITNESS_MACHINE_FEATURE))
+        except (BleakError, ValueError, struct.error, KeyError):
+            self.simulation = None  # unknown: try, and let the trainer's answer say
         await self.client.start_notify(CONTROL_POINT, self._on_indication)
         response = await self._call(request_control())
         if not response.ok:
@@ -145,6 +160,11 @@ class FtmsController:
         if cmd.mode == "erg":
             watts = cmd.watts if self.power_range is None else self.power_range.clamp(cmd.watts)
             payload = set_target_power(watts)
+        elif cmd.mode == "sim":
+            if self.simulation is False:
+                self.on_result(False, cmd, NO_SIMULATION)
+                return False
+            payload = set_simulation(grade_pct=cmd.grade or 0.0)
         else:
             payload = set_simulation()
         try:
@@ -154,6 +174,10 @@ class FtmsController:
                 response = await self._call(payload)
         except (TimeoutError, asyncio.TimeoutError):
             self.on_result(False, cmd, "trainer did not answer")
+            return False
+        if cmd.mode == "sim" and response.text == "not supported":
+            self.simulation = False
+            self.on_result(False, cmd, NO_SIMULATION)
             return False
         self.on_result(response.ok, cmd, response.text)
         return response.ok

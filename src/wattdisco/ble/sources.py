@@ -97,6 +97,7 @@ class LiveSensor:
                 mode=cmd.mode if cmd else None,
                 watts=cmd.watts if cmd else None,
                 message=message,
+                grade=cmd.grade if cmd else None,
             ),
         )
 

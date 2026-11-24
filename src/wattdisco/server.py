@@ -37,6 +37,7 @@ from wattdisco.config import (
 from wattdisco.core.bus import Bus
 from wattdisco.core.clock import Clock
 from wattdisco.core.compare import CompareBench
+from wattdisco.core.climb import DIFFICULTIES, ClimbPlayer, Profile
 from wattdisco.core.metrics import metric_value
 from wattdisco.core import plans, progress
 from wattdisco.core.ftp_history import FtpHistory, rebuild
@@ -99,6 +100,17 @@ def default_description(summary: dict) -> str:
     if summary["nerd"].get("load"):
         parts.append(f"Training load {round(summary['nerd']['load'])}")
     return " · ".join(parts)
+
+
+def workout_dict(workout: Workout) -> dict:
+    """The workout as the screens get it; a climb also brings its profile for the chart."""
+    d = {**asdict(workout), "seconds": workout.seconds}
+    if workout.climb:
+        profile = Profile.from_segments(workout.climb["segments"])
+        d["profile"] = profile.points()
+        d["length"] = round(profile.length, 1)
+        d["ascent"] = round(profile.total_ascent, 1)
+    return d
 
 
 def workout_payload(pos: Position, power: int | None, ftp: int, mode: str, erg: str = "off",
@@ -246,15 +258,20 @@ class Ride:
         self.select_plan_workout()
 
     def start_ride(self, mode: str | None = None, smoothing: str | None = None, power_source: str | None = None,
-                   ease: bool = False, wait_for_pedal: bool = False) -> str:
+                   ease: bool = False, wait_for_pedal: bool = False, difficulty: float | None = None) -> str:
         if self.active:
             raise ValueError("a ride is already running")
         if self.review_id is not None:
             self.set_review(None)  # a new ride: the last one's summary is done with
         if self.interrupted is not None:
             self.save_interrupted()  # not continued: keep it as it is, in the history
-        if mode is not None and mode not in MODES:
-            raise ValueError(f"mode must be one of {list(MODES)}")
+        climb = bool(self.workout.climb)
+        if mode is not None and mode not in (*MODES, "climb"):
+            raise ValueError(f"mode must be one of {[*MODES, 'climb']}")
+        if mode == "climb" and not climb:
+            raise ValueError("climb mode needs a climb")
+        if climb and difficulty is not None and difficulty not in DIFFICULTIES:
+            raise ValueError(f"difficulty must be one of {list(DIFFICULTIES)}")
         if smoothing is not None:
             self.session.set_smoothing(smoothing)
         if power_source is not None:
@@ -270,9 +287,15 @@ class Ride:
             ride_id = new_ride_id(started.astimezone())
         now = self.clock.now()
         self.ride_start = now
-        self.player = WorkoutPlayer(self.workout, mode=mode or self.player.mode, start=now, ease=ease)
+        if climb:  # the road's gradient sets the trainer's resistance; the climb's road gives speed and distance
+            self.player = ClimbPlayer(self.workout, start=now, rider_kg=self.settings.weight_kg,
+                                      difficulty=1.0 if difficulty is None else difficulty)
+            self.road = self.player.road
+        else:
+            self.player = WorkoutPlayer(self.workout, mode=mode or ("erg" if self.player.mode == "climb" else self.player.mode),
+                                        start=now, ease=ease)
+            self.road = FlatRoad(self.settings.weight_kg)
         self.history = []
-        self.road = FlatRoad(self.settings.weight_kg)
         self._recent_power = deque(maxlen=AVG_WINDOWS[-1])
         self._recent_hr = deque(maxlen=AVG_WINDOWS[-1])
         self._interval = {"index": None, "seconds": 0, "on_target": 0}
@@ -289,6 +312,7 @@ class Ride:
                 "hr_zones": {"method": self.settings.hr_method, "reference": self.settings.hr_reference},
                 "speed": self.clock.speed,
                 "erg_ease": ease,
+                **({"climb_difficulty": self.player.difficulty} if climb else {}),
                 "sim": sim,
             },
         )
@@ -350,7 +374,7 @@ class Ride:
         data = load_ride(self.store.path(info["id"]))
         spec = data.meta["workout"]
         self.workout = Workout(spec["name"], spec["ftp"], [Phase(**{k: p[k] for k in ("kind", "seconds", "watts", "watts_end", "cadence") if k in p}) for p in spec["phases"]],
-                               spec.get("test"))
+                               spec.get("test"), spec.get("climb"))
         self.workout_id = data.meta.get("workout_id")
         set_workout = getattr(self.source, "set_workout", None)
         if set_workout:
@@ -360,10 +384,17 @@ class Ride:
         self.interrupted = None
         now = self.clock.now()
         self.ride_start = now - info["t"]  # the recording's clock goes on from its last second
-        mode = next((t["mode"] for t in reversed(data.ticks) if t.get("mode")), self.player.mode)
-        self.player = WorkoutPlayer(self.workout, mode=mode, start=now - info["elapsed"], ease=bool(data.meta.get("erg_ease")))
+        weight = data.meta.get("weight_kg", self.settings.weight_kg)
+        if self.workout.climb:  # back on the road where the rider was
+            distance = next((t["distance"] for t in reversed(data.ticks) if t.get("distance") is not None), 0.0)
+            self.player = ClimbPlayer(self.workout, start=now - info["elapsed"], rider_kg=weight,
+                                      difficulty=data.meta.get("climb_difficulty", 1.0), distance=distance)
+            self.road = self.player.road
+        else:
+            mode = next((t["mode"] for t in reversed(data.ticks) if t.get("mode") in MODES), "erg")
+            self.player = WorkoutPlayer(self.workout, mode=mode, start=now - info["elapsed"], ease=bool(data.meta.get("erg_ease")))
+            self.road = FlatRoad(weight)
         self.history = [(round(t.get("elapsed", t["t"])), t.get("power"), t.get("hr")) for t in data.ticks]
-        self.road = FlatRoad(data.meta.get("weight_kg", self.settings.weight_kg))
         self._recent_power = deque((t.get("power") for t in data.ticks), maxlen=AVG_WINDOWS[-1])
         self._recent_hr = deque((t.get("hr") for t in data.ticks), maxlen=AVG_WINDOWS[-1])
         self._interval = {"index": None, "seconds": 0, "on_target": 0}
@@ -600,6 +631,7 @@ class Ride:
             "hr_zone": None if snap.hr is None else hr_zone_of(snap.hr, self.settings.hr_tops),
             "workout": (workout := workout_payload(self.player.position(snap.t), snap.power, ftp, self.player.mode,
                                                  self.player.erg_state, self.player.adjustments, self.player.ease)),
+            "climb": self.player.climb_state() if isinstance(self.player, ClimbPlayer) else None,
             "nerd": self.nerd(workout) if self.active else None,
             "point": self.history[-1] if self.history else None,
             "ride": {"active": self.active, "paused": self.paused, "auto_paused": self.auto_paused, "id": self.ride_id,
@@ -610,7 +642,7 @@ class Ride:
     def hello(self) -> dict:
         return {
             "type": "hello",
-            "workout": {**asdict(self.workout), "seconds": self.workout.seconds},
+            "workout": workout_dict(self.workout),
             "history": self.history,
             "speed": self.clock.speed,
             "settings": self.settings.to_dict(),
@@ -751,7 +783,14 @@ class Ride:
                 "power": snap.power_raw,
                 "hr": snap.hr,
                 "cadence": None if snap.cadence is None else round(snap.cadence),
+                **(self._climb_tick() if isinstance(self.player, ClimbPlayer) else {}),
             })
+
+    def _climb_tick(self) -> dict:
+        """Where the rider is on the climb this second (virtual: from power, weight and the road)."""
+        c = self.player.climb_state()
+        return {"distance": c["distance"], "altitude": c["altitude"], "grade": c["grade"],
+                "trainer_grade": c["trainer_grade"], "speed": c["speed"]}
 
     async def _send(self, ws: WebSocket, text: str) -> None:
         try:
@@ -843,6 +882,7 @@ class RideStartIn(BaseModel):
     power_source: str | None = None
     ease: bool = False  # ERG eases big target changes in instead of a step
     wait_for_pedal: bool = False  # the workout clock starts with the first pedal strokes
+    difficulty: float | None = None  # a climb: share of the uphill gradient the trainer simulates
 
 
 class RolesIn(BaseModel):
@@ -964,7 +1004,7 @@ def create_app(ride: Ride) -> FastAPI:
             if body.workout_id:
                 ride.use_workout(body.workout_id, await asyncio.to_thread(ride.workouts.get, body.workout_id))
             ride_id = ride.start_ride(mode=body.mode, smoothing=body.smoothing, power_source=body.power_source,
-                                      ease=body.ease, wait_for_pedal=body.wait_for_pedal)
+                                      ease=body.ease, wait_for_pedal=body.wait_for_pedal, difficulty=body.difficulty)
         except KeyError as e:
             raise HTTPException(status_code=404, detail=f"unknown workout or device {e}") from e
         except ValueError as e:
@@ -1089,7 +1129,14 @@ def create_app(ride: Ride) -> FastAPI:
     # ---------- workouts ----------
 
     def workout_info(spec: dict) -> dict:
-        return {**spec, **describe(spec, ride.settings.ftp), "ftp": ride.settings.ftp}
+        info = {**spec, **describe(spec, ride.settings.ftp), "ftp": ride.settings.ftp}
+        if spec.get("climb"):  # its one phase is as long as the estimate; the profile draws the preview
+            profile = Profile.from_segments(spec["climb"]["segments"])
+            info["phases"] = [{**spec["phases"][0], "seconds": info["seconds"]}]
+            info["profile"] = profile.points()
+            info["length"] = round(profile.length, 1)
+            info["ascent"] = round(profile.total_ascent, 1)
+        return info
 
     @app.get("/api/workouts")
     async def list_workouts(include: str | None = None):

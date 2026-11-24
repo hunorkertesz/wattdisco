@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – Climb</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/workout.css">
+<style>
+  /* A climb ride: the road's gradient sets the trainer; power and gradient are the big numbers, the profile shows the way up. */
+  .climb-head {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    padding: 12px var(--gutter); min-height: 96px;
+  }
+  .climb-head__left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .climb-head__left .neon-title { font-size: clamp(22px, 3vw, 36px); }
+  .phase-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .grade-badge { color: #070B0A; }
+  .climb-head__right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+  .to-top { font-size: clamp(36px, min(5vw, 8vh), 60px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+
+  .numbers { flex: none; display: grid; grid-template-columns: 1.4fr 1.2fr 1fr 1fr 1fr; padding: 4px var(--gutter) 8px;
+    border-top: 1px solid var(--clean-line); align-items: end; }
+  .num { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; }
+  .num > .mono { font-size: 13px; }
+  .num__v { font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; font-size: clamp(40px, min(6vw, 10vh), 96px); }
+  .num--main .num__v { font-size: clamp(64px, min(10vw, 17vh), 168px); }
+  .num__u { font-size: 18px; margin-top: 2px; }
+  .num--power { color: var(--power); }
+  .num--power > .mono { color: var(--clean-text); }
+  .num--hr { color: var(--hr); }
+  .num--cad { color: var(--cadence); }
+  .num--speed { color: var(--clean-text); }
+
+  .climb-chart { position: relative; flex: 1; min-height: 0; padding: 8px var(--gutter) 0; border-top: 1px solid var(--clean-line); }
+  .profile { width: 100%; height: 100%; display: block; }
+  .legend { position: absolute; right: var(--gutter); top: 12px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+    font-family: var(--font-mono); font-size: 10px; color: var(--clean-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  .climb-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    min-height: 48px; padding: 6px var(--gutter); border-top: 1px solid var(--clean-line); }
+  .climb-foot .mono { font-size: 13px; }
+  .idle { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 600px) {
+    .numbers { grid-template-columns: 1fr 1fr 1fr; row-gap: 12px; }
+    .num--power, .num--grade { grid-column: span 3; }
+    .num--grade { grid-row: 2; }
+    .climb-chart { display: flex; flex-direction: column; gap: 6px; }
+    .profile { height: 220px; flex: none; }
+    .legend { position: static; order: -1; justify-content: flex-start; }
+  }
+</style>
+</head>
+<body class="clean">
+<div class="app" id="app">
+  <header class="strip" id="strip"></header>
+
+  <div class="climb-head">
+    <div class="climb-head__left">
+      <h1 class="neon-title" id="title">Climb</h1>
+      <div class="phase-row">
+        <span class="phase-badge grade-badge" id="badge">--</span>
+        <span class="mono" id="progress"></span>
+      </div>
+    </div>
+    <div class="climb-head__right">
+      <span class="mono" id="to-top-label">To the top</span>
+      <span class="to-top" id="to-top" aria-label="Distance to the top">--</span>
+    </div>
+  </div>
+
+  <section class="numbers" id="numbers">
+    <div class="num num--power num--main" id="power-box">
+      <span class="mono">Power</span>
+      <span class="num__v" id="power">--</span>
+      <span class="num__u" id="wkg">W</span>
+    </div>
+    <div class="num num--grade num--main" id="grade-box">
+      <span class="mono">Gradient</span>
+      <span class="num__v" id="grade">--</span>
+      <span class="num__u" id="trainer-grade">%</span>
+    </div>
+    <div class="num num--speed">
+      <span class="mono">Speed</span>
+      <span class="num__v" id="speed">--</span>
+      <span class="num__u" id="speed-unit">km/h</span>
+    </div>
+    <div class="num num--hr">
+      <span class="mono" id="hr-label">Heart rate</span>
+      <span class="num__v" id="hr">--</span>
+      <span class="num__u">bpm</span>
+    </div>
+    <div class="num num--cad">
+      <span class="mono">Cadence</span>
+      <span class="num__v" id="cadence">--</span>
+      <span class="num__u">rpm</span>
+    </div>
+  </section>
+
+  <main class="climb-chart" id="climb-chart">
+    <nav class="dock" id="dock" aria-label="Ride controls">
+      <a class="btn btn--sm" href="/big.html">Big <kbd>B</kbd></a>
+      <a class="btn btn--sm" href="/compare.html">Compare <kbd>C</kbd></a>
+      <button class="btn btn--sm btn--pink" type="button" id="pause">Pause <kbd>Space</kbd></button>
+      <button class="btn btn--sm btn--pink" type="button" id="end-ride">End ride</button>
+    </nav>
+    <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show ride controls"></button></div>
+    <canvas class="profile" id="profile" role="img" aria-label="Climb profile with your position"></canvas>
+    <div class="legend" id="legend" aria-hidden="true"></div>
+  </main>
+
+  <div class="idle" id="idle" hidden>
+    <h2 class="neon-title">No ride running</h2>
+    <a class="btn btn--primary" href="/ready.html">Get ready</a>
+  </div>
+
+  <footer class="climb-foot">
+    <span class="mono trainer-status" id="trainer-status" role="status"></span>
+    <span class="mono" id="clock">--:--</span>
+  </footer>
+
+  <div class="ride-over" id="paused" hidden>
+    <div class="card ride-over__card" role="dialog" aria-labelledby="paused-title">
+      <h2 class="neon-title" id="paused-title">Paused</h2>
+      <span class="mono" id="paused-why">Clock stopped · trainer on a flat road · nothing is recorded</span>
+      <div class="ride-over__actions">
+        <button class="btn" type="button" id="paused-end">End ride</button>
+        <button class="btn btn--primary" type="button" id="resume">Resume <kbd>Space</kbd></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { GRADE_BANDS, el, fmtClock, fmtNum, gradeColor, holdScreen, renderDeviceChips, renderStrip, setZoneTops, zoneColor } from "/components.js";
+import { drawClimbProfile } from "/charts.js";
+import { confirmTwice, endRide, setupDock } from "/dock.js";
+import { connectLive } from "/live.js";
+import { addSoundButton, rideCues, unlockSound } from "/sound.js";
+import { distance as inDistance, distanceUnit, imperial, setUnits, speed as inSpeed, speedUnit } from "/units.js";
+const soundCues = rideCues();
+unlockSound();
+
+const $ = (id) => document.getElementById(id);
+const strip = renderStrip($("strip"), { active: "train" });
+addSoundButton($("strip"));
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const pct = (g) => (g == null ? "--" : `${g < 0 ? "−" : ""}${Math.abs(g).toFixed(1)}`);
+const height = (m) => (imperial() ? `${Math.round(m * 3.28084)} FT` : `${Math.round(m)} M`);
+const km = (m) => `${inDistance(m / 1000).toFixed(m < 10000 ? 2 : 1)} ${distanceUnit().toUpperCase()}`;
+let lastHr = null;
+
+$("legend").replaceChildren(...GRADE_BANDS.map((b) => el("span", {}, el("i", { style: `background: ${b.color}` }), b.label)));
+
+let paused = false;
+let rideDone = false;
+const togglePause = () => live.send({ cmd: paused ? "resume" : "pause" });
+$("pause").onclick = togglePause;
+$("resume").onclick = togglePause;
+const end = { label: "End ride", confirm: "Tap again to end", busy: "Saving…", action: endRide };
+confirmTwice($("end-ride"), end);
+confirmTwice($("paused-end"), end);
+const dock = setupDock({
+  app: $("app"),
+  docks: [{ dock: $("dock"), zone: $("zone-top"), pinned: () => rideDone }], // at the top: keep End ride in view
+  keys: {
+    space: togglePause,
+    b: () => { location.href = "/big.html"; },
+    c: () => { location.href = "/compare.html"; },
+  },
+});
+
+function trainerText(s, c) {
+  const trainerUp = s.devices.some((d) => d.roles.includes("control") && d.state === "connected");
+  const t = s.trainer;
+  if (s.ride.paused) return ["PAUSED · TRAINER ON A FLAT ROAD", false];
+  if (c.top) return ["AT THE TOP · TRAINER ON A FLAT ROAD", false];
+  if (!trainerUp) return ["NO TRAINER CONNECTED · SPEED STILL FOLLOWS THE CLIMB", true];
+  if (t && !t.ok) return [`TRAINER · ${t.message.toUpperCase()}`, true];
+  const diff = c.difficulty < 1 ? ` · DIFFICULTY ${Math.round(c.difficulty * 100)} %` : "";
+  if (t && t.mode === "sim" && t.grade != null) return [`TRAINER SIMULATES ${pct(t.grade)} %${diff}`, false];
+  return ["TALKING TO TRAINER…", false];
+}
+
+function render(store) {
+  const s = store.state;
+  if (!s || !store.workout) return;
+  if (!store.workout.climb) { location.replace("/workout.html"); return; } // not a climb: the workout screen
+  setUnits(store.settings?.units);
+  setZoneTops(store.settings?.zone_tops);
+  soundCues(store);
+  holdScreen(s.ride?.active);
+  renderDeviceChips(strip.devices, s.devices.filter((d) => d.state !== "found" && d.state !== "disconnected"));
+
+  const active = s.ride.active && s.climb;
+  $("numbers").hidden = !active;
+  $("climb-chart").hidden = !active;
+  $("idle").hidden = !!active;
+  if (!active) return;
+  const c = s.climb;
+  const w = s.workout;
+  paused = !!s.ride.paused;
+  $("paused").hidden = !paused;
+  const why = s.ride.auto_paused;
+  $("paused-title").textContent = why === "waiting" ? "Pedal to start" : why === "stopped" ? "Paused · pedal to go on" : "Paused";
+  $("paused-why").textContent = why === "waiting" ? "The clock starts with your first pedal strokes"
+    : why === "stopped" ? "You stopped pedalling · nothing is recorded · auto-pause can be switched off on the ready screen"
+    : "Clock stopped · trainer on a flat road · nothing is recorded";
+  $("resume").firstChild.textContent = why === "waiting" ? "Start now " : "Resume ";
+  $("pause").firstChild.textContent = paused ? "Resume " : "Pause ";
+  const wasDone = rideDone;
+  rideDone = c.top;
+  if (rideDone && !wasDone) dock.show();
+  $("end-ride").classList.toggle("btn--primary", rideDone);
+
+  $("title").textContent = store.workout.name;
+  document.title = `Watt Disco – ${store.workout.name}`;
+  $("badge").textContent = c.top ? "AT THE TOP" : `CLIMB · ${pct(c.grade)} %`;
+  $("badge").style.background = c.top ? "" : gradeColor(c.grade);
+  $("progress").textContent = `${km(c.distance)} of ${km(c.length)} · ${height(c.climbed)} of ${height(c.ascent)} up`;
+  $("to-top-label").textContent = c.top ? "Climbed" : "To the top";
+  $("to-top").textContent = c.top ? height(c.ascent) : km(c.left);
+  $("clock").textContent = `TIME ${fmtClock(Math.round(w.elapsed))}`;
+
+  // power in the colour of its own zone, like every ride screen
+  $("power-box").style.color = s.power_zone ? zoneColor(s.power_zone) : css("--power");
+  $("power").textContent = fmtNum(s.power);
+  const wkg = s.power == null || !store.settings?.weight_kg ? null : s.power / store.settings.weight_kg;
+  $("wkg").textContent = wkg == null ? "W" : `W · ${wkg.toFixed(1)} W/KG`;
+  $("grade").textContent = pct(c.grade);
+  $("grade-box").style.color = gradeColor(c.grade);
+  $("trainer-grade").textContent = c.difficulty < 1 ? `% · TRAINER ${pct(c.trainer_grade)} %` : "%";
+  $("speed").textContent = fmtNum(inSpeed(c.speed * 3.6), 1);
+  $("speed-unit").textContent = speedUnit();
+  if (s.hr != null) lastHr = s.hr;
+  $("hr").textContent = fmtNum(s.hr ?? lastHr);
+  $("hr").style.opacity = s.hr == null ? 0.4 : 1;
+  $("hr-label").textContent = s.hr == null && s.main_hr_id ? "Heart rate · no signal" : "Heart rate";
+  $("cadence").textContent = fmtNum(s.cadence);
+
+  const [text, warn] = trainerText(s, c);
+  $("trainer-status").textContent = text;
+  $("trainer-status").classList.toggle("is-warn", warn);
+  drawClimbProfile($("profile"), store.workout.profile, { distance: c.distance, imperial: imperial() });
+}
+
+const live = connectLive(render);
+new ResizeObserver(() => render(live.store)).observe($("app"));
+</script>
+</body>
+</html>

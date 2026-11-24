@@ -68,7 +68,8 @@ wattdisco/
 │   │   ├── workout_import.py .zwo / .erg / .mrc files -> workout spec in % FTP
 │   │   ├── plans.py         training plans (weeks of built-ins) and the rider's progress
 │   │   ├── hrv.py           DFA alpha 1 from RR intervals, aerobic threshold per ride
-│   │   ├── speed.py          estimated flat-road speed and distance from power and weight
+│   │   ├── speed.py          estimated speed and distance from power and weight, flat or on a gradient
+│   │   ├── climb.py          climbs: profile from segments, built-in climbs, ClimbPlayer (position by distance, gradient to the trainer)
 │   │   ├── workout.py        workout player: current phase, countdown, target, ERG commands
 │   │   ├── stats.py          on-target %, difference, weighted power, intensity, training load, VI, HR drift
 │   │   ├── compare.py        sensor comparison: up to 3 sources per kind, per second, each vs A: delta, mean, lag (detrended), correlation, CSV
