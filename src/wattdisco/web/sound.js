@@ -1,6 +1,5 @@
 // Sound cues, made in the browser with Web Audio: plain tones, no sound files, so nothing to license.
-// On or off is one of the app's settings, so it outlives the window (the app has a new port, and so new
-// browser storage, at every start). Silent until the rider has clicked, tapped or pressed a key in this
+// On or off is one of the app's settings, so it outlives the window (and any browser used with `serve`). Silent until the rider has clicked, tapped or pressed a key in this
 // window, so a page nobody is using never makes a sound (some embedded browsers would play without it);
 // until then `blocked()` is true and the page can say so. A ride replayed faster than real time is silent.
 
@@ -105,10 +104,10 @@ export function addSoundButton(header) {
   return button;
 }
 
-function tone(freq, ms, { gain = 0.22, at = 0, type = "sine" } = {}) {
+function tone(freq, ms, { gain = 0.22, at = 0, when = null, type = "sine" } = {}) {
   const a = audio();
-  if (!a || a.state !== "running") return;
-  const t0 = a.currentTime + at / 1000;
+  if (!a || a.state !== "running") return null;
+  const t0 = (when ?? a.currentTime) + at / 1000;
   const osc = a.createOscillator();
   const env = a.createGain();
   osc.type = type;
@@ -121,36 +120,96 @@ function tone(freq, ms, { gain = 0.22, at = 0, type = "sine" } = {}) {
   osc.connect(env).connect(a.destination);
   osc.start(t0);
   osc.stop(t0 + ms / 1000 + 0.02);
+  return osc;
 }
 
 /** The cues: a short tick for each of the last seconds, a higher tone when the next phase starts. */
+const TICK = [880, 110, {}];
+const GO = [1320, 380, { gain: 0.26 }];
+const DONE = [[660, 180, {}], [880, 180, { at: 200 }], [1320, 450, { at: 400 }]];
 export const cue = {
-  tick: () => audible() && tone(880, 110),
-  go: () => audible() && tone(1320, 380, { gain: 0.26 }),
-  done: () => { if (audible()) { tone(660, 180); tone(880, 180, { at: 200 }); tone(1320, 450, { at: 400 }); } },
+  tick: () => audible() && tone(...TICK),
+  go: () => audible() && tone(...GO),
+  done: () => { if (audible()) for (const t of DONE) tone(...t); },
 };
+
+const COUNT_IN = 3; // ticks in the last seconds of a phase
+const AHEAD = COUNT_IN + 1.5; // seconds before a phase ends that its cues are lined up
+const LATE = 0.15; // a cue lined up for longer ago than this has sounded
 
 /**
  * Cues for a live ride, fed with the live store on every message (workout, big numbers and compare screens):
  * a tick in each of the last 3 s of a phase, a tone as the next one starts, three notes when the workout ends.
  * Nothing while paused, and nothing for what had already happened when the page opened.
+ *
+ * The cues are lined up on the audio clock a few seconds ahead, as soon as the phase's end is near, rather
+ * than played as each message comes in: a window that is not in front (another app beside it) may get its
+ * messages late or in bursts, but its audio still plays on time. The end is taken from the message that came
+ * soonest (the earliest end any message points to), and the line-up is dropped on a pause, a skip or a stop.
  */
 export function rideCues() {
-  let heard = { index: null, second: null, done: null, ride: null };
+  let heard = { index: null, done: null, ride: null };
+  let plan = null; // { ride, index, end (audio time), last (no next phase: the end notes), nodes }
+
+  const cancel = () => {
+    for (const n of plan?.nodes ?? []) { try { n.stop(); n.disconnect(); } catch { /* already over, or audio closed */ } }
+    plan = null;
+  };
+  const now = () => ctx?.currentTime ?? 0;
+  const ended = () => plan && plan.end <= now() + LATE; // the phase change has sounded (or is sounding)
+
+  function lineUp(ride, w) {
+    const a = audible() ? audio() : null;
+    if (!a || a.state !== "running") { cancel(); return; }
+    const t = a.currentTime;
+    const end = t + w.seconds_left;
+    const last = !w.next;
+    const before = plan && plan.ride === ride && plan.index === w.index && plan.last === last ? plan : null;
+    if (before && (before.end <= end + 0.08 || before.end <= t + LATE)) return; // as lined up, or already sounded
+    const sounded = (k) => before && before.end - k <= t; // that tick has played: never twice
+    for (const n of plan?.nodes ?? []) { try { n.stop(); n.disconnect(); } catch { /* already over */ } }
+    const nodes = [];
+    if (!last) {
+      for (let k = COUNT_IN; k >= 1; k--) {
+        if (end - k > t - 0.05 && !sounded(k)) nodes.push(tone(TICK[0], TICK[1], { when: Math.max(end - k, t) }));
+      }
+      nodes.push(tone(GO[0], GO[1], { ...GO[2], when: end }));
+    } else {
+      for (const [f, ms, o] of DONE) nodes.push(tone(f, ms, { ...o, when: end }));
+    }
+    plan = { ride, index: w.index, end, last, nodes: nodes.filter(Boolean) };
+  }
+
   return (store) => {
     syncSound(store.settings, store.speed);
     const s = store.state;
     const w = s?.workout;
     if (!w) return;
-    if (!s.ride?.active || s.ride.paused) { heard = { ...heard, index: w.index, ride: s.ride?.id ?? null }; return; }
-    if (heard.ride !== s.ride.id) heard = { index: w.index, second: null, done: w.done, ride: s.ride.id };
-    if (w.done) { if (!heard.done) cue.done(); heard.done = true; return; }
+    const ride = s.ride?.id ?? null;
+    if (!s.ride?.active || s.ride.paused) {
+      cancel();
+      heard = { ...heard, index: w.index, ride };
+      return;
+    }
+    if (heard.ride !== ride) { cancel(); heard = { index: w.index, done: w.done, ride }; }
+    if (w.done) {
+      if (!heard.done && !(plan?.last && ended())) cue.done();
+      if (!(plan?.last && ended())) cancel();
+      plan = null;
+      heard.done = true;
+      return;
+    }
     heard.done = false;
     if (w.index !== heard.index) {
-      if (heard.index != null) cue.go();
-      heard = { ...heard, index: w.index, second: null };
+      // the next phase began: its tone was lined up (and has sounded), or it came early (a skip), or never lined up
+      const sounded = plan && plan.index === heard.index && ended();
+      if (!sounded) { cancel(); if (heard.index != null) cue.go(); }
+      plan = null;
+      heard = { ...heard, index: w.index };
     }
-    const left = Math.ceil(w.seconds_left ?? 99);
-    if (w.next && left >= 1 && left <= 3 && left !== heard.second) { heard.second = left; cue.tick(); }
+    const left = w.seconds_left ?? 99;
+    const timed = !store.workout?.climb; // a climb's end is an estimate from speed: its notes come as the top is reached
+    if (timed && left > 0 && left <= AHEAD) lineUp(ride, w);
+    else if (plan) cancel(); // the phase got longer again (or a new one): nothing lined up for now
   };
 }
