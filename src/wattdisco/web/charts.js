@@ -221,7 +221,8 @@ export function drawWorkoutChart(canvas, { workout, history, t, span, ftp }) {
   font(ctx, 12, 1.5);
   ctx.fillStyle = textColor;
   ctx.textAlign = "center";
-  ctx.fillText("NOW", nx, 12);
+  const half = ctx.measureText("NOW").width / 2 + 2; // at the very start or end the label stays inside the chart
+  ctx.fillText("NOW", Math.min(w - half, Math.max(half, nx)), 12);
   const last = history[history.length - 1];
   if (last) {
     if (last[1] != null) {

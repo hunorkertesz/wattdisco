@@ -196,13 +196,23 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
 .facts--line { gap: 2px 14px; color: var(--muted); font-size: 12px; font-family: var(--font-mono); letter-spacing: .04em; }
 .facts--line b { font-family: var(--font); font-size: 17px; color: var(--white); letter-spacing: normal; }
 .choice > * { flex: none; }
-.choice > .choice__chart { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.choice > .choice__chart { flex: 1 1 auto; min-height: 30px; display: flex; flex-direction: column; justify-content: flex-end; }
 .choice__chart .loadbars { flex: 1 1 auto; height: auto; min-height: 14px; max-height: 56px; gap: 4px; }
 .loadbars__axis { gap: 4px; }
 .choice__buttons .btn { height: 36px; padding: 0 16px; font-size: 13px; }
 .how { gap: 6px 24px; }
 .how li { font-size: 12px; line-height: 1.35; }
 .how b { font-size: 13px; }
+
+/* narrower than 1280 (an iPad in landscape): keep each card's facts on one line */
+@media (max-width: 1240px) {
+  .facts--line { gap: 2px 10px; font-size: 11px; }
+  .facts--line b { font-size: 15px; }
+}
+/* and short as well (iPad landscape, 1180 × 820): one line of text each, so the buttons fit */
+@media (max-width: 1240px) and (max-height: 860px) and (min-width: 861px) {
+  .choice__for, .choice__about { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+}
 
 /* half a screen: the chooser and the plan stack */
 @media (max-width: 1100px) {

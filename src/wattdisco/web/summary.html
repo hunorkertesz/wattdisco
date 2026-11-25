@@ -88,7 +88,7 @@
       <div class="stat stat--hr stat--aet" data-metric="hr_drift">
         <span class="mono aet__label drift__label-up" title="How much heart rate rose against power from the first to the second half">HR drift <span id="drift-info-btn"></span></span>
         <div class="stat__v"><b id="drift">--</b><span>%</span></div>
-        <div class="info-text aet__pop" id="drift-info">
+        <div class="info-text aet__pop" id="drift-info" hidden>
           <p><b>Heart rate drift</b> (also called aerobic decoupling) shows how much your heart rate crept up against your
             power as the ride went on. The ride's seconds with both power and heart rate are cut into two halves, and each
             half gets its watts per beat: average power ÷ average heart rate. The drift is how much the second half's watts
@@ -107,7 +107,7 @@
         <span class="mono aet__label" title="Aerobic threshold from heart rate variability">AeT · α1 <span id="aet-info-btn"></span></span>
         <div class="stat__v"><b id="aet">--</b><span id="aet-unit">bpm</span></div>
         <small class="aet__sub" id="aet-sub"></small>
-        <div class="info-text aet__pop" id="aet-info">
+        <div class="info-text aet__pop" id="aet-info" hidden>
           <p><b>Aerobic threshold from heart rate variability (DFA α1).</b> When you ride easy, the time between heartbeats
             varies in a complex, correlated way and α1 is around 1. As effort rises the pattern turns random and α1 falls
             towards 0.5. Where α1 crosses <b>0.75</b> lines up with the aerobic threshold (first ventilatory threshold).</p>
