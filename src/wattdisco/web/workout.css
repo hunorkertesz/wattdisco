@@ -207,10 +207,14 @@
 .metric__head { display: flex; flex-direction: column-reverse; align-items: center; gap: 2px; }
 .metric__head > .mono { font-size: 14px; color: var(--clean-text); }
 
-/* The heart rate number gives a small pulse on every beat of the trace. */
-#hr-num { transition: transform .12s ease-out; transform-origin: center 70%; }
+/* The heart rate number gives a small pulse on every beat of the trace. It stays on its own layer, so the
+   pulse never switches its text rendering on and off (that read as blinking). In a smaller window the number
+   stays still and only the rings beat. */
+#hr-num { transition: transform .12s ease-out; transform-origin: center 70%; will-change: transform; }
 #hr-num.beat { transform: scale(1.045); }
-@media (prefers-reduced-motion: reduce) { #hr-num.beat { transform: none; } }
+@media (prefers-reduced-motion: reduce), (max-width: 1100px), (max-height: 780px) {
+  #hr-num, #hr-num.beat { transform: none; transition: none; will-change: auto; }
+}
 
 .metric--cadence { grid-area: cadence; }
 .metric--cadence .num, .metric--cadence .cadence-label { color: var(--cadence); }
