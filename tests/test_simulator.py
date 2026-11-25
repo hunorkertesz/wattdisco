@@ -103,3 +103,55 @@ def test_sim_obeys_trainer_commands():
     erg, free, statuses = asyncio.run(go())
     assert (erg, free) == (180, None)
     assert [s.mode for s in statuses] == ["erg", "free"]
+
+
+def test_sim_skips_ahead_when_it_falls_behind_the_clock():
+    """A busy computer (or a fast sim) delays the sensors: they send what they measure now, never old seconds,
+    which the session would take for a dropout (and the ride would pause on its own)."""
+
+    async def go():
+        bus, clock = Bus(), ManualClock()
+        session = Session(bus, clock)
+        stamps = []
+        bus.subscribe("power", lambda s: stamps.append(s.t) if s.device_id == "sim-trainer" else None)
+        source = SimSource()
+        task = asyncio.create_task(source.run(bus, clock))
+        while clock.now() < 10:
+            await asyncio.sleep(0)
+        clock.advance(30)  # the sim was held up for 30 ride seconds
+        while clock.now() < 45:
+            await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        return stamps, session.snapshot()
+
+    stamps, s = asyncio.run(go())
+    assert stamps[-1] >= 44 and not any(11 < t < 40 for t in stamps)  # the missed seconds are dropped
+    assert s.power_raw is not None and s.alerts == []
+
+
+def test_sim_rider_stops_only_when_the_rider_pauses():
+    """An app pause (no pedalling seen, or waiting for the first strokes) ends when the rider pedals, so the
+    simulated rider rides on through it; a pause the rider chose stops the pedals."""
+    from dataclasses import replace
+
+    from wattdisco.core.workout import WorkoutPlayer
+
+    async def go():
+        bus, clock = Bus(), ManualClock()
+        source = SimSource()
+        task = asyncio.create_task(source.run(bus, clock))
+        await asyncio.sleep(0)
+        pos = replace(WorkoutPlayer(default_workout(250)).position(100.0), paused=True)
+        follows = {}
+        for who in ("stopped", "waiting", "rider"):
+            bus.publish("pause", who)
+            bus.publish("workout", pos)
+            follows[who] = source.rider.follow
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        return pos, follows
+
+    pos, follows = asyncio.run(go())
+    assert follows["stopped"] == follows["waiting"] == (pos.target, pos.cadence)
+    assert follows["rider"] == (0, 1)

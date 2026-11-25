@@ -24,6 +24,7 @@ CORE = Device(id="sim-core", name="SIM CORE", roles={"temperature"}, rssi=-66, b
 SIM_SCAN_SECONDS = 3.0
 SIM_ZERO_SECONDS = 1.5
 SIM_SPIN_DOWN_STEP = 0.25  # s between speed updates in a simulated spin-down (about 6 s in all)
+SIM_MAX_LAG = 2.0  # ride seconds the sensors may fall behind the clock before they skip ahead
 
 REST_HR = 62
 MAX_HR = 188
@@ -205,13 +206,21 @@ class SimSource:
             self.trainer_log.append(cmd)
             bus.publish("trainer_status", TrainerStatus(TRAINER.id, True, cmd.mode, cmd.watts, "ok", cmd.grade))
 
+        paused_by: list[str | None] = [None]
+
+        def on_pause(who: str | None) -> None:
+            paused_by[0] = who
+
         def on_workout(pos) -> None:
-            if pos.paused:
-                self.rider.follow = (0, 1)  # the rider stops pedalling
+            if pos.paused and paused_by[0] == "rider":
+                self.rider.follow = (0, 1)  # the rider pressed Pause and stops pedalling
             else:
+                # Riding, or the app paused on its own ("waiting" to start, or it saw no pedalling, e.g. a
+                # busy computer delayed the samples): the simulated rider rides on, so pedalling ends the pause.
                 self.rider.follow = None if pos.done or pos.target is None else (pos.target, pos.cadence)
 
-        unsubscribe = [bus.subscribe("trainer", on_trainer), bus.subscribe("workout", on_workout)]
+        unsubscribe = [bus.subscribe("trainer", on_trainer), bus.subscribe("pause", on_pause),
+                       bus.subscribe("workout", on_workout)]
         try:
             self.scan()
             for device in self.devices:
@@ -219,6 +228,10 @@ class SimSource:
             tick = 0
             while True:
                 await clock.sleep(tick - clock.now())
+                if clock.now() - tick > SIM_MAX_LAG:
+                    # Fell behind (a busy computer, a fast sim): like a real sensor, send what it measures now
+                    # and drop the missed seconds. Old samples would look like a dropout and pause the ride.
+                    tick = math.floor(clock.now())
                 connected = {d.id for d in self.devices if d.state == "connected"}
                 for sample in self.rider.step(float(tick)):
                     if sample.device_id in connected:

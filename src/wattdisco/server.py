@@ -884,6 +884,8 @@ class Ride:
         now = self.clock.now()
         snap = self.session.snapshot()
         cmd = self.player.command(now, cadence=snap.cadence, power=snap.power_raw)
+        # who paused: "rider", or the app ("stopped", "waiting"), which pedalling ends; None while riding
+        self.bus.publish("pause", (self.auto_paused or "rider") if self.paused else None)
         self.bus.publish("workout", self.player.position(now))
         if cmd is not None:
             self.bus.publish("trainer", cmd)
