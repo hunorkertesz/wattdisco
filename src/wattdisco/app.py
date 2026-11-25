@@ -24,6 +24,10 @@ WINDOW_FILE = "window.json"
 DEFAULT_SIZE = (1280, 848)
 MIN_SIZE = (520, 520)  # small enough to share the screen side by side with another window
 START_TIMEOUT = 15.0
+# The window's page keeps its own preferences (help seen, nerd mode, zoom, text size) in browser storage,
+# which belongs to one address. So the app asks for the same port every time, and takes any free one only
+# when that is busy (then those preferences start fresh for this run).
+APP_PORT = 38517
 
 
 def build_ride(sim: bool, speed: float = 1.0, scan_seconds: float = 10.0, smoothing: str = "3s") -> Ride:
@@ -54,10 +58,17 @@ def build_ride(sim: bool, speed: float = 1.0, scan_seconds: float = 10.0, smooth
     )
 
 
-def free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def free_port(preferred: int = 0) -> int:
+    """`preferred` when it is free, else any free port."""
+    for port in ((preferred, 0) if preferred else (0,)):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as the server does: a just-closed run is no reason to move
+            try:
+                s.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return s.getsockname()[1]
+    raise OSError("no free port")
 
 
 def load_geometry(path=DATA_DIR / WINDOW_FILE) -> dict:
@@ -132,7 +143,7 @@ def run_window(sim: bool = False, speed: float = 1.0, scan_seconds: float = 10.0
     import webview
 
     ride = build_ride(sim, speed, scan_seconds, smoothing)
-    port = free_port()
+    port = free_port(APP_PORT)
     server = uvicorn.Server(uvicorn.Config(create_app(ride), host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, name="wattdisco-server", daemon=True)
     thread.start()

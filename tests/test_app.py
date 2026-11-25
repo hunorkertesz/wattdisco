@@ -1,7 +1,7 @@
 import json
 
 from wattdisco import __main__ as cli
-from wattdisco.app import DEFAULT_SIZE, MIN_SIZE, free_port, load_geometry, save_geometry
+from wattdisco.app import APP_PORT, DEFAULT_SIZE, MIN_SIZE, free_port, load_geometry, save_geometry
 
 
 def test_no_command_opens_the_window(monkeypatch):
@@ -20,6 +20,19 @@ def test_serve_and_scan_still_parse():
 
 def test_free_port():
     assert 1024 < free_port() < 65536
+
+
+def test_free_port_prefers_the_same_port_and_falls_back_when_busy():
+    import socket
+
+    port = free_port()
+    assert free_port(port) == port  # the same address every start, so the page keeps its storage
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as busy:
+        busy.bind(("127.0.0.1", port))
+        busy.listen()
+        other = free_port(port)
+    assert other != port and 1024 < other < 65536
+    assert 1024 < APP_PORT < 49152  # outside the range the system hands out on its own
 
 
 def test_window_geometry_round_trip(tmp_path):
