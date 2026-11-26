@@ -35,7 +35,7 @@ wattdisco/
 ├── .github/workflows/release.yml   per version tag: tests, Mac .dmg and Windows .exe, draft GitHub Release
 ├── packaging/                PyInstaller spec, launcher (output to wattdisco.log when there's no terminal), app icon, make_dmg.sh,
 │                             licenses.py + native-licenses/ + package-licenses/ (licence texts copied into the app)
-├── design/                   exported concept screens (reference only, never served or shipped)
+├── design/                   exported concept screens (reference only, never served or shipped; local, not in the repository)
 ├── relay/                    Strava relay (Cloudflare Worker): holds the shared app's client secret, swaps sign-in codes and refreshes tokens
 ├── src/wattdisco/
 │   ├── __main__.py           CLI: `wattdisco` (opens the app window), `wattdisco serve` (browser only), `--sim`, `scan`

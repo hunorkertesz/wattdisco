@@ -14,3 +14,6 @@ wheels/
 data/
 .DS_Store
 .pytest_cache/
+
+# Concept screens: a local reference for building screens, not part of the repository
+design/

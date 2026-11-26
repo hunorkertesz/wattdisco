@@ -24,7 +24,7 @@ src/wattdisco/
   server.py
   web/      one page per screen, shared theme.css, live.js (ships inside the package)
 packaging/  PyInstaller spec, launcher, icon, make_dmg.sh (apps built by .github/workflows/release.yml)
-design/     concept screens (*.dc.html, optional PNG copies), visual reference only, never served or shipped
+design/     concept screens (*.dc.html, optional PNG copies), visual reference only, never served or shipped; kept locally, not in the repository (.gitignore)
 tests/
 ```
 
