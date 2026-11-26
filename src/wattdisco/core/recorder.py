@@ -68,7 +68,10 @@ class Recorder:
         self._thread.join()
 
     def _write_loop(self) -> None:
+        cut = _ends_mid_line(self.path)
         with self.path.open("a", encoding="utf-8") as f:
+            if cut:  # a ride continued after a crash: end its half-written line, so the next one stays whole
+                f.write("\n")
             while True:
                 record = self._queue.get()
                 if record is None:
@@ -100,6 +103,18 @@ class RideData:
 
     def device_name(self, device_id: str) -> str:
         return self.devices.get(device_id, {}).get("name", device_id)
+
+
+def _ends_mid_line(path: Path) -> bool:
+    try:
+        with path.open("rb") as f:
+            f.seek(0, 2)
+            if f.tell() == 0:
+                return False
+            f.seek(-1, 2)
+            return f.read(1) != b"\n"
+    except OSError:  # no file yet: a new ride
+        return False
 
 
 def ended(path: Path) -> bool:

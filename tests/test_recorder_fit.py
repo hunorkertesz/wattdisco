@@ -217,3 +217,20 @@ def test_balance_summary_from_a_dual_sided_meter():
     assert b["drift"] == -2.0 and 48.0 < b["left"] < 50.0 and b["right"] == round(100 - b["left"], 1)
     assert b["intervals"] == [{"index": 1, "kind": "threshold", "left": 48.0, "right": 52.0}]
     assert _balance(RideData(meta={"id": "r"}), []) is None
+
+
+def test_continued_ride_keeps_its_first_line_after_a_half_written_one(tmp_path):
+    ride_id = "20261126-080000"
+    path = ride_path(tmp_path, ride_id)
+    rec = Recorder(path, {"id": ride_id, "started": "2026-11-26T07:00:00+00:00", "ftp": 240})
+    rec.write({"type": "hr", "t": 1.0, "device_id": "strap", "bpm": 120})
+    rec.close()
+    with path.open("a", encoding="utf-8") as f:
+        f.write('{"type":"hr","t":2.0,"dev')  # the app stopped mid-line
+
+    again = Recorder(path, None)  # continued
+    again.write({"type": "hr", "t": 3.0, "device_id": "strap", "bpm": 125})
+    again.close()
+
+    ride = load_ride(path)
+    assert ride.hr["strap"] == [(1.0, 120), (3.0, 125)]
