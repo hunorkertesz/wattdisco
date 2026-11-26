@@ -203,3 +203,12 @@ def test_every_plan_has_a_difficulty():
         assert info["level"] in plans.LEVELS and info["level_name"] == plans.LEVELS[info["level"]]
         assert info["level_zone"] in (2, 3, 4, 5) and plan["level_why"]
     assert plans.PLANS["base-8"]["level"] < plans.PLANS["vo2-5"]["level"]  # easiest and hardest
+
+
+def test_plans_come_in_four_groups_of_several():
+    assert len(plans.GROUPS) == 4
+    for plan_id, plan in plans.PLANS.items():
+        assert plan["group"] in plans.GROUPS, plan_id
+        assert plans.plan_info(plan_id, 250)["group"] == plan["group"]
+    for group in plans.GROUPS:
+        assert sum(p["group"] == group for p in plans.PLANS.values()) >= 3, group

@@ -1505,7 +1505,7 @@ def create_app(ride: Ride, warm: bool = False) -> FastAPI:
         # shortest plan first: by weeks, then by riding time; previews tailored to days and length
         infos = sorted((plans.plan_info(p, ride.settings.ftp, days, minutes) for p in plans.PLANS),
                        key=lambda i: (len(i["weeks"]), i["seconds"]))
-        return {"plans": infos,
+        return {"plans": infos, "groups": [{"id": k, **v} for k, v in plans.GROUPS.items()],
                 "active": plans.view(ride.plan, ride.settings.ftp) if ride.plan else None}
 
     async def change_plan(change: Callable[[dict], None]) -> dict:

@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from wattdisco.config import load_settings
+from wattdisco.core import plans
 from wattdisco.core.clock import Clock
 from wattdisco.core.workouts import default_workout
 from wattdisco.models import Phase, Workout
@@ -667,7 +668,8 @@ def test_training_plan_api_and_ride_ticks_off(tmp_path):
 
         r = c.post("/api/plan", json={"plan": "short-4"}).json()
         weeks = [len(p["weeks"]) for p in r["plans"]]
-        assert weeks == sorted(weeks) and len(r["plans"]) == 6  # shortest first
+        assert weeks == sorted(weeks) and len(r["plans"]) == len(plans.PLANS)  # shortest first
+        assert [g["id"] for g in r["groups"]] == list(plans.GROUPS) and all(p["group"] in plans.GROUPS for p in r["plans"])
         assert r["active"]["next"]["workout_id"] == "ftp-ramp-test"
         assert c.get("/api/workouts").json()["selected"] == "ftp-ramp-test"  # the next session is lined up
         assert (tmp_path / "plan.json").exists()

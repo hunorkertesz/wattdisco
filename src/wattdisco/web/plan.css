@@ -184,8 +184,10 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
 .tailor__row > .mono { min-width: 112px; font-size: 11px; }
 .tailor .chip-group .chip { height: 28px; padding: 0 11px; border-radius: 14px; font-size: 12px; }
 
-/* six plans in a 3 × 2 grid: compact cards so the chooser fits 1280 × 800 */
-.choices { grid-template-rows: repeat(2, minmax(0, 1fr)); }
+/* the plans of one group side by side (three or four), under the group tabs, so the chooser fits 1280 × 800 */
+.groups { display: flex; align-items: center; gap: 8px 20px; flex-wrap: wrap; }
+.groups__about { margin: 0; color: var(--muted); font-size: 13px; }
+.choices { grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
 .choice { padding: clamp(10px, 1.6vh, 18px) clamp(14px, 1.4vw, 20px); gap: clamp(4px, .9vh, 8px); overflow: hidden; }
 .choice h2 { font-size: clamp(18px, 1.8vw, 24px); }
 .choice__for { font-size: 13px; }
@@ -197,7 +199,7 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
 .facts--line b { font-family: var(--font); font-size: 17px; color: var(--white); letter-spacing: normal; }
 .choice > * { flex: none; }
 .choice > .choice__chart { flex: 1 1 auto; min-height: 30px; display: flex; flex-direction: column; justify-content: flex-end; }
-.choice__chart .loadbars { flex: 1 1 auto; height: auto; min-height: 14px; max-height: 56px; gap: 4px; }
+.choice__chart .loadbars { flex: 1 1 auto; height: auto; min-height: 14px; max-height: 110px; gap: 4px; }
 .loadbars__axis { gap: 4px; }
 .choice__buttons .btn { height: 36px; padding: 0 16px; font-size: 13px; }
 .how { gap: 6px 24px; }
@@ -216,6 +218,9 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
 
 /* half a screen: the chooser and the plan stack */
 @media (max-width: 1100px) {
+  /* two columns of compact cards (no load chart, which "View plan" shows), so every card keeps its buttons */
+  .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; align-content: start; flex: none; }
+  .choice > .choice__chart { display: none; }
   .bsess { grid-template-columns: 24px minmax(0, 1fr) minmax(100px, .8fr) 60px 60px; }
   .bsess__open { display: none; }
   .bsess { row-gap: 4px; }
@@ -233,6 +238,7 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
   .page { height: auto; min-height: 100dvh; }
   .plan { min-height: auto; }
   .choices { grid-template-columns: 1fr; grid-template-rows: none; }
+  .groups .chip-group { width: 100%; }
   .choice__about { -webkit-line-clamp: unset; }
   .active { grid-template-columns: 1fr; }
   .next { order: -1; overflow: visible; }

@@ -21,6 +21,10 @@
           </div>
           <div class="tailor" id="tailor-choose"></div>
         </div>
+        <div class="groups">
+          <div id="groups"></div>
+          <p class="groups__about" id="group-about"></p>
+        </div>
         <div class="choices" id="choices"></div>
         <ul class="how" aria-label="How the plans work">
           <li><b>Sweet spot to threshold</b>Most FTP gain comes from time just below and at FTP, with a little VO2 max on top.</li>
@@ -175,7 +179,7 @@ function render(data) {
   $("running").hidden = !!detail || !data.active;
   if (detail) renderDetail(data.active?.id === detail.id ? data.active : detail, data.active);
   else if (data.active) renderActive(data.active);
-  else renderChoices(data.plans);
+  else renderChoices(data.plans, data.groups);
 }
 
 // ---------- breakdown ----------
@@ -237,10 +241,25 @@ const levelTag = (p) => el("span", { class: "level", style: `--lvl: var(--zone-$
   title: `${p.level_name} as written: ${p.level_why}. More days or longer sessions make it harder.`, text: p.level_name });
 
 // ---------- choosing ----------
-function renderChoices(plans) {
+// Four groups of plans, one shown at a time; the group last looked at is remembered per browser.
+let group = null;
+try { group = localStorage.getItem("wd.planGroup"); } catch {}
+
+function renderChoices(plans, groups) {
   document.title = "Watt Disco – Training plans";
-  const top = Math.max(...plans.flatMap((p) => p.weeks.map((w) => w.load)));
-  $("choices").replaceChildren(...plans.map((p) => {
+  if (!groups.some((g) => g.id === group)) group = groups[0].id;
+  const pick = (id) => {
+    group = id;
+    try { localStorage.setItem("wd.planGroup", id); } catch {}
+    renderChoices(plans, groups);
+  };
+  $("groups").replaceChildren(chipGroup(groups.map((g) => ({ value: g.id, label: `${g.name} · ${plans.filter((p) => p.group === g.id).length}` })),
+    { value: group, label: "Kind of plan", size: "lg", onChange: pick }));
+  $("group-about").textContent = groups.find((g) => g.id === group).about;
+  const top = Math.max(...plans.flatMap((p) => p.weeks.map((w) => w.load))); // one scale for every group
+  const shown = plans.filter((p) => p.group === group);
+  $("choices").style.setProperty("--n", String(shown.length));
+  $("choices").replaceChildren(...shown.map((p) => {
     const perWeek = p.seconds / p.weeks.length;
     return el("article", { class: "card choice", "aria-label": `${p.name}, ${p.level_name}`, style: `--lvl: var(--zone-${p.level_zone})` },
       el("div", { class: "choice__top" }, el("h2", { text: p.name }), levelTag(p)),

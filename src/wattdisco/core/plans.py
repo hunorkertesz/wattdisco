@@ -38,12 +38,22 @@ LEVELS = {1: "Easy", 2: "Moderate", 3: "Hard", 4: "Very hard"}
 LEVEL_ZONE = {1: 2, 2: 3, 3: 4, 4: 5}
 
 
+# The plan screen shows the plans in four groups, by what a rider wants from them.
+GROUPS = {
+    "start": {"name": "Getting started", "about": "A base to build on: mostly endurance, for new or returning riders."},
+    "ftp": {"name": "Raise your FTP", "about": "Sweet spot and threshold: more power for longer."},
+    "top": {"name": "Top-end power", "about": "VO2 max, anaerobic efforts and sprints: a higher ceiling and a harder kick."},
+    "climb": {"name": "Climbing and long days", "about": "Force on the pedals, long steady efforts and endurance for big days out."},
+}
+
+
 def _week(focus: str, *sessions: str, light: bool = False) -> dict:
     return {"focus": focus, "light": light, "sessions": list(sessions)}
 
 
 PLANS = {
     "ftp-builder-6": {
+        "group": "ftp",
         "level": 3,
         "level_why": "Threshold work and the most riding time",
         "name": "FTP Builder",
@@ -59,6 +69,7 @@ PLANS = {
         ],
     },
     "base-8": {
+        "group": "start",
         "level": 1,
         "level_why": "Mostly endurance, the hardest is tempo and a little sweet spot",
         "name": "Base",
@@ -76,6 +87,7 @@ PLANS = {
         ],
     },
     "vo2-5": {
+        "group": "top",
         "level": 4,
         "level_why": "Two VO2 max sessions a week, the hardest efforts above FTP",
         "name": "VO2 max",
@@ -90,6 +102,7 @@ PLANS = {
         ],
     },
     "strength-6": {
+        "group": "climb",
         "level": 2,
         "level_why": "Low cadence at sweet spot and threshold, seated and controlled",
         "name": "Strength",
@@ -105,6 +118,7 @@ PLANS = {
         ],
     },
     "sprint-4": {
+        "group": "top",
         "level": 3,
         "level_why": "All-out sprints and anaerobic minutes, short but maximal",
         "name": "Sprint power",
@@ -118,6 +132,7 @@ PLANS = {
         ],
     },
     "short-4": {
+        "group": "ftp",
         "level": 2,
         "level_why": "Little time, but most of it hard",
         "name": "Short on time",
@@ -127,6 +142,118 @@ PLANS = {
             _week("Test and sweet spot", "ftp-ramp-test", "endurance-45", "sweet-spot-4x8"),
             _week("Sweet spot to threshold", "sweet-spot-4x8", "endurance-45", "threshold-2x15"),
             _week("Threshold and VO2 max", "threshold-2x15", "endurance-45", "vo2-5x3"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "first-steps-4": {
+        "group": "start",
+        "level": 1,
+        "level_why": "Three short endurance rides a week, nothing hard",
+        "name": "First steps",
+        "for": "Riders new to training indoors",
+        "about": "Three easy rides a week of 45–60 min, a few minutes of tempo by week 3, a ramp test at each end.",
+        "weeks": [
+            _week("Test and easy rides", "ftp-ramp-test", "endurance-45", "endurance-45"),
+            _week("Endurance", "endurance-45", "endurance-60-cadence", "endurance-45"),
+            _week("Endurance with a tempo finish", "endurance-60-cadence", "endurance-45", "endurance-60-tempo-finish"),
+            _week("Easy days, then test", "easy-spin-30", "endurance-45", "ftp-ramp-test", light=True),
+        ],
+    },
+    "comeback-6": {
+        "group": "start",
+        "level": 2,
+        "level_why": "Endurance and tempo, with one sweet spot session near the end",
+        "name": "Back after a break",
+        "for": "Riders coming back after weeks off the bike",
+        "about": "Endurance first, then tempo and a first sweet spot session. Lighter week 4, test at the end.",
+        "weeks": [
+            _week("Test and endurance", "ftp-ramp-test", "endurance-45", "endurance-60-cadence", "endurance-45"),
+            _week("Endurance", "endurance-60-cadence", "endurance-45", "endurance-60-tempo-finish", "endurance-90"),
+            _week("First tempo", "tempo-3x10", "endurance-60-cadence", "endurance-60-tempo-finish", "endurance-90"),
+            _week("Lighter week", "easy-spin-30", "endurance-45", "endurance-60-cadence", light=True),
+            _week("Tempo and sweet spot", "tempo-2x20", "endurance-60-cadence", "sweet-spot-3x12", "endurance-90"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "sweet-spot-8": {
+        "group": "ftp",
+        "level": 2,
+        "level_why": "Two sweet spot sessions a week: hard enough to grow FTP, easy enough to repeat",
+        "name": "Sweet spot",
+        "for": "Riders who want a higher FTP without the hardest sessions",
+        "about": "Sweet spot intervals that grow from 4 × 8 to 3 × 15 min, with over-unders in the second block. Lighter week 4.",
+        "weeks": [
+            _week("Test and sweet spot", "ftp-ramp-test", "endurance-60-cadence", "sweet-spot-4x8", "endurance-90"),
+            _week("Sweet spot", "sweet-spot-4x8", "endurance-60-cadence", "sweet-spot-3x12", "endurance-90"),
+            _week("Longer sweet spot", "sweet-spot-3x12", "endurance-60-cadence", "sweet-spot-2x20", "endurance-90"),
+            _week("Lighter week", "easy-spin-30", "sweet-spot-3x4", "endurance-60-cadence", light=True),
+            _week("Over-unders", "sweet-spot-2x20", "endurance-60-cadence", "sweet-spot-over-unders", "endurance-90"),
+            _week("Longer intervals", "sweet-spot-3x15", "endurance-60-cadence", "sweet-spot-over-unders", "endurance-90"),
+            _week("Sweet spot peak", "sweet-spot-3x15", "endurance-60-cadence", "sweet-spot-2x20", "endurance-2h"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "threshold-6": {
+        "group": "ftp",
+        "level": 4,
+        "level_why": "Two threshold sessions a week, right at FTP",
+        "name": "Threshold",
+        "for": "Riders with a solid base who want to hold their FTP longer",
+        "about": "Intervals at FTP from 2 × 15 to 2 × 20 min, with over-unders to handle surges. Lighter week 4.",
+        "weeks": [
+            _week("Test and threshold", "ftp-ramp-test", "endurance-60-cadence", "threshold-2x15", "endurance-90"),
+            _week("Threshold", "threshold-3x10", "endurance-60-cadence", "threshold-over-unders", "endurance-90"),
+            _week("More time at FTP", "threshold-4x8", "endurance-60-cadence", "threshold-5x6", "endurance-90"),
+            _week("Lighter week", "easy-spin-30", "sweet-spot-3x4", "endurance-60-cadence", light=True),
+            _week("Threshold peak", "threshold-2x20", "endurance-60-cadence", "threshold-over-unders", "endurance-2h"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "punch-4": {
+        "group": "top",
+        "level": 3,
+        "level_why": "Short efforts well above FTP, two a week",
+        "name": "Punch",
+        "for": "Riders who want power for attacks, short climbs and group rides",
+        "about": "30/30s, over-unders, anaerobic minutes and sprints inside endurance rides, two key sessions a week.",
+        "weeks": [
+            _week("Test and 30/30s", "ftp-ramp-test", "endurance-45", "vo2-30-30", "endurance-60-cadence"),
+            _week("Surges", "threshold-over-unders", "endurance-45", "anaerobic-6x1", "endurance-90"),
+            _week("VO2 and sprints", "vo2-40-20", "endurance-60-cadence", "endurance-with-sprints", "endurance-90"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "climbing-6": {
+        "group": "climb",
+        "level": 3,
+        "level_why": "Long sweet spot and threshold efforts, and low cadence work",
+        "name": "Climbing",
+        "for": "Riders getting ready for long climbs",
+        "about": "Long steady efforts like a climb (2 × 20, 3 × 15 min) and seated low-cadence work for torque. Lighter week 4.",
+        "weeks": [
+            _week("Test and big gear", "ftp-ramp-test", "endurance-60-cadence", "strength-big-gear-tempo", "endurance-90"),
+            _week("Long sweet spot", "sweet-spot-2x20", "endurance-60-cadence", "strength-low-cadence-3x10", "endurance-90"),
+            _week("Longer efforts", "sweet-spot-3x15", "endurance-60-cadence", "strength-hill-reps", "endurance-2h"),
+            _week("Lighter week", "easy-spin-30", "strength-hill-reps", "endurance-45", light=True),
+            _week("Threshold climbs", "threshold-2x20", "endurance-60-cadence", "strength-threshold-5x4", "endurance-2h"),
+            _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
+        ],
+    },
+    "long-rides-8": {
+        "group": "climb",
+        "level": 2,
+        "level_why": "Long endurance and tempo, a little sweet spot later on",
+        "name": "Long rides",
+        "for": "Riders getting ready for a long day out or a multi-day trip",
+        "about": "Endurance up to 2 h every week, tempo blocks that grow, then sweet spot. Lighter week 4.",
+        "weeks": [
+            _week("Test and tempo", "ftp-ramp-test", "endurance-60-cadence", "tempo-3x10", "endurance-90"),
+            _week("Endurance", "endurance-60-tempo-finish", "endurance-60-cadence", "tempo-45", "endurance-2h"),
+            _week("Tempo", "tempo-2x20", "endurance-60-cadence", "endurance-60-tempo-finish", "endurance-2h"),
+            _week("Lighter week", "easy-spin-30", "endurance-45", "endurance-60-cadence", light=True),
+            _week("Long tempo", "tempo-4x12", "endurance-60-cadence", "sweet-spot-3x12", "endurance-2h"),
+            _week("Tempo and sweet spot", "tempo-4x12", "endurance-60-tempo-finish", "sweet-spot-2x20", "endurance-2h"),
+            _week("Longest week", "sweet-spot-3x15", "endurance-60-cadence", "tempo-4x12", "endurance-2h"),
             _week("Easy days, then test", "easy-spin-30", "sweet-spot-3x4", "ftp-ramp-test", light=True),
         ],
     },
@@ -241,7 +368,7 @@ def plan_info(plan_id: str, ftp: int, days: int | None = None, minutes: int | No
         weeks.append({"n": n + 1, "focus": week["focus"], "light": week["light"], "sessions": sessions,
                       "seconds": seconds, "load": round(load)})
         total_seconds += seconds
-    return {"id": plan_id, "name": plan["name"], "for": plan["for"], "about": plan["about"],
+    return {"id": plan_id, "group": plan["group"], "name": plan["name"], "for": plan["for"], "about": plan["about"],
             "level": plan["level"], "level_name": LEVELS[plan["level"]], "level_zone": LEVEL_ZONE[plan["level"]],
             "level_why": plan["level_why"],
             "weeks": weeks, "seconds": total_seconds, "days": days, "minutes": minutes,
