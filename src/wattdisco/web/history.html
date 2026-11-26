@@ -18,6 +18,8 @@
           <span class="mono">Your rides, newest first · kept on this device</span>
         </div>
         <div class="hist__filters">
+          <span id="type"></span>
+          <input class="search" id="search" type="search" placeholder="Search · name or note" aria-label="Search rides" autocomplete="off">
           <span id="period"></span>
         </div>
       </div>
@@ -48,7 +50,7 @@
 </div>
 
 <script type="module">
-import { chipGroup, effortColor, el, fmtClock, renderStrip, rpeColor, toast } from "/components.js";
+import { chipGroup, effortColor, el, fmtClock, neonSelect, renderStrip, rpeColor, searchWords, toast } from "/components.js";
 import { distance, distanceUnit } from "/units.js";
 document.getElementById("dist-head").textContent = distanceUnit();
 
@@ -77,9 +79,33 @@ const dateText = (d) => d.toLocaleDateString(undefined, { weekday: "short", day:
 const timeText = (d) => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 const hours = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}` : `${Math.floor(s / 60)} min`);
 
+// Each ride's kind of workout (endurance, sweet spot, …, climb, FTP test), from the workout it rode.
+let categoryOf = {};
+let categoryByName = {}; // older rides keep only the workout's name
+const rideType = (r) => (r.climb ? "climb" : r.test ? "test"
+  : categoryOf[String(r.workout_id ?? "").split("--")[0]] ?? categoryByName[r.name] ?? "custom");
+let type = "all";
+let search = "";
 function visible() {
   const since = period === "all" ? -Infinity : Date.now() - Number(period) * DAY;
-  return rides.filter((r) => new Date(r.started).getTime() >= since); // the server lists real rides only
+  const words = searchWords(search);
+  return rides.filter((r) => new Date(r.started).getTime() >= since // the server lists real rides only
+    && (type === "all" || rideType(r) === type)
+    && words.every((w) => `${r.name ?? ""} ${r.note ?? ""}`.toLowerCase().includes(w)));
+}
+// Monday of the ride's week, as the key and label of its group
+function weekOf(d) {
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return day;
+}
+function weekHead(start, list) {
+  const sum = (k) => list.reduce((a, r) => a + (r[k] || 0), 0);
+  const thisWeek = weekOf(new Date()).getTime() === start.getTime();
+  const label = thisWeek ? "This week" : `Week of ${start.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(sameYear(start) ? {} : { year: "numeric" }) })}`;
+  return el("li", { class: "week-head mono" },
+    el("b", { text: label }),
+    el("span", { text: `${list.length} ride${list.length === 1 ? "" : "s"} · ${hours(sum("duration"))} · load ${Math.round(sum("load"))}` }));
 }
 
 function renderTotals(list) {
@@ -158,10 +184,22 @@ function deleteButton(r) {
 function render() {
   const list = visible();
   renderTotals(list);
-  $("rides").replaceChildren(...list.map(row));
+  // newest first, under a line per week with that week's rides, time and load
+  const items = [];
+  let current = null;
+  let group = [];
+  const flush = () => { if (current) items.push(weekHead(current, group), ...group.map(row)); };
+  for (const r of list) {
+    const w = weekOf(new Date(r.started));
+    if (!current || w.getTime() !== current.getTime()) { flush(); current = w; group = []; }
+    group.push(r);
+  }
+  flush();
+  $("rides").replaceChildren(...items);
   $("empty").hidden = list.length > 0;
   $("empty-ride").hidden = rides.length > 0;
   $("empty-text").textContent = !rides.length ? "No rides yet. Your first ride shows up here when it ends."
+    : type !== "all" || search ? "No ride matches. Clear the search or pick another type."
     : period !== "all" ? `No rides in the last ${period} days.`
     : "No rides yet.";
 }
@@ -171,6 +209,22 @@ try {
   rides = r.ok ? await r.json() : [];
 } catch { rides = []; }
 try { planRides = new Set((await (await fetch("/api/plans")).json()).active?.rides ?? []); } catch { /* no plan */ }
+let categories = [];
+try {
+  const lib = await (await fetch("/api/workouts")).json();
+  categoryOf = Object.fromEntries(lib.workouts.map((w) => [w.id, w.category ?? "custom"]));
+  categoryByName = Object.fromEntries(lib.workouts.map((w) => [w.name, w.category ?? "custom"]));
+  categories = lib.categories;
+} catch { /* no type filter */ }
+const kinds = categories.filter((c) => rides.some((r) => rideType(r) === c.id));
+const typePicker = neonSelect({ label: "Ride type", compact: true,
+  options: [{ value: "all", label: "All types" }, ...kinds.map((c) => ({ value: c.id, label: c.label }))], value: "all",
+  onChange: (v) => { type = v; render(); } });
+typePicker.classList.add("type-pick");
+$("type").replaceWith(typePicker);
+typePicker.hidden = kinds.length < 2;
+let searchTimer = 0;
+$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { search = $("search").value; render(); }, 120); });
 render();
 </script>
 </body>

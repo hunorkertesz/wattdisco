@@ -171,3 +171,13 @@
   .ride__date .mono { display: none; }
   .ride { column-gap: 12px; }
 }
+
+/* a line per week above its rides: the week's count, time and load */
+.week-head { display: flex; align-items: baseline; gap: 12px; padding: 10px 12px 4px; font-size: 11px; letter-spacing: .08em; color: var(--muted); }
+.week-head b { color: var(--cyan-soft); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+.week-head:first-child { padding-top: 4px; }
+.search { height: 34px; width: 200px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 17px; background: var(--bg);
+  color: var(--white); font: inherit; font-size: 13px; }
+.search:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.type-pick .nsel__button { border-color: var(--yellow); color: var(--yellow-soft); box-shadow: 0 0 8px var(--yellow), inset 0 0 8px rgba(255, 201, 60, .3); text-shadow: 0 0 6px var(--yellow); }
+.type-pick[hidden] { display: none; }

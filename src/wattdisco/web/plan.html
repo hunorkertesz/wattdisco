@@ -112,7 +112,7 @@
 </div>
 
 <script type="module">
-import { chipGroup, el, fmtClock, getZoneTops, renderStrip, setZoneTops, zoneColor } from "/components.js";
+import { chipGroup, el, fmtClock, getZoneTops, phaseStrip, renderStrip, setZoneTops, zoneColor } from "/components.js";
 
 const $ = (id) => document.getElementById(id);
 renderStrip($("strip"), { active: "plan" });
@@ -183,23 +183,6 @@ function render(data) {
 }
 
 // ---------- breakdown ----------
-function zoneOfPct(pct) {
-  const tops = getZoneTops();
-  const i = tops.findIndex((top) => pct <= top + 1e-9);
-  return i === -1 ? tops.length + 1 : i + 1;
-}
-// the workout as a strip of blocks, each as long as its phase and in its zone
-function phaseStrip(phases) {
-  const total = phases.reduce((a, p) => a + p.seconds, 0);
-  return el("span", { class: "strip-zones", "aria-hidden": "true" }, phases.map((p) => {
-    const pct = p.pct_end == null ? p.pct : Math.max(p.pct, p.pct_end);
-    const top = zoneColor(zoneOfPct(pct));
-    const from = zoneColor(zoneOfPct(Math.min(p.pct, p.pct_end ?? p.pct)));
-    return el("i", { style: `flex: ${p.seconds / total}; height: ${Math.min(100, 25 + pct * 55)}%;`
-      + ` background: linear-gradient(to right, ${p.pct_end != null && p.pct_end < p.pct ? `${top}, ${from}` : `${from}, ${top}`})` });
-  }));
-}
-
 function renderDetail(p, active) {
   const running = active?.id === p.id;
   document.title = `Watt Disco – ${p.name}`;

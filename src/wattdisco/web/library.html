@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watt Disco – All workouts</title>
+<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/library.css">
+</head>
+<body>
+<div class="page">
+  <header class="strip" id="strip"></header>
+  <main>
+    <section class="card lib" aria-labelledby="title">
+      <div class="lib__head">
+        <div class="lib__title">
+          <a class="back-link mono" href="/ready.html" id="back">‹ Train</a>
+          <h1 class="neon-title" id="title">All workouts</h1>
+          <span class="mono" id="count">Every workout as a card · ★ your favourites first</span>
+        </div>
+        <div class="lib__filters">
+          <span id="types"></span>
+          <span id="length"></span>
+          <input class="search" id="search" type="search" placeholder="Search · 4x8, vo2…" aria-label="Search workouts" autocomplete="off">
+        </div>
+      </div>
+      <ol class="lib__grid" id="grid" aria-label="Workouts"></ol>
+      <p class="lib__empty mono" id="empty" hidden>No workout matches. Clear the search or pick another type.</p>
+    </section>
+  </main>
+</div>
+<script type="module">
+// All workouts as cards: zone strip, length, load and what it is, with the same type, length and search filters as
+// TRAIN. A card's Ride lines it up on TRAIN; Edit opens it in the editor (built-ins are saved as a copy there).
+import { LENGTHS, chipGroup, el, matchesSearch, phaseStrip, renderStrip, searchWords, setZoneTops } from "/components.js";
+
+const $ = (id) => document.getElementById(id);
+renderStrip($("strip"), { active: "workouts" });
+const [library, settings] = await Promise.all([
+  fetch("/api/workouts").then((r) => r.json()),
+  fetch("/api/settings").then((r) => r.json()),
+]);
+setZoneTops(settings.zone_tops);
+const favourites = new Set(settings.favourites ?? []);
+const workouts = library.workouts.filter((w) => !w.open && !w.climb); // climbs and Just ride have their own lists
+const types = library.categories.filter((c) => workouts.some((w) => (w.category ?? "custom") === c.id));
+const typeLabel = Object.fromEntries(library.categories.map((c) => [c.id, c.label]));
+
+const pref = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+const keep = (key, value) => { try { localStorage.setItem(key, value); } catch { /* this page only */ } };
+let type = pref("wd.type", "all");
+if (type !== "all" && !types.some((c) => c.id === type)) type = "all";
+let length = pref("wd.length", "all");
+let search = "";
+
+$("types").replaceWith(chipGroup([{ value: "all", label: "ALL TYPES" }, ...types.map((c) => ({ value: c.id, label: c.label.toUpperCase() }))],
+  { value: type, label: "Workout type", onChange: (v) => { type = v; keep("wd.type", v); render(); } }));
+$("length").replaceWith(chipGroup(LENGTHS.map(({ value, label }) => ({ value, label })),
+  { value: length, label: "Workout length", onChange: (v) => { length = v; keep("wd.length", v); render(); } }));
+let timer = 0;
+$("search").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { search = $("search").value; render(); }, 120); });
+
+const minutes = (s) => `${Math.round(s / 60)} min`;
+function card(w) {
+  const fav = favourites.has(w.id);
+  return el("li", { class: "wcard" },
+    el("div", { class: "wcard__top" },
+      el("h2", { text: w.name }),
+      fav ? el("span", { class: "wcard__fav", title: "Favourite", text: "★" }) : null),
+    el("span", { class: "tag mono", text: typeLabel[w.category ?? "custom"] ?? "Workout" }),
+    phaseStrip(w.phases ?? []),
+    el("div", { class: "wcard__facts mono" },
+      el("span", {}, el("b", { text: minutes(w.seconds ?? 0) })),
+      w.load != null ? el("span", {}, "load ", el("b", { text: String(Math.round(w.load)) })) : null,
+      w.intervals ? el("span", {}, el("b", { text: String(w.intervals) }), w.intervals === 1 ? " interval" : " intervals") : null),
+    el("p", { class: "wcard__text mono", text: w.text ?? "" }),
+    el("div", { class: "wcard__buttons" },
+      el("a", { class: "btn btn--sm btn--primary", href: `/ready.html?workout=${encodeURIComponent(w.id)}`, text: "Ride" }),
+      el("a", { class: "btn btn--sm", href: `/editor.html?id=${encodeURIComponent(w.id)}`, text: "Edit" })));
+}
+
+function render() {
+  const fits = LENGTHS.find((l) => l.value === length)?.test ?? (() => true);
+  const words = searchWords(search);
+  const shown = workouts
+    .filter((w) => (type === "all" || (w.category ?? "custom") === type) && fits(w.seconds ?? 0) && matchesSearch(w, words))
+    .sort((a, b) => (favourites.has(b.id) - favourites.has(a.id)) || (a.seconds ?? 0) - (b.seconds ?? 0));
+  $("grid").replaceChildren(...shown.map(card));
+  $("empty").hidden = shown.length > 0;
+  $("count").textContent = `${shown.length} of ${workouts.length} workouts · ★ favourites first, then shortest`;
+}
+render();
+</script>
+</body>
+</html>

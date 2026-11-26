@@ -42,6 +42,12 @@
   .filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-basis: 100%; }
   .filters[hidden] { display: none; }
   .filter-label { font-size: 11px; color: var(--muted); }
+  .search { height: 32px; width: 170px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--bg);
+    color: var(--white); font: inherit; font-size: 13px; }
+  .search:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+  .search.is-empty { border-color: var(--warn); }
+  .browse { font-size: 11px; color: var(--cyan-soft); text-decoration: none; }
+  .browse:hover { text-shadow: 0 0 6px var(--cyan); }
   .segmented.ride-kind { width: fit-content; align-self: flex-start; }
   .pick-workout .chip-group .chip[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); box-shadow: 0 0 6px var(--teal), inset 0 0 6px rgba(54, 227, 196, .3); text-shadow: 0 0 6px var(--teal); }
   .type-pick .nsel__button { border-color: var(--yellow); color: var(--yellow-soft); box-shadow: 0 0 8px var(--yellow), inset 0 0 8px rgba(255, 201, 60, .3); text-shadow: 0 0 6px var(--yellow); }
@@ -142,6 +148,8 @@
           <span class="mono filter-label">Filter</span>
           <span id="length"></span>
           <span id="type"></span>
+          <input class="search" id="search" type="search" placeholder="Search · 4x8, vo2…" aria-label="Search workouts" autocomplete="off">
+          <a class="mono browse" href="/library.html" id="browse">All workouts ›</a>
         </span>
       </div>
       <div class="plan-next" id="plan-next" hidden>
@@ -336,12 +344,13 @@ const ofKind = (k) => workouts.filter((w) => kindOf(w) === k);
 const lastKey = (k) => (k === "climb" ? "wd.lastClimb" : "wd.lastWorkout");
 // Workout type (endurance, sweet spot, VO2 max, …): only the types that have workouts, remembered per browser.
 const types = library.categories.filter((c) => ofKind("workout").some((w) => (w.category ?? "custom") === c.id));
+let search = ""; // narrows the picker as you type; not remembered
 let type = "all";
 try { type = localStorage.getItem("wd.type") ?? "all"; } catch {}
 if (type !== "all" && !types.some((c) => c.id === type)) type = "all";
 const options = () => workoutOptions(ofKind(kind), library.categories,
   { favourites, length: kind === "climb" ? "all" : length, type: kind === "workout" ? type : "all", keep: selected?.id,
-    suggested: kind === "workout" ? planNext?.workout_id : null });
+    suggested: kind === "workout" ? planNext?.workout_id : null, search: kind === "workout" ? search : "" });
 const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }, { value: "ride", label: "JUST RIDE" }],
   { value: kind, label: "Workouts, climbs or just ride", onChange: (k) => switchKind(k) });
 $("ride-kind").replaceWith(kindGroup);
@@ -393,6 +402,22 @@ const typePicker = neonSelect({
 typePicker.classList.add("type-pick");
 $("type").replaceWith(typePicker);
 typePicker.hidden = kind !== "workout";
+let searchTimer = 0;
+$("search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    search = $("search").value;
+    picker.setOptions(options());
+    $("search").classList.toggle("is-empty", !!search && !options().some((o) => o.value !== selected.id)); // nothing found
+  }, 120);
+});
+$("search").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const list = options(); // Enter rides the best match: the first one that is not already picked
+  const hit = list.find((o) => o.value !== selected.id) ?? list[0];
+  if (hit) pickWorkout(hit.value);
+});
 function showFav() {
   const on = favourites.includes(selected.id);
   $("fav").setAttribute("aria-pressed", String(on));

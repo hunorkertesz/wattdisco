@@ -80,7 +80,7 @@
   --yellow-soft: #FFE9A8;
   --teal: #36E3C4;
   --white: #FFF6E5;
-  --muted: #A99BC9;
+  --muted: #B6A9D4; /* raised a step for contrast on dim screens and in daylight */
   --neon-muted: #A99BC9; /* stays neon inside .clean, for buttons */
   --bg: #070B0A; /* black, the same as the ride screen, on every page */
   --card: #110A1C;
@@ -98,9 +98,9 @@
   --clean-bg: #070B0A;
   --clean-strip: #040706;
   --clean-text: #E8F1EC;
-  --clean-muted: #8AA398;
+  --clean-muted: #A6BBB1; /* raised for contrast: chart labels and small text stay readable on cheap screens */
   --clean-line: #14231D;
-  --clean-dash: #5F7F72;
+  --clean-dash: #7E9A8F;
   --hr: #FF6B7A;
   --cadence: #5CD6FF;
   --power: #FFFFFF;
@@ -817,3 +817,22 @@ body.has-zoom { overflow: hidden; }
   content: ""; position: absolute; inset: 0; transform-origin: left center; transform: scaleX(var(--hold, 0));
   background: rgba(255, 246, 229, .38); pointer-events: none;
 }
+
+/* ---------- touch screens: every control at least 44 px, the size a fingertip (or a glove) needs ---------- */
+@media (pointer: coarse) {
+  .btn, .btn--sm { min-height: 44px; }
+  .btn--icon, .btn--sm.btn--icon { min-width: 44px; }
+  .chip, .chip--lg, .segmented .chip { min-height: 44px; padding-left: 16px; padding-right: 16px; }
+  .chip-group { gap: 10px; }
+  .nsel__button { min-height: 44px; }
+  .zoom-btn, .zoom-btn.btn--icon { min-height: 40px; min-width: 40px; }
+  .back-link { min-height: 40px; }
+  .tab { min-height: 44px; }
+}
+
+/* a workout as a strip of zone blocks (components.js phaseStrip) */
+.strip-zones { display: flex; align-items: flex-end; gap: 1px; height: 26px; min-width: 0; }
+.strip-zones i { display: block; min-width: 1px; border-radius: 2px 2px 0 0; opacity: .9; }
+
+/* larger app text (Zones · Text size) zooms the page: it then scrolls, as on a phone, rather than squeeze its panels */
+html[data-ui-zoom] body > .page { height: auto; min-height: calc(100dvh / var(--ui-zoom, 1)); }

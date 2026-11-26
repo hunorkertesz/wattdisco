@@ -164,8 +164,6 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
 .bsess__num.muted { color: var(--muted); }
 .bsess__open { justify-self: end; color: var(--cyan-soft); font-size: 13px; text-decoration: none; white-space: nowrap; }
 .bsess__open:hover { text-shadow: 0 0 6px var(--cyan); }
-.strip-zones { display: flex; align-items: flex-end; gap: 1px; height: 26px; min-width: 0; }
-.strip-zones i { display: block; min-width: 1px; border-radius: 2px 2px 0 0; opacity: .9; }
 
 /* difficulty: only the card's frame (and its tag) takes the level's colour, easy green to very hard red;
    the title and the weeks inside keep the neutral neon colours */

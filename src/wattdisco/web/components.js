@@ -2,6 +2,20 @@
 
 let uid = 0;
 
+// App text size, for every screen but the ride screens (they have their own "Ride numbers size"): the whole page
+// is drawn larger, so small labels become readable from further away. Per browser, set on the Zones screen.
+export const UI_SCALES = { normal: 1, large: 1.12, larger: 1.25 };
+export function uiScale() { try { return localStorage.getItem("wd.uiScale") ?? "normal"; } catch { return "normal"; } }
+export function applyUiScale(value = uiScale()) {
+  if (document.body?.hasAttribute("data-own-scale")) return;
+  const z = UI_SCALES[value] ?? 1;
+  const root = document.documentElement;
+  root.style.zoom = z === 1 ? "" : String(z);
+  root.style.setProperty("--ui-zoom", String(z)); // full-height pages divide by it, so they still fit the window
+  root.toggleAttribute("data-ui-zoom", z !== 1);
+}
+applyUiScale();
+
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
@@ -193,18 +207,31 @@ export const LENGTHS = [
   { value: "long", label: "75+", test: (s) => s > 75 * 60 },
 ];
 
+/** Search words: "4x8", "4 × 8" and "4X8" all find "4 × 8"; every word has to be found (in the name, the
+ *  description or the type). */
+export function searchWords(text) {
+  return String(text ?? "").toLowerCase().replace(/(\d)\s*[x×]\s*(\d)/g, "$1×$2").split(/\s+/).filter(Boolean);
+}
+export function matchesSearch(w, words) {
+  if (!words.length) return true;
+  const hay = `${w.name} ${w.text ?? ""} ${w.category ?? ""}`.toLowerCase().replace(/(\d)\s*[x×]\s*(\d)/g, "$1×$2");
+  return words.every((word) => hay.includes(word));
+}
+
 /** Picker options: the plan's next session (`suggested`) first, then ★ favourites, then by category. `length` narrows
  *  by duration, `type` to one category; `keep` always stays. */
-export function workoutOptions(workouts, categories, { favourites = [], length = "all", type = "all", keep = null, suggested = null } = {}) {
+export function workoutOptions(workouts, categories, { favourites = [], length = "all", type = "all", keep = null, suggested = null, search = "" } = {}) {
   const fav = new Set(favourites);
-  const next = workouts.find((w) => w.id === suggested); // the plan's next session, first and whatever the filters say
+  const next = workouts.find((w) => w.id === suggested); // the plan's next session, first, whatever the length or type
   const fits = LENGTHS.find((l) => l.value === length)?.test ?? (() => true);
   const ofType = (w) => type === "all" || (w.category ?? "custom") === type;
-  const shown = workouts.filter((w) => w.id === keep || (fits(w.seconds ?? 0) && ofType(w)));
+  const words = searchWords(search);
+  const found = (w) => matchesSearch(w, words);
+  const shown = workouts.filter((w) => w.id === keep || (fits(w.seconds ?? 0) && ofType(w) && found(w)));
   const option = (w, group) => ({ value: w.id, label: `${w.name} · ${Math.round((w.seconds ?? 0) / 60)} min`, group });
   const rest = shown.filter((w) => w !== next);
   return [
-    ...(next ? [option(next, "Plan · next session")] : []),
+    ...(next && found(next) ? [option(next, "Plan · next session")] : []),
     ...rest.filter((w) => fav.has(w.id)).map((w) => option(w, "★ Favourites")),
     ...categories.flatMap((c) => rest.filter((w) => !fav.has(w.id) && (w.category ?? "custom") === c.id).map((w) => option(w, c.label))),
   ];
@@ -528,6 +555,24 @@ export function helpCard(key, { title, items, note = "" }) {
     card.querySelector("button").focus();
   };
   return { open, maybeOpen: () => { if (!seen()) open(); } };
+}
+
+// ---------- a workout as a strip of zone blocks (plans, library) ----------
+export function zoneOfPct(pct) {
+  const tops = getZoneTops();
+  const i = tops.findIndex((top) => pct <= top + 1e-9);
+  return i === -1 ? tops.length + 1 : i + 1;
+}
+// each block as long as its phase and as high as its power, in its zone colour (needs .strip-zones in theme.css)
+export function phaseStrip(phases) {
+  const total = phases.reduce((a, p) => a + p.seconds, 0);
+  return el("span", { class: "strip-zones", "aria-hidden": "true" }, phases.map((p) => {
+    const pct = p.pct_end == null ? p.pct : Math.max(p.pct, p.pct_end);
+    const top = zoneColor(zoneOfPct(pct));
+    const from = zoneColor(zoneOfPct(Math.min(p.pct, p.pct_end ?? p.pct)));
+    return el("i", { style: `flex: ${p.seconds / total}; height: ${Math.min(100, 25 + pct * 55)}%;`
+      + ` background: linear-gradient(to right, ${p.pct_end != null && p.pct_end < p.pct ? `${top}, ${from}` : `${from}, ${top}`})` });
+  }));
 }
 
 // ---------- enlarge a panel ----------

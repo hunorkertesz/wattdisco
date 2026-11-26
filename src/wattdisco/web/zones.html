@@ -17,7 +17,8 @@
           <h1 class="neon-title">Zones</h1>
           <span class="mono">Power zones are set from your FTP · heart rate zones from your max or threshold heart rate</span>
         </div>
-        <div class="units-pick"><span class="mono" id="units-label">Units</span><span id="units"></span></div>
+        <div class="units-pick"><span class="mono" id="units-label">Units</span><span id="units"></span>
+          <span class="mono" id="ui-scale-label">Text size</span><span id="ui-scale"></span></div>
       </div>
 
       <div class="sections">
@@ -76,7 +77,7 @@
 </div>
 
 <script type="module">
-import { chipGroup, criticalPowerLine, el, renderStrip } from "/components.js";
+import { applyUiScale, chipGroup, criticalPowerLine, el, renderStrip, uiScale } from "/components.js";
 import { KG_PER_LB, imperial, setUnits, units, weightUnit } from "/units.js";
 
 const $ = (id) => document.getElementById(id);
@@ -202,6 +203,14 @@ const unitGroup = chipGroup([{ value: "metric", label: "KM · KG" }, { value: "i
 });
 unitGroup.setAttribute("aria-labelledby", "units-label");
 $("units").replaceWith(unitGroup);
+
+// text size of every screen but the ride screens (those have "Ride numbers size" on TRAIN); per browser
+const scaleGroup = chipGroup([{ value: "normal", label: "NORMAL" }, { value: "large", label: "LARGE" }, { value: "larger", label: "LARGER" }], {
+  value: uiScale(), label: "Text size",
+  onChange: (v) => { try { localStorage.setItem("wd.uiScale", v); } catch {} applyUiScale(v); },
+});
+scaleGroup.setAttribute("aria-labelledby", "ui-scale-label");
+$("ui-scale").replaceWith(scaleGroup);
 
 $("ftp").addEventListener("input", preview);
 $("weight").addEventListener("input", preview);

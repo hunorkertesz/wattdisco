@@ -66,7 +66,7 @@ def test_pages_served_design_hidden(client):
     assert client.get("/theme.css").status_code == 200
     assert client.get("/design/Main.dc.html").status_code == 404
     for page in ("launch", "connect", "sensors", "ready", "editor", "workout", "summary", "upload", "zones", "compare", "history",
-                 "plan", "progress"):
+                 "plan", "progress", "library"):
         assert client.get(f"/{page}.html").status_code == 200, page
 
 
