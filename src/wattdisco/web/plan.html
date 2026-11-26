@@ -232,7 +232,7 @@ function renderDetail(p, active) {
       el("span", { class: "bsess__text mono", text: s.text }),
       el("span", { class: "bsess__num", text: minutes(s.seconds) }),
       el("span", { class: "bsess__num muted", text: s.test ? "--" : `load ${s.load}` }),
-      el("a", { class: "bsess__open", href: `/ready.html?workout=${encodeURIComponent(s.workout_id)}`, text: "Open ›",
+      el("a", { class: "bsess__open", href: `/ready.html?workout=${encodeURIComponent(s.workout_id)}&from=plan&plan=${encodeURIComponent(p.id)}`, text: "Open ›",
         title: "Look at it on the ready screen" })))))));
 }
 
@@ -345,7 +345,7 @@ async function renderActive(p) {
     $("next-time").textContent = fmtClock(n.seconds);
     $("next-load").textContent = n.test ? "--" : String(n.load); // a test's load depends on how far you get
     $("next-ftp").textContent = `${p.ftp} W`;
-    $("ride-it").href = `/ready.html?workout=${encodeURIComponent(n.workout_id)}`;
+    $("ride-it").href = `/ready.html?workout=${encodeURIComponent(n.workout_id)}&from=plan`;
     $("next-text").textContent = "";
     const w = await fetch(`/api/workouts/${encodeURIComponent(n.workout_id)}`).then((r) => r.json()).catch(() => null);
     if (w) $("next-text").textContent = w.text;

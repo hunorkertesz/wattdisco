@@ -221,8 +221,8 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
   /* two columns of compact cards (no load chart, which "View plan" shows), so every card keeps its buttons */
   .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; align-content: start; flex: none; }
   .choice > .choice__chart { display: none; }
-  .bsess { grid-template-columns: 24px minmax(0, 1fr) minmax(100px, .8fr) 60px 60px; }
-  .bsess__open { display: none; }
+  .bsess { grid-template-columns: 24px minmax(0, 1fr) minmax(100px, .8fr) 60px 60px 52px; }
+  .bsess__open { grid-row: 1; grid-column: 6; }
   .bsess { row-gap: 4px; }
   .bsess__text { grid-row: 2; grid-column: 2 / -1; }
 }
@@ -245,7 +245,8 @@ a.sess--done:hover { box-shadow: 0 0 10px rgba(54, 227, 196, .5); }
   .weeks__list { overflow: visible; }
 }
 @media (max-width: 600px) {
-  .bsess { grid-template-columns: 20px minmax(0, 1fr) auto; grid-template-areas: "n name time" "n zones zones" "n text text"; row-gap: 6px; }
+  .bsess { grid-template-columns: 20px minmax(0, 1fr) auto auto; grid-template-areas: "n name time open" "n zones zones zones" "n text text text"; row-gap: 6px; }
+  .bsess__open { grid-area: open; }
   .bsess__text { grid-area: text; }
   .bsess__n { grid-area: n; }
   .bsess__name { grid-area: name; }

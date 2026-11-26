@@ -100,6 +100,7 @@
       <!-- two kinds of ride: structured workouts in watts, or climbs where the road sets the resistance -->
       <div class="ride-kind" id="ride-kind"></div>
       <div class="pick-workout">
+        <a class="btn btn--sm" id="back-plan" href="/plan.html" hidden>‹ Plan</a>
         <label class="mono" for="workout" id="pick-label">Workout</label>
         <span id="workout"></span>
         <button class="btn btn--sm btn--icon fav" type="button" id="fav" aria-pressed="false" title="Favourite: listed first">☆</button>
@@ -235,6 +236,13 @@ const $ = (id) => document.getElementById(id);
 const strip = renderStrip($("strip"), { active: "train" });
 addSoundButton($("strip"));
 const params = new URLSearchParams(location.search);
+// opened from the training plan (a session's "Open", or "Ride it"): a way back to where the rider was
+if (params.get("from") === "plan") {
+  const plan = params.get("plan");
+  $("back-plan").href = /^[a-z0-9-]+$/.test(plan ?? "") ? `/plan.html?view=${plan}` : "/plan.html";
+  $("back-plan").title = "Back to the training plan";
+  $("back-plan").hidden = false;
+}
 
 const library = await (await fetch(`/api/workouts${params.get("workout") ? `?include=${encodeURIComponent(params.get("workout"))}` : ""}`)).json();
 const settings = await (await fetch("/api/settings")).json();
@@ -331,7 +339,9 @@ function choose(id) {
   selected = workouts.find((w) => w.id === id);
   showKind();
   showFav();
-  history.replaceState(null, "", `?workout=${selected.id}`);
+  const keep = new URLSearchParams({ workout: selected.id }); // the address names the workout; a way back stays
+  for (const k of ["from", "plan"]) if (params.get(k)) keep.set(k, params.get(k));
+  history.replaceState(null, "", `?${keep}`);
   renderWorkout();
   suggestMode();
 }
