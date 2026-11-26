@@ -60,11 +60,15 @@
         <span class="mono panel__title">Time in zones</span>
         <div class="zonebar" id="zonebar"></div>
         <div class="legend" id="legend"></div>
+        <!-- enlarged (⤢): every zone with its watts, time and share of the ride -->
+        <table class="detail-table zoom-detail" id="zone-detail"></table>
       </section>
       <!-- this ride's power curve points; ★ marks a best ever (real rides only) -->
       <section class="panel efforts" aria-labelledby="efforts-title">
         <span class="mono panel__title" id="efforts-title">Best efforts <a class="efforts__more" href="/progress.html">power curve ›</a></span>
         <div class="efforts__row" id="efforts"></div>
+        <!-- enlarged (⤢): every duration from 1 s to 60 min, with W/kg and % of FTP -->
+        <table class="detail-table zoom-detail" id="efforts-detail"></table>
       </section>
       <!-- a climb: your fastest times up it (real rides only), this ride marked -->
       <section class="panel climb-times" id="climb-times" aria-labelledby="climb-times-title" hidden>
@@ -159,6 +163,9 @@
                 <th class="mono" scope="col">Avg</th><th class="mono" scope="col">Diff</th>
                 <th class="mono" scope="col">Diff %</th><th class="mono" scope="col">On target</th>
                 <th class="mono col-lr" scope="col" title="Left / right pedal share of the power, %">L/R</th>
+                <th class="mono zoom-col" scope="col">Time</th><th class="mono zoom-col" scope="col">Max</th>
+                <th class="mono zoom-col" scope="col">Avg HR</th><th class="mono zoom-col" scope="col">Max HR</th>
+                <th class="mono zoom-col" scope="col">Cadence</th><th class="mono zoom-col" scope="col">Speed</th>
               </tr></thead>
               <tbody id="intervals"></tbody>
             </table>
@@ -274,7 +281,7 @@
   </div>
 </div>
 <script type="module">
-import { chipGroup, effortColor, el, fmtClock, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf, zoomButton } from "/components.js";
+import { chipGroup, effortColor, el, fmtClock, getZoneTops, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf, zoomButton } from "/components.js";
 import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
 import { distance, distanceUnit, imperial, speed, speedUnit } from "/units.js";
 import { METRIC, METRICS, averageMetrics, comparisonChoices, delta, drawCurves, drawOverlay, drawSparkline, fmtMetric,
@@ -319,6 +326,20 @@ function renderBasic(s) {
     el("span", { style: `flex:${z.seconds};--zone:${zoneColor(z.n)}`, title: `Z${z.n} ${z.name} ${duration(z.seconds)}` })));
   $("legend").replaceChildren(...used.map((z) =>
     el("span", { class: "mono", style: `--zone:${zoneColor(z.n)}` }, el("i"), `Z${z.n} ${z.name} ${duration(z.seconds)}`)));
+  const tops = getZoneTops();
+  const total = s.zones.reduce((a, z) => a + z.seconds, 0) || 1;
+  const watts = (n) => {
+    const lo = n === 1 ? 0 : Math.round(tops[n - 2] * s.ftp) + 1;
+    return n > tops.length ? `${lo}+ W` : `${lo}–${Math.round(tops[n - 1] * s.ftp)} W`;
+  };
+  $("zone-detail").replaceChildren(
+    el("thead", {}, el("tr", {}, ...["Zone", "Watts", "Time", "Share", ""].map((t) => el("th", { class: "mono", scope: "col", text: t })))),
+    el("tbody", {}, ...s.zones.map((z) => el("tr", { style: `--zone:${zoneColor(z.n)}` },
+      el("td", {}, el("i", { class: "zone-dot" }), `Z${z.n} ${z.name}`),
+      el("td", { text: watts(z.n) }),
+      el("td", { text: z.seconds ? duration(z.seconds) : "--" }),
+      el("td", { text: `${Math.round((z.seconds / total) * 100)} %` }),
+      el("td", { class: "bar-cell" }, el("span", { class: "share-bar", style: `width:${(z.seconds / total) * 100}%` }))))));
 }
 
 // A climb: time to the top, W/kg, VAM and metres climbed take the places of duration, max HR, cadence and distance.
@@ -437,6 +458,13 @@ function renderNerd(s) {
     el("td", { text: i.on_target_pct == null ? "--" : `${num(i.on_target_pct)} %`,
       class: i.on_target_pct == null ? "" : i.on_target_pct >= 85 ? "is-good" : i.on_target_pct < 60 ? "is-bad" : "" }),
     bal ? el("td", { class: "col-lr", text: cls === "all" ? lr(bal) : lr(lrByIndex[i.index]) }) : null,
+    // enlarged only: time, peak power, heart rate, cadence and estimated speed of the interval
+    el("td", { class: "zoom-col", text: i.seconds == null ? "--" : duration(i.seconds) }),
+    el("td", { class: "zoom-col", text: i.max_power == null ? "--" : `${num(i.max_power)} W` }),
+    el("td", { class: "zoom-col", text: i.avg_hr == null ? "--" : num(i.avg_hr) }),
+    el("td", { class: "zoom-col", text: i.max_hr == null ? "--" : num(i.max_hr) }),
+    el("td", { class: "zoom-col", text: i.avg_cadence == null ? "--" : `${num(i.avg_cadence)} rpm` }),
+    el("td", { class: "zoom-col", text: i.avg_speed == null ? "--" : `${speed(i.avg_speed * 3.6).toFixed(1)} ${speedUnit()}` }),
   );
   const rows = work.map((i, k) => row(String(k + 1), i));
   if (s.work_all && work.length > 1) rows.push(row("ALL", s.work_all, "all"));
@@ -656,6 +684,19 @@ async function renderEfforts(s) {
   }
   const record = new Set(curve.filter((p) => p.ride === s.id).map((p) => String(p.seconds)));
   const LABEL = { 5: "5 s", 60: "1 min", 300: "5 min", 1200: "20 min" };
+  const dur = (sec) => (sec < 60 ? `${sec} s` : `${sec / 60} min`);
+  const kg = s.weight_kg;
+  $("efforts-detail").replaceChildren(
+    el("thead", {}, el("tr", {}, ...["Duration", "Power", "W/kg", "% FTP", ""].map((t) => el("th", { class: "mono", scope: "col", text: t })))),
+    el("tbody", {}, ...Object.keys(bests).map(Number).sort((a, b) => a - b).map((sec) => {
+      const w = bests[String(sec)];
+      return el("tr", { style: w && s.ftp ? `--zone:${effortColor(w, s.ftp)}` : "" },
+        el("td", { text: `${dur(sec)}${record.has(String(sec)) ? " ★" : ""}`, title: record.has(String(sec)) ? "Your best ever for this duration" : "" }),
+        el("td", { class: "effort-w", text: w ? `${Math.round(w)} W` : "--" }),
+        el("td", { text: w && kg ? (w / kg).toFixed(2) : "--" }),
+        el("td", { text: w && s.ftp ? `${Math.round((w / s.ftp) * 100)} %` : "--" }),
+        el("td", { class: "bar-cell" }, el("span", { class: "share-bar", style: `width:${w && s.ftp ? Math.min(100, (w / s.ftp) * 50) : 0}%` })));
+    })));
   $("efforts").replaceChildren(...[5, 60, 300, 1200].map((sec) => {
     const w = bests[String(sec)];
     const best = record.has(String(sec));
@@ -900,10 +941,53 @@ async function setupCompare(s) {
   await chooseComparison(start, s);
 }
 
+// Point at a ride chart: a line at that second and its numbers (power and its 10 s average, target, heart rate,
+// estimated speed). The chart spans the canvas width, so the second is the pointer's share of the ride.
+function rideReadout(canvas, s) {
+  if (canvas.dataset.readout) return;
+  canvas.dataset.readout = "1";
+  const panel = canvas.closest(".panel");
+  const line = el("div", { class: "ride-cursor", hidden: true });
+  const box = el("div", { class: "ride-tip", hidden: true });
+  panel.append(line, box);
+  const ser = s.series;
+  const n = ser.elapsed.length;
+  const at = (sec) => { // the nearest sample, by binary search on the ride clock
+    let lo = 0, hi = n - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (ser.elapsed[mid] < sec) lo = mid + 1; else hi = mid; }
+    return lo > 0 && Math.abs(ser.elapsed[lo - 1] - sec) < Math.abs(ser.elapsed[lo] - sec) ? lo - 1 : lo;
+  };
+  const avg10 = (i) => { const v = ser.power.slice(Math.max(0, i - 9), i + 1).filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const hide = () => { line.hidden = box.hidden = true; };
+  canvas.addEventListener("pointermove", (e) => {
+    if (!n) return;
+    const r = canvas.getBoundingClientRect();
+    const f = (e.clientX - r.left) / r.width;
+    if (f < 0 || f > 1) return hide();
+    const seconds = Math.max(60, ser.elapsed[n - 1]);
+    const i = at(f * seconds);
+    const p = ser.power[i], t = ser.target?.[i], hr = ser.hr[i], sp = ser.speed?.[i]; // speed in m/s
+    const rows = [`${fmtClock(Math.round(ser.elapsed[i]))}`,
+      p != null ? `Power ${Math.round(p)} W${avg10(i) != null ? ` · 10 s ${Math.round(avg10(i))} W` : ""}` : "Power --",
+      t != null ? `Target ${Math.round(t)} W${p != null ? ` · ${p - t >= 0 ? "+" : "−"}${Math.abs(Math.round(p - t))} W` : ""}` : null,
+      hr != null ? `Heart rate ${Math.round(hr)} bpm` : null,
+      sp != null ? `Speed ${speed(sp * 3.6).toFixed(1)} ${speedUnit()} (est.)` : null].filter(Boolean);
+    box.replaceChildren(...rows.map((txt, k) => el(k ? "span" : "b", { text: txt })));
+    const pr = panel.getBoundingClientRect();
+    const x = e.clientX - pr.left;
+    line.style.left = `${x}px`; line.style.top = `${r.top - pr.top}px`; line.style.height = `${r.height}px`;
+    line.hidden = box.hidden = false;
+    box.style.left = `${Math.min(Math.max(6, x + 12), pr.width - box.offsetWidth - 6)}px`;
+    box.style.top = `${Math.max(4, r.top - pr.top + 6)}px`;
+  });
+  canvas.addEventListener("pointerleave", hide);
+}
+
 function drawCharts(s) {
   if (!$("ride-chart").closest("[hidden]")) drawSummaryChart($("ride-chart"), s);
   if (!$("nerd-chart").closest("[hidden]")) drawSummaryChart($("nerd-chart"), s);
   if (!$("diff-chart").closest("[hidden]")) drawTargetDiffChart($("diff-chart"), s);
+  for (const id of ["ride-chart", "nerd-chart", "diff-chart"]) if (s.series?.elapsed?.length) rideReadout($(id), s);
   if (cmp.mine) { decorateTiles(s); renderCompare(s); }
 }
 

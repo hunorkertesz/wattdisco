@@ -501,3 +501,25 @@ a.strava-chip:hover { color: var(--white); }
   cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .feel__ask:hover { color: var(--white); }
 .feel__ask[hidden] { display: none; }
+
+/* pointing at a ride chart: a line at that second and its numbers */
+.ride-cursor { position: absolute; width: 1px; background: rgba(255, 246, 229, .55); pointer-events: none; z-index: 2; }
+.ride-tip { position: absolute; z-index: 3; display: flex; flex-direction: column; gap: 1px; padding: 6px 9px; pointer-events: none;
+  background: rgba(7, 11, 10, .94); border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 4px 14px rgba(0, 0, 0, .5);
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+.ride-tip b { color: var(--white); font-size: 12px; }
+.ride-cursor[hidden], .ride-tip[hidden] { display: none; }
+
+/* more detail when a panel is enlarged (⤢): tables and columns that the compact panel leaves out */
+.zoom-detail, .zoom-col { display: none; }
+.is-zoomed .zoom-detail { display: table; }
+.is-zoomed .zoom-col { display: table-cell; }
+.detail-table { width: 100%; margin-top: 14px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.detail-table th { padding: 6px 10px; text-align: left; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line-strong); }
+.detail-table td { padding: 8px 10px; font-size: 15px; color: var(--white); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.detail-table .zone-dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--zone); box-shadow: 0 0 6px var(--zone); }
+.detail-table .effort-w { color: var(--zone, var(--white)); font-weight: 700; }
+.detail-table .bar-cell { width: 40%; }
+.share-bar { display: block; height: 8px; border-radius: 4px; background: var(--zone, var(--cyan)); box-shadow: 0 0 6px var(--zone, var(--cyan)); }
+.is-zoomed .zonebar { height: 22px; }
+.is-zoomed .intervals td, .is-zoomed .intervals th { font-size: 14px; padding: 7px 10px; }
