@@ -52,11 +52,11 @@
         <span class="mono">Distance (est.)</span><div class="stat__v"><b id="distance">--</b><span id="distance-unit">km</span></div></div>
       <div class="stat stat--climb stat--load" data-metric="climbed" style="display: none"><span class="mono">Climbed</span><div class="stat__v"><b id="climb-up">--</b><span id="climb-up-unit">m</span></div></div>
     </div>
-    <section class="panel panel--ride" data-view="basic">
+    <section data-zoom class="panel panel--ride" data-view="basic">
       <canvas class="chart chart--ride" id="ride-chart" role="img" aria-label="Power and heart rate over the workout"></canvas>
     </section>
     <div class="basic-row" data-view="basic">
-      <section class="panel">
+      <section class="panel" data-zoom>
         <span class="mono panel__title">Time in zones</span>
         <div class="zonebar" id="zonebar"></div>
         <div class="legend" id="legend"></div>
@@ -64,7 +64,7 @@
         <table class="detail-table zoom-detail" id="zone-detail"></table>
       </section>
       <!-- this ride's power curve points; ★ marks a best ever (real rides only) -->
-      <section class="panel efforts" aria-labelledby="efforts-title">
+      <section data-zoom class="panel efforts" aria-labelledby="efforts-title">
         <span class="mono panel__title" id="efforts-title">Best efforts <a class="efforts__more" href="/progress.html">power curve ›</a></span>
         <div class="efforts__row" id="efforts"></div>
         <!-- enlarged (⤢): every duration from 1 s to 60 min, with W/kg and % of FTP -->
@@ -133,13 +133,13 @@
     <!-- Nerd dashboard: one screen with the ride chart, time in zones, deviations, intervals and sources. -->
     <div class="dash" data-view="nerd">
       <div class="dash__row dash__row--top">
-        <section class="panel dash__chart">
+        <section data-zoom class="panel dash__chart">
           <span class="mono panel__title">Power, target and heart rate</span>
           <canvas class="chart chart--fill" id="nerd-chart" role="img" aria-label="Power, target and heart rate over the workout"></canvas>
           <span class="mono dash__sub">Power − target</span>
           <canvas class="chart chart--diff" id="diff-chart" role="img" aria-label="Power minus target over the ride"></canvas>
         </section>
-        <section class="panel dash__zones">
+        <section data-zoom class="panel dash__zones">
           <span class="mono panel__title">Time in zones</span>
           <div class="tiz">
             <div class="tiz__col">
@@ -151,10 +151,12 @@
               <ol class="tiz__list" id="tiz-hr" aria-label="Time in heart rate zones"></ol>
             </div>
           </div>
+          <!-- enlarged (⤢): power and heart rate zones as two rings, with their times -->
+          <div class="tiz-donuts zoom-detail" id="tiz-donuts"></div>
         </section>
       </div>
       <div class="dash__row dash__row--bottom">
-        <section class="panel dash__intervals">
+        <section data-zoom class="panel dash__intervals">
           <span class="mono panel__title" id="intervals-title">Power vs target · intervals (±5 % = on target)</span>
           <div class="table-scroll">
             <table class="intervals">
@@ -223,15 +225,19 @@
 
     <!-- compare: this ride next to an earlier one, or the 28-day average -->
     <div class="cmp" data-view="compare">
-      <section class="panel cmp__table">
+      <section data-zoom class="panel cmp__table">
         <span class="mono panel__title" id="cmp-title">This ride vs</span>
         <div class="cmp__grid" id="cmp-grid"></div>
+        <!-- enlarged (⤢): the biggest differences in words, then every number as a card with both rides as bars -->
+        <div class="cmp-dash zoom-detail" id="cmp-dash"></div>
       </section>
-      <section class="panel cmp__curve">
+      <section data-zoom class="panel cmp__curve">
         <span class="mono panel__title">Power curve <span class="cmp__legend"><i class="is-mine"></i>this ride <i class="is-other"></i><span id="cmp-curve-other">other</span></span></span>
         <canvas class="chart cmp__canvas" id="cmp-curve" role="img" aria-label="Best power for each duration, this ride and the other"></canvas>
+        <!-- enlarged (⤢): the difference at each duration, as bars either side of zero -->
+        <div class="curve-diff zoom-detail" id="cmp-curve-diff"></div>
       </section>
-      <section class="panel cmp__overlay">
+      <section data-zoom class="panel cmp__overlay">
         <span class="mono panel__title">Power and heart rate on the workout clock <span class="cmp__legend"><i class="is-mine"></i>this ride <i class="is-other"></i>other · 30 s average</span></span>
         <canvas class="chart cmp__canvas" id="cmp-overlay" role="img" aria-label="Power and heart rate of both rides over workout time"></canvas>
         <p class="cmp__none mono" id="cmp-overlay-none" hidden>Pick an earlier ride to lay it over this one.</p>
@@ -473,6 +479,11 @@ function renderNerd(s) {
 
   renderZoneTimes($("tiz-power"), s.zones, s.duration);
   const hz = s.hr_zones;
+  const tops = getZoneTops();
+  const pw = (z) => (z.n === 1 ? `< ${Math.round(tops[0] * s.ftp) + 1} W` : z.n > tops.length ? `> ${Math.round(tops[z.n - 2] * s.ftp)} W`
+    : `${Math.round(tops[z.n - 2] * s.ftp) + 1}–${Math.round(tops[z.n - 1] * s.ftp)} W`);
+  const bpm = (z) => (z.to_bpm == null ? `> ${z.from_bpm - 1} bpm` : z.from_bpm === 0 ? `< ${z.to_bpm + 1} bpm` : `${z.from_bpm}–${z.to_bpm} bpm`);
+  $("tiz-donuts").replaceChildren(zoneDonut("Power zones", s.zones, pw), hz ? zoneDonut(`Heart rate zones · ${hz.method === "lthr" ? "threshold" : "max"} ${hz.reference}`, hz.zones, bpm) : null);
   if (hz) {
     $("tiz-hr-head").textContent = `HR · ${hz.method === "lthr" ? "threshold" : "max"} ${hz.reference}`;
     renderZoneTimes($("tiz-hr"), hz.zones, s.duration, (z) => z.to_bpm == null ? `> ${z.from_bpm - 1} bpm` : z.from_bpm === 0 ? `< ${z.to_bpm + 1} bpm` : `${z.from_bpm}–${z.to_bpm} bpm`);
@@ -503,6 +514,42 @@ function renderNerd(s) {
 }
 
 // One row per zone: name, a bar scaled to the ride, time and share.
+// Time in zones as a ring: each zone its share of the circle in its colour; the middle says where most time went.
+function zoneDonut(title, zones, range) {
+  const all = zones.reduce((a, z) => a + z.seconds, 0) || 1;
+  let at = 0;
+  const stops = zones.filter((z) => z.seconds > 0).map((z) => {
+    const from = (at / all) * 360; at += z.seconds;
+    return `${zoneColor(z.n)} ${from}deg ${(at / all) * 360}deg`;
+  });
+  const most = zones.reduce((a, z) => (z.seconds > a.seconds ? z : a), zones[0]);
+  return el("figure", { class: "donut" },
+    el("figcaption", { class: "mono", text: title }),
+    el("div", { class: "donut__ring", style: `background: conic-gradient(${stops.join(", ") || "var(--line) 0deg 360deg"})` },
+      el("div", { class: "donut__hole" },
+        el("b", { text: `Z${most.n}`, style: `color:${zoneColor(most.n)}` }),
+        el("span", { class: "mono", text: `${Math.round((most.seconds / all) * 100)} % · ${most.name}` }))),
+    el("ol", { class: "donut__legend" }, ...zones.map((z) => el("li", { style: `--zone:${zoneColor(z.n)}` },
+      el("i"), el("span", { text: `Z${z.n} ${z.name}` }), el("span", { class: "mono", text: range ? range(z) : "" }),
+      el("b", { text: z.seconds ? duration(z.seconds) : "--" }), el("span", { class: "mono", text: `${Math.round((z.seconds / all) * 100)} %` })))));
+}
+
+// The power curve's difference at each duration, this ride minus the other, as bars either side of zero.
+function renderCurveDiff(mine, other) {
+  const box = $("cmp-curve-diff");
+  const rows = CURVE_S.map((sec) => ({ sec, a: mine?.[String(sec)], b: other?.[String(sec)] }))
+    .filter((r) => r.a != null && r.b != null).map((r) => ({ ...r, pct: ((r.a - r.b) / r.b) * 100 }));
+  if (!rows.length) { box.replaceChildren(el("p", { class: "mono cmp-dash__none", text: "Pick a ride to compare with to see the difference." })); return; }
+  const most = Math.max(2, ...rows.map((r) => Math.abs(r.pct)));
+  box.replaceChildren(el("span", { class: "mono curve-diff__title", text: `This ride against ${cmp.curveOtherName}, at each duration` }),
+    ...rows.map((r) => el("div", { class: `curve-diff__row ${r.pct >= 0 ? "is-up" : "is-down"}` },
+      el("span", { class: "mono", text: curveName(r.sec) }),
+      el("span", { class: "curve-diff__track" },
+        el("span", { class: "curve-diff__bar", style: `width:${(Math.abs(r.pct) / most) * 50}%` })),
+      el("b", { text: `${pm(r.a - r.b, 0)} W` }),
+      el("span", { class: "mono", text: `${pm(r.pct, 1)} %` }))));
+}
+
 function renderZoneTimes(list, zones, total, range) {
   const all = zones.reduce((sum, z) => sum + z.seconds, 0) || total || 1;
   const most = Math.max(1, ...zones.map((z) => z.seconds));
@@ -867,6 +914,7 @@ function decorateTiles(s) {
 
 function renderCompare(s) {
   const c = cmp.choice;
+  cmp.ftp = s.ftp;
   $("cmp-title").textContent = c ? `This ride vs ${c.label}` : "Pick something to compare with";
   $("cmp-grid").replaceChildren(
     el("span", { class: "mono cmp__h" }), el("span", { class: "mono cmp__h", text: "This ride" }),
@@ -879,6 +927,7 @@ function renderCompare(s) {
         el("b", { text: fmtMetric(m, mine) }), el("span", { class: "cmp__o", text: fmtMetric(m, other) }),
         el("span", { class: `cmp__d${ch?.tone ? ` is-${ch.tone}` : ""}`, text: ch?.text ?? "" })];
     }));
+  renderCompareDash(c);
   $("cmp-curve-other").textContent = c ? (c.value === "avg28" ? "best of 28 days" : compareLabel()) : "other";
   if (!$("cmp-curve").closest("[hidden]")) {
     let otherBests = c?.row?.bests ?? null;
@@ -887,6 +936,11 @@ function renderCompare(s) {
       for (const r of c.rows) for (const [k, v] of Object.entries(r.bests ?? {})) otherBests[k] = Math.max(otherBests[k] ?? 0, v);
     }
     drawCurves($("cmp-curve"), s.bests, otherBests);
+    cmp.curveMine = s.bests; cmp.curveOther = otherBests; cmp.weight = s.weight_kg;
+    cmp.curveOtherName = c?.value === "avg28" ? "Best of 28 days" : c ? compareLabel() : "Other";
+    chartReadout($("cmp-curve"), curveRows);
+    chartReadout($("cmp-overlay"), overlayRows);
+    renderCurveDiff(s.bests, otherBests);
     $("cmp-overlay-none").hidden = !!cmp.otherSummary;
     $("cmp-overlay").hidden = !cmp.otherSummary;
     if (cmp.otherSummary) drawOverlay($("cmp-overlay"), s, cmp.otherSummary);
@@ -908,6 +962,101 @@ function renderCompare(s) {
         el("td", { class: dhr == null ? "" : dhr < -0.5 ? "is-good" : dhr > 0.5 ? "is-bad" : "", text: dhr == null ? "--" : `${signed(dhr, 0)} bpm` }));
     }));
   }
+}
+
+// Enlarged compare: what changed most, in words, and a card per number with both rides side by side as bars.
+const CMP_GROUPS = [
+  ["Power", ["avg_power", "wp", "intensity", "load", "vi", "on_target", "ef"]],
+  ["Heart rate", ["avg_hr", "max_hr", "hr_drift", "aet"]],
+  ["Ride", ["duration", "distance", "work", "avg_cadence", "balance", "climb_time", "climb_wkg", "vam", "climbed"]],
+];
+const SAY = { // how a change reads in words, by metric (falls back to the label)
+  avg_power: (d, a) => `${a} W ${d > 0 ? "more" : "less"} average power`,
+  wp: (d, a) => `weighted power ${a} W ${d > 0 ? "higher" : "lower"}`,
+  avg_hr: (d, a) => `heart rate ${a} bpm ${d > 0 ? "higher" : "lower"} on average`,
+  max_hr: (d, a) => `max heart rate ${a} bpm ${d > 0 ? "higher" : "lower"}`,
+  ef: (d) => `${d > 0 ? "more" : "fewer"} watts per heartbeat${d > 0 ? ": more power for the same effort" : ""}`,
+  on_target: (d, a) => `${a} % ${d > 0 ? "more" : "less"} time on target`,
+  hr_drift: (d) => `heart rate drifted ${d > 0 ? "more" : "less"} over the ride`,
+  load: (d, a) => `training load ${a} ${d > 0 ? "higher" : "lower"}`,
+};
+// the colour of a number, as on the summary tiles: power in the zone of its watts, heart rate pink, cadence cyan,
+// load yellow, variability purple, estimates teal
+function metricColor(key, v, ftp) {
+  if (["avg_power", "wp"].includes(key)) return v && ftp ? effortColor(v, ftp) : "var(--cyan)";
+  if (key === "intensity") return v && ftp ? effortColor(v * ftp, ftp) : "var(--cyan)";
+  if (["avg_hr", "max_hr", "hr_drift", "aet"].includes(key)) return "#FF6B7A";
+  if (["avg_cadence", "balance"].includes(key)) return "var(--cyan)";
+  if (key === "load") return "var(--yellow)";
+  if (key === "vi") return "#B44DFF";
+  if (key === "on_target") return "var(--teal)";
+  if (key === "ef") return "var(--teal)";
+  return "var(--teal)";
+}
+function renderCompareDash(c) {
+  const box = $("cmp-dash");
+  if (!c || !cmp.other) { box.replaceChildren(el("p", { class: "mono cmp-dash__none", text: "Pick a ride to compare with (Compare with, at the top)." })); return; }
+  const rows = METRICS.map((m) => {
+    const mine = cmp.mine[m.key], other = cmp.other[m.key];
+    if (mine == null || other == null) return null;
+    const ch = delta(m, mine, other);
+    const pct = other ? ((mine - other) / Math.abs(other)) * 100 : null;
+    return { m, mine, other, ch, pct };
+  }).filter(Boolean);
+  const byKey = Object.fromEntries(rows.map((r) => [r.m.key, r]));
+  // the biggest changes that matter: power and heart rate first, then the rest, by size
+  const ranked = rows.filter((r) => r.ch && r.ch.text !== "same" && r.pct != null && Math.abs(r.pct) >= 1)
+    .sort((a, b) => (b.ch.tone ? 1 : 0) - (a.ch.tone ? 1 : 0) || Math.abs(b.pct) - Math.abs(a.pct)).slice(0, 4);
+  const sentence = (r) => {
+    const a = Math.abs(r.mine - r.other);
+    const amount = r.m.fmt ? r.m.fmt(a) : a.toFixed(r.m.digits ?? 0);
+    const text = SAY[r.m.key] ? SAY[r.m.key](r.mine - r.other, amount) : `${r.m.label.toLowerCase()} ${r.ch.text}`;
+    return el("li", { class: `cmp-dash__point${r.ch.tone ? ` is-${r.ch.tone}` : ""}` },
+      el("b", { text: `${r.pct > 0 ? "▲" : "▼"} ${Math.abs(r.pct).toFixed(Math.abs(r.pct) < 10 ? 1 : 0)} %` }),
+      el("span", { text: text.charAt(0).toUpperCase() + text.slice(1) }));
+  };
+  const ftp = cmp.ftp;
+  const card = (r) => {
+    // the bars start a little below the smaller value, so a few per cent of difference is still visible
+    const hi = Math.max(Math.abs(r.mine), Math.abs(r.other)) || 1;
+    const lo = Math.min(Math.abs(r.mine), Math.abs(r.other)) * 0.8;
+    const share = (v) => 10 + ((Math.abs(v) - lo) / Math.max(1e-9, hi - lo)) * 90;
+    return el("div", { class: `cmp-card${r.ch?.tone ? ` is-${r.ch.tone}` : ""}`, title: r.m.title ?? "",
+      style: `--acc:${metricColor(r.m.key, r.mine, ftp)}` },
+      el("span", { class: "mono cmp-card__l", text: r.m.label }),
+      el("div", { class: "cmp-card__v" }, el("b", { text: fmtMetric(r.m, r.mine) }),
+        el("span", { class: "cmp-card__d", text: r.ch?.text ?? "" })),
+      el("div", { class: "cmp-card__bars" },
+        el("span", { class: "cmp-card__bar is-mine", style: `width:${share(r.mine)}%` }),
+        el("span", { class: "cmp-card__bar is-other", style: `width:${share(r.other)}%` })),
+      el("span", { class: "mono cmp-card__o", text: `${compareLabel()}: ${fmtMetric(r.m, r.other)}` }));
+  };
+  box.replaceChildren(
+    el("div", { class: "cmp-dash__head" },
+      el("span", { class: "mono", text: `What changed against ${compareLabel()}` }),
+      el("span", { class: "cmp__legend" }, el("i", { class: "is-mine" }), "this ride ", el("i", { class: "is-other" }), compareLabel())),
+    ranked.length ? el("ol", { class: "cmp-dash__points" }, ...ranked.map(sentence))
+      : el("p", { class: "mono cmp-dash__none", text: "Hardly any difference: the two rides are within 1 % on every number." }),
+    changeChart(rows, ftp),
+    ...CMP_GROUPS.map(([name, keys]) => {
+      const cards = keys.map((k) => byKey[k]).filter(Boolean).map(card);
+      return cards.length ? el("div", { class: "cmp-dash__group" }, el("span", { class: "mono cmp-dash__gname", text: name }),
+        el("div", { class: "cmp-dash__cards" }, ...cards)) : null;
+    }));
+}
+
+// every number's change in %, as bars either side of zero, in the number's own colour (good teal, bad red edge)
+function changeChart(rows, ftp) {
+  const list = rows.filter((r) => r.pct != null && r.m.key !== "duration");
+  if (!list.length) return null;
+  const most = Math.max(2, ...list.map((r) => Math.min(40, Math.abs(r.pct))));
+  return el("div", { class: "change-chart" },
+    el("span", { class: "mono cmp-dash__gname", text: "Change of every number, in %" }),
+    ...list.map((r) => el("div", { class: `change-chart__row${r.ch?.tone ? ` is-${r.ch.tone}` : ""}`, style: `--acc:${metricColor(r.m.key, r.mine, ftp)}` },
+      el("span", { class: "mono", text: r.m.label }),
+      el("span", { class: "change-chart__track" },
+        el("span", { class: `change-chart__bar ${r.pct >= 0 ? "is-up" : "is-down"}`, style: `width:${(Math.min(40, Math.abs(r.pct)) / most) * 50}%` })),
+      el("b", { text: `${pm(r.pct, 1)} %` }))));
 }
 
 async function chooseComparison(value, s) {
@@ -943,6 +1092,66 @@ async function setupCompare(s) {
 
 // Point at a ride chart: a line at that second and its numbers (power and its 10 s average, target, heart rate,
 // estimated speed). The chart spans the canvas width, so the second is the pointer's share of the ride.
+// A readout on any chart of this page: a line where the pointer is and a box with `rows(share, canvas)`, where share
+// is the pointer's place across the canvas (0 left … 1 right); rows returns null outside the data.
+function chartReadout(canvas, rows) {
+  if (canvas.dataset.readout) return;
+  canvas.dataset.readout = "1";
+  const panel = canvas.closest(".panel");
+  const line = el("div", { class: "ride-cursor", hidden: true });
+  const box = el("div", { class: "ride-tip", hidden: true });
+  panel.append(line, box);
+  const hide = () => { line.hidden = box.hidden = true; };
+  canvas.addEventListener("pointermove", (e) => {
+    const r = canvas.getBoundingClientRect();
+    const list = rows((e.clientX - r.left) / r.width, canvas);
+    if (!list) return hide();
+    box.replaceChildren(...list.map((txt, k) => el(k ? "span" : "b", { text: txt })));
+    const pr = panel.getBoundingClientRect();
+    const x = e.clientX - pr.left;
+    line.style.left = `${x}px`; line.style.top = `${r.top - pr.top}px`; line.style.height = `${r.height}px`;
+    line.hidden = box.hidden = false;
+    box.style.left = `${Math.min(Math.max(6, x + 12), pr.width - box.offsetWidth - 6)}px`;
+    box.style.top = `${Math.max(4, r.top - pr.top + 6)}px`;
+  });
+  canvas.addEventListener("pointerleave", hide);
+}
+
+// a signed number that says ±0 when it rounds to nothing
+const pm = (v, digits) => { const r = Number(v.toFixed(digits)); return r === 0 ? `±${(0).toFixed(digits)}` : `${r > 0 ? "+" : "−"}${Math.abs(r).toFixed(digits)}`; };
+
+// the power curve: both rides at the duration under the pointer
+const CURVE_S = [1, 5, 15, 30, 60, 120, 180, 300, 600, 1200, 1800, 3600];
+const curveName = (sec) => (sec < 60 ? `${sec} s` : `${sec / 60} min`);
+function curveRows(f, canvas) {
+  const g = canvas._geo;
+  if (!g) return null;
+  const px = f * g.w;
+  if (px < g.left - 6 || px > g.right + 6) return null;
+  const sec = Math.exp(((px - g.left) / (g.right - g.left)) * Math.log(3600));
+  const at = CURVE_S.reduce((a, b) => (Math.abs(Math.log(b / sec)) < Math.abs(Math.log(a / sec)) ? b : a));
+  const mine = cmp.curveMine?.[String(at)], other = cmp.curveOther?.[String(at)];
+  const kg = cmp.weight;
+  const d = mine != null && other != null ? mine - other : null;
+  return [`Best ${curveName(at)}`, mine != null ? `This ride ${Math.round(mine)} W${kg ? ` · ${(mine / kg).toFixed(2)} W/kg` : ""}` : "This ride --",
+    other != null ? `${cmp.curveOtherName} ${Math.round(other)} W` : null,
+    d != null ? `${pm(d, 0)} W · ${pm((d / other) * 100, 1)} %` : null].filter(Boolean);
+}
+// power and heart rate on the workout clock: both rides at the time under the pointer
+function overlayRows(f, canvas) {
+  const g = canvas._geo;
+  if (!g) return null;
+  const px = f * g.w;
+  if (px < g.left || px > g.right) return null;
+  const t = ((px - g.left) / (g.right - g.left)) * g.end;
+  const near = (r) => { if (!r) return -1; let i = r.t.findIndex((v) => v >= t); return i < 0 ? r.t.length - 1 : i; };
+  const ia = near(g.a), ib = near(g.b);
+  const w = (r, i) => (i >= 0 && r.power[i] != null ? `${Math.round(r.power[i])} W` : "--");
+  const hr = (r, i) => (i >= 0 && r.hr[i] != null ? `${Math.round(r.hr[i])} bpm` : "--");
+  return [fmtClock(Math.round(t)), `This ride ${w(g.a, ia)} · ${hr(g.a, ia)}`,
+    g.b ? `${compareLabel()} ${w(g.b, ib)} · ${hr(g.b, ib)}` : null, "30 s average"].filter(Boolean);
+}
+
 function rideReadout(canvas, s) {
   if (canvas.dataset.readout) return;
   canvas.dataset.readout = "1";
@@ -1056,7 +1265,8 @@ if (summary) {
   new ResizeObserver(() => drawCharts(summary)).observe($("main"));
 
   // Every panel of the three views can fill the whole window (⤢), and "‹ Back" or Escape puts it back.
-  for (const panel of $("main").querySelectorAll("section.panel")) {
+  // only the panels that show more when they are big: charts with a readout, and panels with an enlarged detail
+  for (const panel of $("main").querySelectorAll("section.panel[data-zoom]")) {
     const title = panel.querySelector(".panel__title");
     const label = () => (title ? title.childNodes[0]?.textContent.trim().toLowerCase() : "the ride chart"); // titles change with the ride compared
     panel.classList.add("can-zoom");

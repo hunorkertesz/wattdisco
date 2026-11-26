@@ -836,3 +836,6 @@ body.has-zoom { overflow: hidden; }
 
 /* larger app text (Zones · Text size) zooms the page: it then scrolls, as on a phone, rather than squeeze its panels */
 html[data-ui-zoom] body > .page { height: auto; min-height: calc(100dvh / var(--ui-zoom, 1)); }
+/* an enlarged panel's title grows with it */
+.is-zoomed .panel__title { font-size: clamp(16px, 1.7vw, 24px); letter-spacing: .12em; line-height: 1.3; }
+.is-zoomed .panel__title .cmp__legend, .is-zoomed .panel__title .efforts__more { font-size: 12px; }

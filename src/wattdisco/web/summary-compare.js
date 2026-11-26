@@ -182,6 +182,7 @@ export function drawCurves(canvas, mine, other) {
   }
   line(ctx, o.map(([s, v]) => [x(s), y(v)]), C.pink, 1.6, [5, 4], 4);
   line(ctx, a.map(([s, v]) => [x(s), y(v)]), C.cyan, 2.4, null, 8);
+  canvas._geo = { left, right, w }; // for a readout: the pointer's duration is exp of its share of log(3600)
 }
 
 // Two rides on the workout clock: power (30 s average) and heart rate, this ride bright, the other dashed.
@@ -239,4 +240,5 @@ export function drawOverlay(canvas, mine, other) {
   }
   line(ctx, a.t.map((t, i) => [x(t), a.hr[i] == null ? null : yh(a.hr[i])]), C.hr, 1.8, null, 4);
   line(ctx, a.t.map((t, i) => [x(t), a.power[i] == null ? null : yp(a.power[i])]), C.cyan, 2.2, null, 6);
+  canvas._geo = { left, right, w, end, a, b }; // for a readout: both rides' 30 s power and heart rate at a time
 }
