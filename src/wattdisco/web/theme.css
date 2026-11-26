@@ -2,12 +2,14 @@
    Neon everywhere except the workout data area, which uses the .clean scope. */
 
 /* Fonts bundled in web/fonts/ (latin and latin-ext subsets), so the app needs no network.
-   Chakra Petch and Martian Mono: SIL Open Font License 1.1; Yellowtail: Apache 2.0 (licences next to the files). */
+   Chakra Petch and Martian Mono: SIL Open Font License 1.1; Yellowtail: Apache 2.0 (licences next to the files).
+   `block`: a page waits the few milliseconds the local files take, rather than drawing a stand-in font and
+   swapping it, which made the titles jump at every page change. */
 @font-face {
   font-family: "Chakra Petch";
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/chakra-petch-500-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -15,7 +17,7 @@
   font-family: "Chakra Petch";
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/chakra-petch-500-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -23,7 +25,7 @@
   font-family: "Chakra Petch";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/chakra-petch-700-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -31,7 +33,7 @@
   font-family: "Chakra Petch";
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/chakra-petch-700-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -39,7 +41,7 @@
   font-family: "Martian Mono";
   font-style: normal;
   font-weight: 100 800; /* variable font: one file per subset covers every weight */
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/martian-mono-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -47,7 +49,7 @@
   font-family: "Martian Mono";
   font-style: normal;
   font-weight: 100 800;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/martian-mono-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -55,7 +57,7 @@
   font-family: "Yellowtail";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/yellowtail-400-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
@@ -63,7 +65,7 @@
   font-family: "Yellowtail";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/yellowtail-400-latin.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
@@ -604,16 +606,7 @@ body.clean { background: var(--clean-bg); }
   vertical-align: middle;
 }
 
-/* Neon titles switch on like a sign when the page opens. */
-.neon-title { animation: neon-on 1.4s ease-out 1 both; }
-@keyframes neon-on {
-  0% { opacity: .15; text-shadow: none; }
-  8% { opacity: 1; }
-  11% { opacity: .35; text-shadow: none; }
-  16% { opacity: 1; }
-  19% { opacity: .6; }
-  24%, 100% { opacity: 1; }
-}
+/* Neon titles are simply on when a page opens: no switch-on flicker, which read as a fault at every page change. */
 
 /* The bolt in the logo breathes. */
 .logo svg { animation: logo-pulse 4s ease-in-out infinite; }
@@ -623,7 +616,7 @@ body.clean { background: var(--clean-bg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card::before, .panel::before, .neon-title, .logo svg { animation: none; }
+  .card::before, .panel::before, .logo svg { animation: none; }
 }
 
 
