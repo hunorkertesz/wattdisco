@@ -76,8 +76,8 @@
         <button class="chip" type="button" data-view="big" aria-pressed="true">Big <kbd>B</kbd></button>
       </div>
       <a class="btn btn--sm" href="/compare.html">Compare <kbd>C</kbd></a>
-      <button class="btn btn--sm btn--pink" type="button" id="pause">Pause <kbd>Space</kbd></button>
-      <button class="btn btn--sm btn--pink" type="button" id="end-ride">End ride</button>
+      <button class="btn btn--sm btn--warn" type="button" id="pause">Pause <kbd>Space</kbd></button>
+      <button class="btn btn--sm btn--danger" type="button" id="end-ride">End ride</button>
     </nav>
     <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show ride controls"></button></div>
     <div class="big big--power" id="power-box">
@@ -195,7 +195,6 @@ function render(store) {
   const wasDone = rideDone;
   rideDone = w.done;
   if (rideDone && !wasDone) dock.show();
-  $("end-ride").classList.toggle("btn--primary", rideDone);
 
   $("title").textContent = store.workout.name;
   const parts = [];

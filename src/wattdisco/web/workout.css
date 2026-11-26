@@ -538,3 +538,4 @@
 /* the ghost on a climb: how far ahead (teal) or behind (pink) your best you are */
 #next.is-ahead { color: var(--teal); }
 #next.is-behind { color: #FF6B7A; }
+#ghost-btn[hidden] { display: none; } /* the ghost only rides along on a climb */

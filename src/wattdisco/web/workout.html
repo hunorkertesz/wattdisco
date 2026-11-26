@@ -64,8 +64,8 @@
         <button class="btn btn--sm btn--icon btn--pink" type="button" id="harder" aria-label="Harder by 5 W" title="Harder by 5 W (↑)">+</button>
         <button class="btn btn--sm btn--pink" type="button" id="skip">Skip <kbd>S</kbd></button>
       </div>
-      <button class="btn btn--sm btn--pink" type="button" id="pause">Pause <kbd>Space</kbd></button>
-      <button class="btn btn--sm btn--pink" type="button" id="end-ride">End ride</button>
+      <button class="btn btn--sm btn--warn" type="button" id="pause">Pause <kbd>Space</kbd></button>
+      <button class="btn btn--sm btn--danger" type="button" id="end-ride">End ride</button>
     </nav>
     <!-- Where each dock appears on hover; the handle is the hint that it is there. -->
     <div class="dock-zone dock-zone--top" id="zone-top"><button class="dock-handle" type="button" aria-label="Show view controls"></button></div>
@@ -837,7 +837,6 @@ function renderRide(s, w) {
   const wasDone = rideDone;
   rideDone = ride.active && w.done;
   if (rideDone && !wasDone) dock.show();
-  $("end-ride").classList.toggle("btn--primary", rideDone);
   paused = !!ride.paused;
   $("paused").hidden = !paused;
   const why = ride.auto_paused;
