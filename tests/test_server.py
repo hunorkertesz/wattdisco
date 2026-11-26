@@ -680,10 +680,16 @@ def test_training_plan_api_and_ride_ticks_off(tmp_path):
 
         # a real (not simulated) ride of the whole session ticks it off
         ride_id = c.post("/api/ride/start", json={"workout_id": "endurance-45"}).json()["id"]
-        summary = {"id": ride_id, "workout_id": "endurance-45", "sim": False, "duration": 2700,
-                   "workout": {"seconds": 2700}, "nerd": {"on_target_pct": 97.0}, "ftp_estimate": None}
         real = ride.store.summary
-        ride.store.summary = lambda rid: summary if rid == ride_id else real(rid)
+
+        def summary(rid):  # the real summary, made to look like a real ride of the whole session
+            s = real(rid)  # complete, so the .fit built when the ride stops (once a tick is recorded) works
+            if rid == ride_id:
+                s = {**s, "sim": False, "duration": 2700, "workout": {**s["workout"], "seconds": 2700},
+                     "nerd": {**s["nerd"], "on_target_pct": 97.0}, "ftp_estimate": None}
+            return s
+
+        ride.store.summary = summary
         assert c.post("/api/ride/stop").json()["id"] == ride_id
         r = c.get("/api/plans").json()["active"]
         assert r["next"]["workout_id"] == "sweet-spot-4x8" and r["rides"] == [ride_id]
