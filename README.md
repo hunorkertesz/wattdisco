@@ -86,7 +86,9 @@ Not sure what a number means? **?** explains them all.
   live sensor comparison are one key away.
 - **Made for the bike.** A 3-2-1 count-in, beeps in the last seconds of each interval, auto-pause when you stop
   pedalling (or start the workout on your first pedal strokes), the screen stays awake, and larger numbers if the
-  screen is further away. A ride cut short by a crash or a power cut can be continued where it stopped.
+  screen is further away. The next intervals show as coloured blocks, a warning makes its number pulse, and End ride is
+  held for a second so a brush against the screen never ends it. A ride cut short by a crash or a power cut can be
+  continued where it stopped.
 - **Every sensor, recorded.** Trainer and power meter, two heart rate straps, left/right balance, RR intervals and
   battery levels, even the ones that aren't the main source.
 - **Just ride.** No workout and no target: the trainer rides like a flat road, you shift gears, and the ride is
@@ -95,7 +97,8 @@ Not sure what a number means? **?** explains them all.
 
 **Train**
 - **Workouts.** 40+ built-ins by type (endurance, tempo, sweet spot, threshold, VO2 max, sprints, strength, FTP tests),
-  your own in the editor, or imported from `.zwo`, `.erg` and `.mrc` files. Star your favourites, filter by length.
+  your own in the editor, or imported from `.zwo`, `.erg` and `.mrc` files. Star your favourites, filter by type and
+  length, search ("4x8", "vo2"), or browse them all as cards. FTP and weight change right on the ready screen.
 - **Training plans.** 13 multi-week plans in four groups: getting started, raising your FTP, top-end power, and
   climbing and long days. From First steps (easy) to Threshold and VO2 max (very hard), tailored to how many days a week
   you ride and how long a session can be. The plan suggests the next session; ride it, skip it, or mark it done outdoors.
@@ -111,12 +114,13 @@ Not sure what a number means? **?** explains them all.
 
 **Analyse**
 - **Ride summary** in three views: the basics, a nerd dashboard, and a side-by-side **compare** with the last time you
-  rode the same workout (or any earlier ride, or your 28-day average).
+  rode the same workout (or any earlier ride, or your 28-day average). A one-line verdict on top, any panel full
+  window with more detail, and every second's numbers where you point on the chart.
 - **Progress.** Fitness, fatigue and form, your power curve, FTP history, critical power and W′, how your two power
-  sources drift apart over weeks, and your best time up each climb.
+  sources drift apart over weeks, and your best time up each climb. Every chart zooms and shows each point.
 - **Aerobic threshold from heart rate variability** (DFA α1), from the strap's RR intervals.
-- **History** of every ride, with totals for 7 days, 28 days or all time, how each ride felt (1–10) and your notes.
-  A deleted ride can be brought back.
+- **History** of every ride, by week, with totals for 7 days, 28 days or all time, how each ride felt (1–10) and your
+  notes; filter by type or search. A deleted ride can be brought back.
 - **Exports:** `.fit` (with an estimated speed and distance, so Strava draws the ride) and a per-second CSV with every sensor
   in its own columns.
 
