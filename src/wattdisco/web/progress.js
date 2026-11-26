@@ -1,5 +1,5 @@
 // Progress across rides: fitness / fatigue / form, power curve, FTP history, power sources over weeks.
-import { chipGroup, criticalPowerLine, el, renderStrip } from "/components.js";
+import { chipGroup, criticalPowerLine, el, renderStrip, zoomButton } from "/components.js";
 
 const $ = (id) => document.getElementById(id);
 renderStrip($("strip"), { active: "progress" });
@@ -347,4 +347,16 @@ function drawAll() { drawFitness(); drawCurve(); drawFtp(); drawSources(); }
 drawClimbs();
 drawAll();
 let raf = 0;
-new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); }).observe(document.querySelector(".grid"));
+const resized = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); });
+resized.observe(document.querySelector(".grid"));
+
+// Any panel can fill the whole window for a closer look (⤢, then "‹ Back" or Escape); the range chips above
+// still change its chart.
+for (const tile of document.querySelectorAll(".grid > .tile")) {
+  const head = tile.querySelector(".tile__head");
+  const tools = el("span", { class: "tile__tools" }); // its own controls and the button, right of the title
+  tools.append(...[...head.children].filter((c) => !c.classList.contains("panel__title")),
+    zoomButton(tile, { label: tile.querySelector(".panel__title")?.textContent.toLowerCase(), onChange: drawAll }));
+  head.append(tools);
+  resized.observe(tile);
+}

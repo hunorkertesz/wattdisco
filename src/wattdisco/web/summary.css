@@ -470,3 +470,11 @@
 .grades__share { position: absolute; left: 0; bottom: 1px; height: 3px; width: var(--share); max-width: 100%; border-radius: 2px;
   background: var(--band); opacity: .7; }
 .grades__hr { color: #FF6B7A; }
+
+/* ⤢ in each panel's top right corner: the panel on the whole window, "‹ Back" puts it back */
+.panel.can-zoom > .zoom-btn { position: absolute; top: 8px; right: 10px; z-index: 2; }
+.panel.can-zoom > .panel__title { padding-right: 40px; }
+/* enlarged: a band at the top for "‹ Back", so it never covers the panel's own title or table */
+.panel.is-zoomed { padding-top: 52px !important; }
+.panel.is-zoomed > .zoom-btn { top: 12px; right: 14px; }
+.panel.is-zoomed .panel__title { font-size: 14px; padding-right: 0; }

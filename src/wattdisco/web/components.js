@@ -525,6 +525,49 @@ export function helpCard(key, { title, items, note = "" }) {
   return { open, maybeOpen: () => { if (!seen()) open(); } };
 }
 
+// ---------- enlarge a panel ----------
+// Any panel can fill the whole window for a closer look: ⤢ in its corner enlarges it, "‹ Back" (or Escape)
+// puts it back. The enlarged panel covers the page in place, so it works in any layout; `onChange` redraws
+// what the page draws itself (canvas charts), after the panel has its new size.
+
+let zoomed = null;
+let zoomKeys = false;
+
+function setZoom(panel) {
+  const before = zoomed;
+  before?.classList.remove("is-zoomed");
+  zoomed = panel;
+  panel?.classList.add("is-zoomed");
+  document.body.classList.toggle("has-zoom", !!panel);
+  for (const p of [before, panel]) p?._zoom?.show();
+  requestAnimationFrame(() => { for (const p of new Set([before, panel])) p?._zoom?.onChange?.(); });
+  (panel ?? before)?._zoom?.button.focus({ preventScroll: true });
+}
+
+/** The ⤢ / "‹ Back" button for one panel; the page puts it where it fits (usually the panel's top right). */
+export function zoomButton(panel, { label = "this panel", onChange } = {}) {
+  const button = el("button", { class: "btn btn--sm btn--icon zoom-btn", type: "button",
+    onclick: () => setZoom(zoomed === panel ? null : panel), onpointerenter: () => show(), onfocus: () => show() });
+  const show = () => {
+    const on = zoomed === panel;
+    button.textContent = on ? "‹ Back" : "⤢";
+    button.classList.toggle("btn--icon", !on);
+    const name = (typeof label === "function" ? label() : label) || "this panel";
+    button.title = on ? "Back (Esc)" : `Show ${name} on the whole window`;
+    button.setAttribute("aria-label", on ? "Back to all panels" : `Enlarge ${name}`);
+    button.setAttribute("aria-expanded", String(on));
+  };
+  panel._zoom = { button, show, onChange };
+  show();
+  if (!zoomKeys) {
+    zoomKeys = true;
+    addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && zoomed && !e.defaultPrevented) { e.preventDefault(); setZoom(null); }
+    });
+  }
+  return button;
+}
+
 // "Copy diagnostics": the app's version, devices and the end of its log (/api/diagnostics), shown before it is
 // copied, so the rider sees what they paste into a bug report. Nothing is sent anywhere.
 export async function copyText(text) {

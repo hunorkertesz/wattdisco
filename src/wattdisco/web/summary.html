@@ -259,7 +259,7 @@
 </div>
 
 <script type="module">
-import { chipGroup, effortColor, el, fmtClock, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf } from "/components.js";
+import { chipGroup, effortColor, el, fmtClock, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf, zoomButton } from "/components.js";
 import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
 import { distance, distanceUnit, imperial, speed, speedUnit } from "/units.js";
 import { METRIC, METRICS, averageMetrics, comparisonChoices, delta, drawCurves, drawOverlay, drawSparkline, fmtMetric,
@@ -874,6 +874,14 @@ if (summary) {
   $("mode").replaceWith(mode);
   setView(fromHash);
   new ResizeObserver(() => drawCharts(summary)).observe($("main"));
+
+  // Every panel of the three views can fill the whole window (⤢), and "‹ Back" or Escape puts it back.
+  for (const panel of $("main").querySelectorAll("section.panel")) {
+    const title = panel.querySelector(".panel__title");
+    const label = () => (title ? title.childNodes[0]?.textContent.trim().toLowerCase() : "the ride chart"); // titles change with the ride compared
+    panel.classList.add("can-zoom");
+    panel.append(zoomButton(panel, { label, onChange: () => drawCharts(summary) }));
+  }
 
   // TRAIN comes back here after a ride until it is discarded, uploaded, or the rider moves on.
   fetch("/api/state").then((r) => r.json()).then((st) => {
