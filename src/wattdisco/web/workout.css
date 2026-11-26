@@ -497,16 +497,23 @@
   }
   .metric--hr .num { font-size: calc(clamp(64px, 22vw, 120px) * var(--ride-text, 1)); }
   .phase-pill { bottom: 38px; height: 34px; padding: 0 14px; font-size: 12px; }
-  /* phones scroll: the controls sit in the page, view above the chart and the ride below it, always shown */
+  .dock-ride-open .phase-pill { bottom: 38px; }
+  /* nerd mode has two gauges per box: one box per row */
+  .is-nerd .numbers { grid-template-columns: 1fr; grid-template-areas: "hr" "target" "cadence"; }
+}
+
+/* a phone (touch, narrow): the controls sit in the page, view above the chart and the ride below it, always shown.
+   A small window with a mouse (a Mac window at its smallest) keeps them floating and hiding, as on a big screen. */
+@media (max-width: 600px) and (pointer: coarse) {
   .chart-area .dock, .chart-area .dock.is-open, .chart-area .dock--bottom {
     position: static; transform: none; opacity: 1; pointer-events: auto;
     width: auto; max-width: none; margin: 0 auto; padding: 6px 8px; border-radius: 18px;
   }
   .chart-area .dock--bottom { order: 2; margin-top: 4px; }
   .chart-area .dock-zone { display: none; }
-  .dock-ride-open .phase-pill { bottom: 38px; }
-  /* nerd mode has two gauges per box: one box per row */
-  .is-nerd .numbers { grid-template-columns: 1fr; grid-template-areas: "hr" "target" "cadence"; }
+}
+@media (max-width: 600px) and (pointer: fine) {
+  .chart-area .dock { max-width: calc(100% - 12px); flex-wrap: wrap; justify-content: center; row-gap: 6px; }
 }
 
 /* sound cues are waiting for a first tap (browsers start audio only after one) */
