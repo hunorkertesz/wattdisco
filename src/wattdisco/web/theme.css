@@ -803,6 +803,14 @@ body.has-zoom { overflow: hidden; }
 }
 .is-zoomed .chart, .is-zoomed canvas { flex: 1 1 auto; min-height: 240px; max-height: none; }
 
+/* ---------- the way back from a sub-page: always above the page title, always "‹ where it goes" ---------- */
+.back-link {
+  display: flex; width: fit-content; align-items: center; align-self: flex-start; min-height: 28px; margin-bottom: 2px;
+  color: var(--cyan-soft); font-size: 12px; letter-spacing: .12em; text-decoration: none; text-transform: uppercase;
+}
+.back-link:hover, .back-link:focus-visible { text-shadow: 0 0 8px var(--cyan); }
+.back-link[hidden] { display: none; }
+
 /* press and hold (dock.js holdToConfirm): the button fills from the left while it is held */
 .hold-btn { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
 .hold-btn::after {

@@ -96,6 +96,7 @@
     <div class="wrap">
       <div class="head">
         <div>
+          <a class="back-link mono" id="back" href="/summary.html">‹ Ride summary</a>
           <h1 class="neon-title">Upload ride</h1>
           <span class="mono" id="ride-line"></span>
         </div>
@@ -224,7 +225,7 @@ if (summary) {
   $("ride-line").textContent = parts.join(" · ").toUpperCase();
   $("save-fit").href = `/api/rides/${summary.id}/export.fit`;
   $("compare").href = `/compare.html?ride=${summary.id}`;
-  $("close").href = $("skip").href = `/summary.html?ride=${summary.id}`;
+  $("close").href = $("skip").href = $("back").href = `/summary.html?ride=${summary.id}`;
   $("sim-warn").hidden = !summary.sim;
   const d = await json(`/api/rides/${summary.id}/description`);
   $("name").value = d.name;

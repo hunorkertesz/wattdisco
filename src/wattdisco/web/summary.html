@@ -13,6 +13,7 @@
   <main id="main" hidden>
     <div class="head">
       <div>
+        <a class="back-link mono" id="back-history" href="/history.html" hidden>‹ History</a>
         <span class="when-line"><span class="mono" id="when">Ride complete</span><a class="strava-chip mono" id="strava-chip" hidden></a></span>
         <span class="mono plan-line" id="plan-line" hidden></span>
         <h1 class="neon-title" id="title">Ride</h1>
@@ -912,6 +913,15 @@ if (summary) {
   const started = new Date(summary.started);
   const day = started.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   $("when").textContent = `Ride complete · ${day.replace(",", "")}${summary.sim ? " · simulated" : ""}`;
+  // opened from History (or Progress): a way back to that list
+  try {
+    const from = new URL(document.referrer);
+    if (from.origin === location.origin && ["/history.html", "/progress.html"].includes(from.pathname)) {
+      $("back-history").href = from.pathname;
+      $("back-history").textContent = from.pathname === "/history.html" ? "‹ History" : "‹ Progress";
+      $("back-history").hidden = false;
+    }
+  } catch { /* opened directly */ }
   $("title").textContent = summary.name;
   document.title = `Watt Disco – ${summary.name}`;
   $("save-fit").href = `/api/rides/${summary.id}/export.fit`;

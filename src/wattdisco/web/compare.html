@@ -111,13 +111,13 @@
   <header class="strip" id="strip"></header>
   <div class="head">
     <div>
+      <a class="back-link mono" id="back" href="/train">‹ Workout</a>
       <h1 class="neon-title">Sensor comparison</h1>
       <span class="mono" id="sub"></span>
     </div>
     <div class="head__right">
       <span class="smooth"><span class="mono">Chart</span><span id="smooth"></span></span>
       <div class="timer" id="timer" hidden><span class="mono rec" id="rec">Recording</span><b id="elapsed">0:00</b></div>
-      <a class="btn" id="back" href="/train">Back to workout</a>
       <a class="btn btn--primary" id="csv" href="/api/compare/export.csv" download hidden>Export CSV</a>
     </div>
   </div>
@@ -320,8 +320,8 @@ function render(c) {
   $("csv").hidden = mode === "idle";
   $("csv").href = mode === "finished" ? `/api/rides/${rideId}/compare.csv${refQuery()}` : "/api/compare/export.csv";
   Object.assign($("back"), mode === "finished"
-    ? { href: `/summary.html?ride=${rideId}`, textContent: "Back to summary" }
-    : { href: "/train", textContent: "Back to workout" });
+    ? { href: `/summary.html?ride=${rideId}`, textContent: "‹ Ride summary" }
+    : { href: "/train", textContent: "‹ Workout" });
   renderCard("power", c?.power);
   renderCard("hr", c?.hr);
 }

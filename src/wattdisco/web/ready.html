@@ -19,6 +19,23 @@
   .pick-workout.is-open-ride { display: none; } /* just riding: nothing to pick */
   .pick-workout .chip-group[hidden], .pick-workout .nsel[hidden] { display: none; }
   /* a climb's own settings (difficulty, ghost): only for climbs, never for an interval workout */
+  /* the ride options in one line ("ERG · step · start now · …"); the panels below fold away */
+  .options { display: flex; flex-direction: column; gap: clamp(8px, 1.4vh, 14px); }
+  .options[hidden] { display: none; }
+  .options-sum { gap: 6px; }
+  .options-sum__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .options-sum__text { margin: 0; color: var(--white); font-size: 14px; line-height: 1.5; }
+  .options-sum__text b { color: var(--cyan-soft); font-weight: 600; }
+  .kind-hint { margin: -4px 0 0; }
+  .ftp-stat__v { display: flex; align-items: baseline; gap: 8px; }
+  .ftp-stat__kg { color: var(--muted); font-size: 14px; }
+  .ftp-edit { width: 28px; height: 28px; font-size: 13px; align-self: center; }
+  .ftp-form { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+  .ftp-form[hidden] { display: none; }
+  .ftp-form label { display: inline-flex; align-items: center; gap: 6px; color: var(--white); font-size: 13px; }
+  .ftp-form input { width: 72px; height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 8px;
+    background: var(--bg); color: var(--white); font: inherit; font-variant-numeric: tabular-nums; }
+  .ftp-stat:has(.ftp-form:not([hidden])) .ftp-stat__v { display: none; }
   .climb-row { display: flex; flex-direction: column; gap: 8px; }
   /* the filters in their own colours, apart from the WORKOUTS / CLIMBS / JUST RIDE switch:
      length in teal, workout type in yellow */
@@ -31,7 +48,7 @@
   .climb-row[hidden] { display: none; }
   .title .neon-title { font-size: clamp(28px, min(4.4vw, 6vh), 52px); }
   .preview { width: 100%; flex: 1; min-height: 110px; max-height: 300px; display: block; }
-  .stats { display: flex; flex-wrap: wrap; gap: 16px 48px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 16px clamp(20px, 2.6vw, 48px); }
   .stats div { display: flex; flex-direction: column; gap: 2px; }
   .stats b { font-size: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
   .pick { align-items: flex-start; }
@@ -111,8 +128,8 @@
       </div>
       <!-- two kinds of ride: structured workouts in watts, or climbs where the road sets the resistance -->
       <div class="ride-kind" id="ride-kind"></div>
+      <p class="hint kind-hint" id="kind-hint"></p>
       <div class="pick-workout">
-        <a class="btn btn--sm" id="back-plan" href="/plan.html" hidden>‹ Plan</a>
         <label class="mono" for="workout" id="pick-label">Workout</label>
         <span id="workout"></span>
         <button class="btn btn--sm btn--icon fav" type="button" id="fav" aria-pressed="false" title="Favourite: listed first">☆</button>
@@ -132,6 +149,7 @@
         <span id="plan-what"></span>
       </div>
       <div class="title">
+        <a class="back-link mono" id="back-plan" href="/plan.html" hidden>‹ Training plan</a>
         <span class="mono" id="ready-line">Ready to ride</span>
         <h1 class="neon-title" id="title">Workout</h1>
         <span class="mono" id="desc"></span>
@@ -141,7 +159,15 @@
         <div><span class="mono">Duration</span><b id="duration">--</b></div>
         <div><span class="mono" id="avg-label">Avg power</span><b id="avg">--</b></div>
         <div><span class="mono" id="intervals-label">Intervals</span><b id="intervals">--</b></div>
-        <div><span class="mono">FTP</span><b id="ftp">--</b></div>
+        <div class="ftp-stat"><span class="mono">FTP · weight</span>
+          <span class="ftp-stat__v"><b id="ftp">--</b><span class="ftp-stat__kg" id="weight"></span>
+            <button class="btn btn--sm btn--icon ftp-edit" type="button" id="ftp-edit" aria-label="Change FTP and weight" title="Change FTP and weight">✎</button></span>
+          <form class="ftp-form" id="ftp-form" hidden>
+            <label><span class="mono">FTP</span><input type="number" id="ftp-in" min="50" max="600" step="1" required> W</label>
+            <label><span class="mono">Weight</span><input type="number" id="kg-in" min="30" max="200" step="0.1" required> <span id="kg-unit">kg</span></label>
+            <button class="btn btn--sm btn--primary" type="submit">Save</button>
+            <button class="btn btn--sm" type="button" id="ftp-cancel">Cancel</button>
+          </form></div>
         <div title="Hours × intensity² × 100: one hour at FTP is 100"><span class="mono">Load (est.)</span><b id="load">--</b></div>
       </div>
     </section>
@@ -161,6 +187,14 @@
       <div class="notice" id="no-sensors" hidden>No sensors connected · <a href="/connect.html">connect devices</a></div>
       <div class="notice" id="low-battery" hidden></div>
 
+      <div class="panel options-sum" id="options-sum">
+        <div class="options-sum__head">
+          <span class="mono panel__title">This ride</span>
+          <button class="btn btn--sm" type="button" id="options-toggle" aria-controls="options" aria-expanded="true">Hide options</button>
+        </div>
+        <p class="options-sum__text" id="options-text"></p>
+      </div>
+      <div class="options" id="options">
       <div class="panel">
         <span class="mono panel__title" id="mode-label">Target mode</span>
         <div role="radiogroup" id="modes" aria-labelledby="mode-label" style="display: flex; flex-direction: column; gap: 10px">
@@ -229,6 +263,7 @@
         <div id="ride-text"></div>
         <p class="hint">Larger when the screen is a metre or two away; the chart gets a little smaller.</p>
       </div>
+      </div>
 
       <span class="mono" id="status" role="status" style="color: var(--pink)"></span>
       </div>
@@ -244,7 +279,7 @@
 <script type="module">
 import { LENGTHS, LOW_BATTERY, chipGroup, el, fmtClock, neonSelect, renderDeviceChips, renderStrip, setZoneTops, workoutOptions } from "/components.js";
 import { drawClimbProfile, drawWorkoutPreview } from "/charts.js";
-import { distance as inDistance, distanceUnit, imperial, setUnits } from "/units.js";
+import { KG_PER_LB, distance as inDistance, distanceUnit, imperial, setUnits, weight as inWeight, weightUnit } from "/units.js";
 import { connectLive } from "/live.js";
 import { addSoundButton, cue, setSound, soundOn, syncSound, unlockSound } from "/sound.js";
 
@@ -305,11 +340,17 @@ let type = "all";
 try { type = localStorage.getItem("wd.type") ?? "all"; } catch {}
 if (type !== "all" && !types.some((c) => c.id === type)) type = "all";
 const options = () => workoutOptions(ofKind(kind), library.categories,
-  { favourites, length: kind === "climb" ? "all" : length, type: kind === "workout" ? type : "all", keep: selected?.id });
+  { favourites, length: kind === "climb" ? "all" : length, type: kind === "workout" ? type : "all", keep: selected?.id,
+    suggested: kind === "workout" ? planNext?.workout_id : null });
 const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }, { value: "ride", label: "JUST RIDE" }],
   { value: kind, label: "Workouts, climbs or just ride", onChange: (k) => switchKind(k) });
 $("ride-kind").replaceWith(kindGroup);
 kindGroup.classList.add("ride-kind", "segmented");
+const KIND_HINT = {
+  workout: "Structured intervals with a target in watts.",
+  climb: "The road's gradient sets the trainer's resistance; you choose your power.",
+  ride: "No workout and no target: ride as you like, everything is recorded.",
+};
 function switchKind(k) {
   if (k === kind) return;
   let id = null;
@@ -326,6 +367,7 @@ function showKind() {
   lengthGroup.hidden = typePicker.hidden = $("filters").hidden = k !== "workout"; // a few climbs: no filters; just riding: nothing to pick
   document.querySelector(".pick-workout").classList.toggle("is-open-ride", k === "ride");
   $("pick-label").textContent = k === "climb" ? "Climb" : "Workout";
+  $("kind-hint").textContent = KIND_HINT[k];
   $("ready-line").textContent = k === "climb" ? "Ready to climb" : "Ready to ride";
   if (k !== "ride") try { localStorage.setItem(lastKey(k), selected.id); } catch {}
   if (changed) { picker.setOptions(options()); picker.set(selected.id); }
@@ -682,6 +724,68 @@ function countIn() {
     step();
   });
 }
+
+// ---------- FTP and weight, changed right here (every target is in % FTP, so the workout follows) ----------
+function showRider() {
+  $("weight").textContent = settings.weight_kg ? `· ${Math.round(inWeight(settings.weight_kg) * 10) / 10} ${weightUnit()}` : "";
+}
+showRider();
+$("ftp-edit").onclick = () => {
+  $("ftp-in").value = settings.ftp ?? selected.ftp;
+  $("kg-in").value = Math.round(inWeight(settings.weight_kg ?? 75) * 10) / 10;
+  $("kg-unit").textContent = weightUnit();
+  $("ftp-form").hidden = false;
+  $("ftp-in").focus();
+};
+$("ftp-cancel").onclick = () => { $("ftp-form").hidden = true; $("ftp-edit").focus(); };
+$("ftp-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const ftp = Math.round(Number($("ftp-in").value));
+  const kg = Number($("kg-in").value) * (imperial() ? KG_PER_LB : 1);
+  const r = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ftp, weight_kg: Math.round(kg * 10) / 10 }) });
+  if (!r.ok) { $("status").textContent = (await r.json().catch(() => ({}))).detail ?? "Could not save FTP and weight"; return; }
+  location.replace(`?workout=${encodeURIComponent(selected.id)}${location.search.includes("from=plan") ? "&from=plan" : ""}`); // every watt follows the new FTP
+};
+
+// ---------- the ride options in one line; the panels fold away once they are as you like them ----------
+const chosen = (group) => group?.querySelector('[aria-pressed="true"]')?.textContent.trim().toLowerCase();
+function optionsLine() {
+  const parts = [];
+  const k = kindOf(selected);
+  if (k === "climb") {
+    parts.push(`climb at <b>${chosen(difficultyGroup) ?? "100 %"}</b>`, `ghost <b>${chosen(ghostGroup) ?? "on"}</b>`);
+  } else if (k === "ride") {
+    parts.push("<b>just ride</b>");
+  } else {
+    const m = document.querySelector('[data-mode][aria-checked="true"] .pick__name')?.textContent ?? "";
+    parts.push(`<b>${m}</b>`);
+    if (m === "ERG" && !$("ease-row").hidden) parts.push(`changes <b>${chosen(ease) ?? "step"}</b>`);
+  }
+  parts.push(`start <b>${chosen(beginGroup) ?? "now"}</b>`, `auto-pause <b>${chosen(autoGroup) ?? "on"}</b>`,
+    `sound <b>${chosen(soundGroup) ?? "on"}</b>`);
+  const source = powerGroup?.querySelector('[aria-pressed="true"]')?.textContent.trim();
+  parts.push(source ? `power from <b>${source}</b>` : "no power source yet");
+  parts.push(`smoothing <b>${chosen(smoothing) ?? "3 s"}</b>`);
+  const size = chosen(textGroup);
+  if (size && size !== "normal") parts.push(`numbers <b>${size}</b>`);
+  $("options-text").innerHTML = parts.join(" · ");
+}
+let folded = false;
+try { folded = localStorage.getItem("wd.optionsFolded") === "1"; } catch {}
+function fold(on) {
+  folded = on;
+  $("options").hidden = on;
+  $("options-toggle").textContent = on ? "Change" : "Hide options";
+  $("options-toggle").setAttribute("aria-expanded", String(!on));
+  try { localStorage.setItem("wd.optionsFolded", on ? "1" : "0"); } catch {}
+}
+$("options-toggle").onclick = () => fold(!folded);
+fold(folded);
+let optionsFrame = 0;
+new MutationObserver(() => { cancelAnimationFrame(optionsFrame); optionsFrame = requestAnimationFrame(optionsLine); })
+  .observe($("options"), { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-pressed", "aria-checked", "hidden"] });
+optionsLine();
 
 $("start").addEventListener("click", async () => {
   $("start").disabled = true;

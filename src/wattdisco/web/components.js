@@ -193,17 +193,20 @@ export const LENGTHS = [
   { value: "long", label: "75+", test: (s) => s > 75 * 60 },
 ];
 
-/** Picker options: ★ favourites first, then by category. `length` narrows by duration, `type` to one category;
- *  `keep` always stays. */
-export function workoutOptions(workouts, categories, { favourites = [], length = "all", type = "all", keep = null } = {}) {
+/** Picker options: the plan's next session (`suggested`) first, then ★ favourites, then by category. `length` narrows
+ *  by duration, `type` to one category; `keep` always stays. */
+export function workoutOptions(workouts, categories, { favourites = [], length = "all", type = "all", keep = null, suggested = null } = {}) {
   const fav = new Set(favourites);
+  const next = workouts.find((w) => w.id === suggested); // the plan's next session, first and whatever the filters say
   const fits = LENGTHS.find((l) => l.value === length)?.test ?? (() => true);
   const ofType = (w) => type === "all" || (w.category ?? "custom") === type;
   const shown = workouts.filter((w) => w.id === keep || (fits(w.seconds ?? 0) && ofType(w)));
   const option = (w, group) => ({ value: w.id, label: `${w.name} · ${Math.round((w.seconds ?? 0) / 60)} min`, group });
+  const rest = shown.filter((w) => w !== next);
   return [
-    ...shown.filter((w) => fav.has(w.id)).map((w) => option(w, "★ Favourites")),
-    ...categories.flatMap((c) => shown.filter((w) => !fav.has(w.id) && (w.category ?? "custom") === c.id).map((w) => option(w, c.label))),
+    ...(next ? [option(next, "Plan · next session")] : []),
+    ...rest.filter((w) => fav.has(w.id)).map((w) => option(w, "★ Favourites")),
+    ...categories.flatMap((c) => rest.filter((w) => !fav.has(w.id) && (w.category ?? "custom") === c.id).map((w) => option(w, c.label))),
   ];
 }
 
