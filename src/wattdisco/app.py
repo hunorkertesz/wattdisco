@@ -144,7 +144,7 @@ def run_window(sim: bool = False, speed: float = 1.0, scan_seconds: float = 10.0
 
     ride = build_ride(sim, speed, scan_seconds, smoothing)
     port = free_port(APP_PORT)
-    server = uvicorn.Server(uvicorn.Config(create_app(ride), host="127.0.0.1", port=port, log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(create_app(ride, warm=True), host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, name="wattdisco-server", daemon=True)
     thread.start()
     deadline = time.monotonic() + START_TIMEOUT

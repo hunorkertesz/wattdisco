@@ -1112,15 +1112,27 @@ class UploadIn(BaseModel):
     allow_sim: bool = False  # simulated rides need an explicit yes
 
 
-def create_app(ride: Ride) -> FastAPI:
+def create_app(ride: Ride, warm: bool = False) -> FastAPI:
+    """`warm`: work out the workout and plan numbers in the background at start, so the first visit to
+    Ready, the plans or the editor does not wait for them (the app and `serve` do; tests need not)."""
+
+    def warm_up() -> None:
+        try:
+            for spec in ride.workouts.list():
+                describe(spec, ride.settings.ftp)
+            plan_view()
+        except Exception:  # only a head start: a page still works it out itself
+            log.exception("could not prepare the workout list")
+
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI):
         task = asyncio.create_task(ride.run())
+        warming = asyncio.create_task(asyncio.to_thread(warm_up)) if warm else None
         try:
             yield
         finally:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+            await asyncio.gather(task, *([warming] if warming else []), return_exceptions=True)
 
     app = FastAPI(title="Watt Disco", lifespan=lifespan)
     app.state.ride = ride

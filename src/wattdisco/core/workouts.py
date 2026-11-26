@@ -4,6 +4,7 @@ Workouts are stored in % of FTP (`pct` = 0.9 means 90 %), so they follow the rid
 when FTP changes. `to_workout` turns one into watts for a given FTP.
 """
 
+import functools
 import json
 import math
 import re
@@ -431,12 +432,25 @@ def validate(data: dict) -> dict:
 
 
 def describe(spec: dict, ftp: int) -> dict:
-    """Numbers for the Ready screen and the editor: duration, average, intervals, intensity, training load."""
+    """Numbers for the Ready screen and the editor: duration, average, intervals, intensity, training load.
+
+    The same workouts are described on every visit to Ready, the editor and the plans, so the answer is kept
+    per workout and FTP (a changed workout is a different key)."""
+    return dict(_described(json.dumps(spec, sort_keys=True, default=str), ftp))
+
+
+@functools.lru_cache(maxsize=1024)
+def _described(key: str, ftp: int) -> dict:
+    return _describe(json.loads(key), ftp)
+
+
+def _describe(spec: dict, ftp: int) -> dict:
     if spec.get("open"):  # Just ride: nothing planned, so nothing to add up
         return {"seconds": 0, "avg_power": None, "wp": None, "intensity": None, "load": None, "intervals": 0,
                 "text": "NO WORKOUT · NO TARGET · RIDE AS YOU LIKE"}
     workout = to_workout(spec, ftp)
-    targets = [workout.target_at(t) for t in range(workout.seconds)]
+    # second by second, phase by phase (the same as target_at(t) for each t, without looking each phase up again)
+    targets = [phase.target_at(s) for phase in workout.phases for s in range(phase.seconds)]
     wp = stats.weighted_power(targets)
     work = [p for p in spec["phases"] if p["kind"] not in REST_KINDS]
     return {

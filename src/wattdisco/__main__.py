@@ -90,7 +90,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     _log_to_file()
     ride = build_ride(args.sim, args.speed, args.timeout, args.smoothing)
     print(f"Watt Disco on http://{args.host}:{args.port}  ({'simulated sensors' if args.sim else 'Bluetooth'})")
-    uvicorn.run(create_app(ride), host=args.host, port=args.port, log_level="warning")
+    uvicorn.run(create_app(ride, warm=True), host=args.host, port=args.port, log_level="warning")
     return 0
 
 

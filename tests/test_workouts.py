@@ -1,3 +1,4 @@
+import copy
 import json
 
 import pytest
@@ -113,3 +114,15 @@ def test_sprints_are_ridden_free_and_described_in_seconds():
     assert spec["mode"] == "free"
     assert {p["kind"] for p in spec["phases"]} >= {"sprint"}
     assert describe(spec, 250)["text"] == "6 × 15 S @ 200 % FTP · 4:45 MIN RECOVERY"
+
+
+def test_describe_is_kept_but_follows_changes():
+    from wattdisco.core.workouts import BUILTIN, describe
+
+    spec = copy.deepcopy(next(s for s in BUILTIN.values() if not s.get("open") and not s.get("climb")))
+    first = describe(spec, 240)
+    first["load"] = -1  # a page changing its answer never changes the kept one
+    assert describe(spec, 240)["load"] != -1
+    assert describe(spec, 300)["avg_power"] > describe(spec, 240)["avg_power"]
+    spec["phases"][0]["seconds"] += 60  # an edited workout is worked out again
+    assert describe(spec, 240)["seconds"] == describe(copy.deepcopy(spec), 240)["seconds"] == first["seconds"] + 60
