@@ -59,13 +59,19 @@
   .tile .state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chart { grid-area: chart; width: 100%; height: 100%; min-height: 0; display: block; }
   .strip-chart { grid-area: strip; width: 100%; height: clamp(30px, 5vh, 50px); display: block; }
-  .diffs { grid-area: diffs; display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: 0 14px; align-items: baseline; }
-  .diffs.is-finished { grid-template-columns: auto repeat(4, minmax(0, 1fr)); }
+  /* the differences against A: a framed row per source, each number under its label in large, bright type, so
+     they read from the bike; the cells wrap onto a second line when the window is narrow */
+  .diffs { grid-area: diffs; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .drow {
+    display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 18px;
+    padding: 6px 14px; border: 1px solid rgba(255, 246, 229, .14); border-radius: 10px; background: rgba(255, 246, 229, .04);
+  }
+  .dcell { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .diffs.is-finished .col-now { display: none; }
-  .diffs .mono { font-size: 11px; letter-spacing: .06em; white-space: nowrap; }
-  .diffs b { font-size: clamp(15px, 2.4vh, 20px); font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .diffs .pair { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--white); white-space: nowrap; }
-  .diffs .pair i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+  .dcell .mono { font-size: 11px; letter-spacing: .06em; white-space: nowrap; color: var(--muted); }
+  .dcell b { font-size: clamp(17px, 3vh, 26px); line-height: 1.1; font-weight: 600; color: var(--white); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .diffs .pair { align-self: center; display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 14px; letter-spacing: .08em; color: var(--c); white-space: nowrap; }
+  .diffs .pair i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
   .empty { margin: auto 0; padding: 24px 0; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
   .empty a { color: var(--cyan-soft); }
   [hidden] { display: none !important; }
@@ -81,8 +87,14 @@
   }
   @media (max-width: 1000px) and (min-width: 601px) {
     .body { grid-template-columns: minmax(140px, 22%) minmax(0, 1fr) minmax(140px, 22%); gap: 6px 12px; }
-    .diffs { gap: 0 8px; }
+    .drow { gap: 4px 12px; padding: 5px 10px; }
   }
+  /* half a screen: the numbers run across the whole card under the tiles, so the chart keeps its height */
+  @media (max-width: 1000px) and (min-width: 601px), (max-height: 620px) and (min-width: 601px) {
+    .body { grid-template-areas: "now chart mean" "now strip mean" "diffs diffs diffs"; }
+    .strip-chart { height: 24px; }
+  }
+  @media (max-height: 620px) and (min-width: 601px) { .card__top .hint { display: none; } }
   @media (max-width: 600px) {
     .page { height: auto; min-height: 100dvh; }
     .cards { grid-template-rows: none; }
@@ -91,7 +103,6 @@
       grid-template-areas: "now mean" "chart chart" "strip strip" "diffs diffs";
     }
     .chart { height: 180px; }
-    .diffs { grid-template-columns: auto repeat(5, auto); overflow-x: auto; }
   }
 </style>
 </head>
@@ -227,16 +238,23 @@ function diffRow(table, d, color, unit) {
   const pair = el("span", "pair");
   pair.style.setProperty("--c", color);
   pair.append(el("i"), d.label);
-  const lag = el("b", "", d.lag_s == null ? "--" : `${Math.abs(d.lag_s).toFixed(1)} s`);
+  const cell = (label, value, cls = "") => {
+    const c = el("span", `dcell ${cls}`.trim());
+    c.append(el("span", "mono", label), el("b", "", value));
+    return c;
+  };
+  const lag = cell("Lag", d.lag_s == null ? "--" : `${Math.abs(d.lag_s).toFixed(1)} s`);
   lag.title = d.lag_s == null ? "Needs about 30 s of data" : `${d.lag_s >= 0 ? d.label.slice(-1) : "A"} reports later`;
-  table.append(
+  const row = el("div", "drow");
+  row.append(
     pair,
-    el("b", "col-now", d.diff_now == null ? "--" : `${signed(d.diff_now, 0)} ${unit}`),
-    el("b", "", d.mean_diff == null ? "--" : `${signed(d.mean_diff)} ${unit}`),
-    el("b", "", d.mean_diff_pct == null ? "--" : `${signed(d.mean_diff_pct)} %`),
+    cell("Now", d.diff_now == null ? "--" : `${signed(d.diff_now, 0)} ${unit}`, "col-now"),
+    cell("Mean Δ", d.mean_diff == null ? "--" : `${signed(d.mean_diff)} ${unit}`),
+    cell("Mean Δ %", d.mean_diff_pct == null ? "--" : `${signed(d.mean_diff_pct)} %`),
     lag,
-    el("b", "", d.correlation == null ? "--" : d.correlation.toFixed(3)),
+    cell("Corr.", d.correlation == null ? "--" : d.correlation.toFixed(3)),
   );
+  table.append(row);
 }
 
 function renderCard(kind, data) {
@@ -276,8 +294,7 @@ function renderCard(kind, data) {
 
   const table = card.querySelector(".diffs");
   table.classList.toggle("is-finished", finished);
-  table.replaceChildren(el("span"), el("span", "mono col-now", "Now"), el("span", "mono", "Mean Δ"),
-    el("span", "mono", "Mean Δ %"), el("span", "mono", "Lag"), el("span", "mono", "Corr."));
+  table.replaceChildren();
   data.diffs.forEach((d, i) => diffRow(table, d, k.colors[i + 1], k.unit));
 
   const span = finished ? data.series.t.length : 120;
