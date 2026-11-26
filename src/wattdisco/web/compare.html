@@ -15,6 +15,9 @@
   }
   .head .neon-title { font-size: clamp(28px, 3.4vw, 40px); }
   .head__right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .smooth { display: inline-flex; align-items: center; gap: 8px; }
+  .smooth .mono { font-size: 11px; }
+  .smooth .chip { height: 30px; padding: 0 12px; font-size: 12px; }
   .timer { display: flex; flex-direction: column; align-items: flex-end; margin-right: 8px; }
   .timer b { font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
   .timer .rec::before {
@@ -101,6 +104,7 @@
       <span class="mono" id="sub"></span>
     </div>
     <div class="head__right">
+      <span class="smooth"><span class="mono">Chart</span><span id="smooth"></span></span>
       <div class="timer" id="timer" hidden><span class="mono rec" id="rec">Recording</span><b id="elapsed">0:00</b></div>
       <a class="btn" id="back" href="/train">Back to workout</a>
       <a class="btn btn--primary" id="csv" href="/api/compare/export.csv" download hidden>Export CSV</a>
@@ -132,7 +136,7 @@
 </template>
 
 <script type="module">
-import { fmtClock, renderDeviceChips, renderStrip, holdScreen } from "/components.js";
+import { chipGroup, fmtClock, renderDeviceChips, renderStrip, holdScreen } from "/components.js";
 import { drawCompareChart, drawDiffStrip } from "/charts.js";
 import { connectLive } from "/live.js";
 import { addSoundButton, rideCues, unlockSound } from "/sound.js";
@@ -162,6 +166,35 @@ for (const [kind, k] of Object.entries(KINDS)) {
   card.append($("card-template").content.cloneNode(true));
   card.querySelector(".card-title").textContent = k.title;
   card.querySelector(".card-title").id = `${kind}-title`;
+}
+
+// The chart lines can be averaged over the last 3 or 10 s, so a jumpy source (pedals) and a smooth one (a trainer
+// in ERG, which reports close to its target) are easier to compare. Only the chart and its difference strip change:
+// every number (now, mean, difference, lag, correlation) stays from the raw data. Remembered per browser.
+const SMOOTH = { raw: 1, "3s": 3, "10s": 10 };
+let smooth = "raw";
+try { smooth = SMOOTH[localStorage.getItem("wd.compareSmooth")] ? localStorage.getItem("wd.compareSmooth") : "raw"; } catch {}
+let lastData = null;
+$("smooth").replaceWith(chipGroup([{ value: "raw", label: "Raw" }, { value: "3s", label: "3 s" }, { value: "10s", label: "10 s" }],
+  { value: smooth, label: "Chart average", onChange: (v) => {
+    smooth = v;
+    try { localStorage.setItem("wd.compareSmooth", v); } catch {}
+    if (lastData) render(lastData);
+  } }));
+
+/** Trailing average over `n` seconds of one source's per-second values (gaps stay gaps). */
+function trailing(values, n) {
+  if (n <= 1) return values;
+  const out = new Array(values.length);
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] != null) { sum += values[i]; count++; }
+    const gone = values[i - n];
+    if (i >= n && gone != null) { sum -= gone; count--; }
+    out[i] = values[i] == null || !count ? null : sum / count;
+  }
+  return out;
 }
 
 // ---------- rendering ----------
@@ -249,11 +282,13 @@ function renderCard(kind, data) {
 
   const span = finished ? data.series.t.length : 120;
   const labels = finished ? ["0:00", fmtClock(data.series.t.length)] : ["−2:00", "NOW"];
-  drawCompareChart(card.querySelector(".chart"), data.series, k.colors, span);
-  drawDiffStrip(card.querySelector(".strip-chart"), data.series, k.colors, span, labels);
+  const series = { ...data.series, values: data.series.values.map((v) => trailing(v, SMOOTH[smooth])) };
+  drawCompareChart(card.querySelector(".chart"), series, k.colors, span);
+  drawDiffStrip(card.querySelector(".strip-chart"), series, k.colors, span, labels);
 }
 
 function render(c) {
+  lastData = c;
   const count = (kind) => c?.[kind]?.sources.length ?? 0;
   const sim = ["power", "hr"].some((kind) => c?.[kind]?.sources.some((s) => s.id.startsWith("sim-")));
   const np = count("power");
