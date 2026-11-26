@@ -96,8 +96,9 @@ Not sure what a number means? **?** explains them all.
 **Train**
 - **Workouts.** 40+ built-ins by type (endurance, tempo, sweet spot, threshold, VO2 max, sprints, strength, FTP tests),
   your own in the editor, or imported from `.zwo`, `.erg` and `.mrc` files. Star your favourites, filter by length.
-- **Training plans.** Six multi-week plans, from Base (easy) to VO2 max (very hard), tailored to how many days a week you
-  ride and how long a session can be. The plan suggests the next session; ride it, skip it, or mark it done outdoors.
+- **Training plans.** 13 multi-week plans in four groups: getting started, raising your FTP, top-end power, and
+  climbing and long days. From First steps (easy) to Threshold and VO2 max (very hard), tailored to how many days a week
+  you ride and how long a session can be. The plan suggests the next session; ride it, skip it, or mark it done outdoors.
 - **FTP tests.** Ramp test and 20 min test set your FTP; any ride with a better 20 minutes suggests a new one.
 
 **Climb**
