@@ -1005,6 +1005,9 @@ class Ride:
                     await self.stop_ride()
 
 
+FONT_CACHE_S = 7 * 24 * 3600
+
+
 class WebFiles(StaticFiles):
     """Static files from wattdisco/web. Design references are never served, even if one lands there."""
 
@@ -1012,7 +1015,10 @@ class WebFiles(StaticFiles):
         if path.replace("\\", "/").split("/")[0] == "design":
             raise HTTPException(status_code=404)
         response = await super().get_response(path, scope)
-        response.headers["Cache-Control"] = "no-cache"
+        # Pages and scripts are checked again on every load, so an update shows at once. The bundled fonts
+        # only change with an update and every page needs them before it draws text: kept for a week.
+        fonts = path.replace("\\", "/").startswith("fonts/") and response.status_code == 200
+        response.headers["Cache-Control"] = f"max-age={FONT_CACHE_S}" if fonts else "no-cache"
         return response
 
 

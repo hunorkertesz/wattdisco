@@ -53,6 +53,13 @@ def test_renamed_pages_redirect(client):
         assert r.status_code == 307 and r.headers["location"] == new
 
 
+def test_fonts_kept_pages_checked_again(client):
+    font = client.get("/fonts/chakra-petch-700-latin.woff2")
+    assert font.status_code == 200 and font.headers["cache-control"].startswith("max-age=")
+    assert client.get("/workout.html").headers["cache-control"] == "no-cache"
+    assert client.get("/theme.css").headers["cache-control"] == "no-cache"
+
+
 def test_pages_served_design_hidden(client):
     assert client.get("/workout.html").status_code == 200
     assert client.get("/theme.css").status_code == 200
