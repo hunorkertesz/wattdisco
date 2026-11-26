@@ -117,7 +117,7 @@
       <h2 class="neon-title" id="paused-title">Paused</h2>
       <span class="mono" id="paused-why">Workout clock stopped · trainer released · nothing is recorded</span>
       <div class="ride-over__actions">
-        <button class="btn" type="button" id="paused-end">End ride</button>
+        <button class="btn btn--danger" type="button" id="paused-end">End ride</button>
         <button class="btn btn--primary" type="button" id="resume">Resume <kbd>Space</kbd></button>
       </div>
     </div>
@@ -127,7 +127,7 @@
 <script type="module">
 import { PHASE_LABEL, fmtClock, fmtNum, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen } from "/components.js";
 import { drawProgressStrip, drawTargetBar } from "/charts.js";
-import { confirmTwice, endRide, setupDock } from "/dock.js";
+import { confirmTwice, endRide, holdToConfirm, setupDock } from "/dock.js";
 import { connectLive } from "/live.js";
 import { addSoundButton, rideCues, unlockSound } from "/sound.js";
 const soundCues = rideCues();
@@ -155,9 +155,9 @@ let rideDone = false;
 const togglePause = () => live.send({ cmd: paused ? "resume" : "pause" });
 $("pause").onclick = togglePause;
 $("resume").onclick = togglePause;
-const end = { label: "End ride", confirm: "Tap again to end", busy: "Saving…", action: endRide };
-confirmTwice($("end-ride"), end);
-confirmTwice($("paused-end"), end);
+const end = { hold: "Hold to end…", confirm: "Press again to end", busy: "Saving…", action: endRide };
+holdToConfirm($("end-ride"), end);
+holdToConfirm($("paused-end"), end);
 const dock = setupDock({
   app: $("app"),
   docks: [{ dock: $("dock"), zone: $("zone-top"), pinned: () => rideDone }], // workout over: keep End ride in view

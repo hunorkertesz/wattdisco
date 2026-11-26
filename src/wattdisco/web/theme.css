@@ -802,3 +802,10 @@ body.has-zoom { overflow: hidden; }
   overflow: auto; box-shadow: 0 0 0 100vmax var(--bg), 0 0 18px rgba(61, 217, 255, .35);
 }
 .is-zoomed .chart, .is-zoomed canvas { flex: 1 1 auto; min-height: 240px; max-height: none; }
+
+/* press and hold (dock.js holdToConfirm): the button fills from the left while it is held */
+.hold-btn { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hold-btn::after {
+  content: ""; position: absolute; inset: 0; transform-origin: left center; transform: scaleX(var(--hold, 0));
+  background: rgba(255, 246, 229, .38); pointer-events: none;
+}

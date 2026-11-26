@@ -539,3 +539,30 @@
 #next.is-ahead { color: var(--teal); }
 #next.is-behind { color: #FF6B7A; }
 #ghost-btn[hidden] { display: none; } /* the ghost only rides along on a climb */
+/* End ride sits apart from Pause, so a hand reaching for Pause never lands on it */
+#end-ride { margin-left: clamp(16px, 3vw, 40px); }
+
+/* the next phases at a glance, under NEXT: blocks in their zone colour with their watts */
+.upcoming { display: flex; gap: 3px; width: min(15em, 100%); min-height: 0; }
+.upcoming:empty { display: none; }
+.is-climb .upcoming, .is-open-ride .upcoming { display: none; }
+.upcoming__b {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 2px 4px;
+  border-radius: 4px; background: color-mix(in srgb, var(--z) 26%, transparent); border-top: 3px solid var(--z);
+  color: var(--clean-text, #fff); font-variant-numeric: tabular-nums; overflow: hidden;
+}
+.upcoming__b b { font-size: 12px; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.upcoming__b small { font-size: 9px; color: var(--clean-muted, #9aa); white-space: nowrap; }
+
+/* the ride so far on the pause card */
+.so-far { display: flex; justify-content: center; gap: clamp(20px, 4vw, 48px); margin: 6px 0 2px; }
+.so-far div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.so-far b { font-size: clamp(22px, 3vw, 32px); font-weight: 700; color: var(--white); font-variant-numeric: tabular-nums; }
+
+/* a warning pulses around the number it is about (yellow: never a zone colour, never the phase-change white) */
+.is-alerting { border-radius: 14px; animation: warn-pulse 1.2s ease-in-out infinite; }
+@keyframes warn-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 45%, transparent); }
+  50% { box-shadow: 0 0 0 3px var(--warn), 0 0 22px color-mix(in srgb, var(--warn) 60%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .is-alerting { animation: none; box-shadow: 0 0 0 3px var(--warn); } }

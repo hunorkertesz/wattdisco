@@ -31,6 +31,8 @@
         <span class="phase-badge" id="phase-badge">--</span>
         <span class="countdown" id="countdown" aria-label="Time left in this phase">--:--</span>
         <span class="mono" id="next"></span>
+        <!-- the next phases as small blocks in their zone colour, with their watts: what is coming, at a glance -->
+        <div class="upcoming" id="upcoming" aria-hidden="true"></div>
       </div>
     </div>
   </section>
@@ -137,8 +139,14 @@
     <div class="card ride-over__card" role="dialog" aria-labelledby="paused-title">
       <h2 class="neon-title" id="paused-title">Paused</h2>
       <span class="mono" id="paused-why">Workout clock stopped · trainer released · nothing is recorded</span>
+      <!-- the ride so far, so a break is also a quick look at how it is going -->
+      <div class="so-far" id="so-far">
+        <div><span class="mono">Riding</span><b id="sf-time">--</b></div>
+        <div><span class="mono">Avg power</span><b id="sf-avg">--</b></div>
+        <div><span class="mono">Load so far</span><b id="sf-load">--</b></div>
+      </div>
       <div class="ride-over__actions">
-        <button class="btn" type="button" id="paused-end">End ride</button>
+        <button class="btn btn--danger" type="button" id="paused-end">End ride</button>
         <button class="btn btn--primary" type="button" id="resume">Resume <kbd>Space</kbd></button>
       </div>
     </div>
@@ -159,9 +167,9 @@
 </div>
 
 <script type="module">
-import { PHASE_LABEL, chipGroup, effortColor, el, fmtClock, fmtNum, gradeColor, neonSelect, renderDeviceChips, renderStrip, setZoneTops, zoneColor, holdScreen, helpCard } from "/components.js";
+import { PHASE_LABEL, chipGroup, effortColor, el, fmtClock, fmtNum, gradeColor, neonSelect, renderDeviceChips, renderStrip, setZoneTops, zoneColor, zoneOf, holdScreen, helpCard } from "/components.js";
 import { Trace, drawClimbProfile, drawWorkoutChart } from "/charts.js";
-import { confirmTwice, endRide, setupDock } from "/dock.js";
+import { confirmTwice, endRide, holdToConfirm, setupDock } from "/dock.js";
 import { connectLive } from "/live.js";
 import { distance as inDistance, distanceUnit, imperial, metricInUnits, setUnits, speed as inSpeed, speedUnit } from "/units.js";
 import { addSoundButton, blocked as soundBlocked, rideCues, unlockSound } from "/sound.js";
@@ -305,9 +313,9 @@ let rideDone = false;
 const togglePause = () => live.send({ cmd: paused ? "resume" : "pause" });
 $("pause").onclick = togglePause;
 $("resume").onclick = togglePause;
-const end = { label: "End ride", confirm: "Tap again to end", busy: "Saving…", action: endRide };
-confirmTwice($("end-ride"), end);
-confirmTwice($("paused-end"), end);
+const end = { hold: "Hold to end…", confirm: "Press again to end", busy: "Saving…", action: endRide };
+holdToConfirm($("end-ride"), end);
+holdToConfirm($("paused-end"), end);
 
 // Nerd mode: this interval harder or easier in 5 W steps (only this phase), or skip to the next one.
 const adjust = (steps) => live.send({ cmd: "adjust_phase", steps });
@@ -437,6 +445,50 @@ function renderHud(store, s, w) {
 
   renderHeartRate(s);
   renderPhase(w);
+  renderUpcoming(store, w);
+}
+
+// The ride so far, on the pause card: riding seconds, average power and training load (weighted power over 30 s,
+// as in the summary), from the ride's own one-per-second points.
+let soFarKey = -1;
+function renderSoFar(store) {
+  const points = store.history ?? [];
+  if (points.length === soFarKey) return;
+  soFarKey = points.length;
+  const power = points.map((p) => p[1]).filter((v) => v != null);
+  const ftp = store.settings?.ftp ?? store.workout?.ftp;
+  $("sf-time").textContent = points.length ? fmtClock(points.length) : "--";
+  if (!power.length) { $("sf-avg").textContent = $("sf-load").textContent = "--"; return; }
+  $("sf-avg").textContent = `${Math.round(power.reduce((a, v) => a + v, 0) / power.length)} W`;
+  let wp = power.reduce((a, v) => a + v, 0) / power.length;
+  if (power.length >= 30) {
+    let window = power.slice(0, 30).reduce((a, v) => a + v, 0);
+    let fourth = (window / 30) ** 4;
+    for (let i = 30; i < power.length; i++) { window += power[i] - power[i - 30]; fourth += (window / 30) ** 4; }
+    wp = (fourth / (power.length - 29)) ** 0.25;
+  }
+  $("sf-load").textContent = ftp ? String(Math.round(points.length / 3600 * (wp / ftp) ** 2 * 100)) : "--";
+}
+
+const UPCOMING = 3;
+function renderUpcoming(store, w) {
+  const phases = store.workout?.phases ?? [];
+  const ftp = store.settings?.ftp ?? store.workout?.ftp;
+  const next = w.done ? [] : phases.slice(w.index + 1, w.index + 1 + UPCOMING);
+  const key = `${w.index}|${ftp}|${JSON.stringify(w.adjustments ?? {})}`;
+  const box = $("upcoming");
+  if (box.dataset.key === key) return; // only redrawn when the phase or the targets change
+  box.dataset.key = key;
+  const total = next.reduce((a, p) => a + p.seconds, 0);
+  box.replaceChildren(...next.map((p, i) => {
+    const add = Number(w.adjustments?.[String(w.index + 1 + i)] ?? 0);
+    const watts = p.watts + add;
+    const end = p.watts_end == null ? null : p.watts_end + add;
+    const zone = zoneOf(Math.max(watts, end ?? watts), ftp);
+    return el("span", { class: "upcoming__b", title: `${label(p.kind)} · ${fmtDuration(p.seconds)}`,
+      style: `flex: ${Math.max(0.6, p.seconds / total * UPCOMING)}; --z: ${zoneColor(zone)}` },
+      el("b", { text: end == null ? `${watts}` : `${watts}–${end}` }), el("small", { text: fmtDuration(p.seconds) }));
+  }));
 }
 
 // Heart rate keeps the last value, dimmed, while the strap is silent.
@@ -781,6 +833,12 @@ function render(store) {
   holdScreen(s.ride?.active);
   const alert = !w.done && w.next && w.seconds_left <= ALERT_SECONDS;
   $("app").classList.toggle("is-alert", !!alert);
+  // A warning in words (ERG released, trainer not answering, a silent sensor) also makes the number it is about
+  // pulse in yellow, so it is seen from the bike and not only read.
+  const riding = !!(s.ride?.active && !s.ride.paused);
+  $("target-box").classList.toggle("is-alerting", $("trainer-status").classList.contains("is-warn"));
+  $("hr-label").closest(".metric").classList.toggle("is-alerting", $("hr-label").classList.contains("is-warn"));
+  $("power-num").closest(".hud__power, .metric, section").classList.toggle("is-alerting", riding && s.power == null && !!s.main_power_id);
 
   if (climbing) {
     $("pill").hidden = true;
@@ -848,6 +906,7 @@ function renderRide(s, w) {
   $("resume").firstChild.textContent = why === "waiting" ? "Start now " : "Resume ";
   $("pause").firstChild.textContent = paused ? "Resume " : "Pause ";
   $("app").classList.toggle("is-paused", paused);
+  if (paused) renderSoFar(live.store);
 }
 
 const live = connectLive(render);

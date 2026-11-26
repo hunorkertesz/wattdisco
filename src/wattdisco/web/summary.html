@@ -13,9 +13,10 @@
   <main id="main" hidden>
     <div class="head">
       <div>
-        <span class="mono" id="when">Ride complete</span>
+        <span class="when-line"><span class="mono" id="when">Ride complete</span><a class="strava-chip mono" id="strava-chip" hidden></a></span>
         <span class="mono plan-line" id="plan-line" hidden></span>
         <h1 class="neon-title" id="title">Ride</h1>
+        <p class="headline" id="headline" hidden></p>
       </div>
       <!-- FTP from this ride: a test sets it (with undo), any ride with a better 20 min suggests it. -->
       <div class="ftp-note" id="ftp-note" role="status" hidden>
@@ -75,6 +76,7 @@
         <span class="mono panel__title" id="feel-title">How did it feel? <span class="feel__saved" id="feel-saved"></span></span>
         <div class="feel__scale" id="feel-scale" role="radiogroup" aria-labelledby="feel-title"></div>
         <input class="input feel__note" id="feel-note" type="text" maxlength="2000" placeholder="A note: legs, sleep, what to change…" aria-label="Note about this ride">
+        <button class="feel__ask mono" type="button" id="feel-ask" hidden></button>
       </section>
     </div>
 
@@ -258,6 +260,18 @@
   </div>
 </div>
 
+<!-- straight after a ride: one tap for how it felt (skip it, or never ask again) -->
+<div class="feel-pop" id="feel-pop" hidden>
+  <div class="card feel-pop__card" role="dialog" aria-labelledby="feel-pop-title">
+    <h2 class="neon-title" id="feel-pop-title">How did it feel?</h2>
+    <span class="mono">1 very easy · 5 steady · 10 all out</span>
+    <div class="feel__scale" id="feel-pop-scale" role="radiogroup" aria-labelledby="feel-pop-title"></div>
+    <div class="feel-pop__actions">
+      <button class="btn btn--sm" type="button" id="feel-pop-never">Don't ask again</button>
+      <button class="btn btn--sm" type="button" id="feel-pop-skip">Skip</button>
+    </div>
+  </div>
+</div>
 <script type="module">
 import { chipGroup, effortColor, el, fmtClock, gradeColor, helpCard, infoButton, neonSelect, renderStrip, rpeColor, zoneColor, zoneOf, zoomButton } from "/components.js";
 import { drawSummaryChart, drawTargetDiffChart } from "/charts.js";
@@ -669,6 +683,28 @@ const nerdHelp = helpCard("summary-nerd", {
 $("help").onclick = () => nerdHelp.open();
 
 // How the ride felt: 1–10 and a note, saved as they change.
+const feel = { rated: false, set: () => {} };
+const FEEL_ASK = "wd.feelPrompt"; // "off": no pop-up after a ride (per browser); the panel can switch it on again
+const askAfterRide = () => { try { return localStorage.getItem(FEEL_ASK) !== "off"; } catch { return true; } };
+function showFeelAsk() {
+  $("feel-ask").hidden = false;
+  $("feel-ask").textContent = askAfterRide() ? "Ask me after each ride: on" : "Ask me after each ride: off";
+  $("feel-ask").setAttribute("aria-pressed", String(askAfterRide()));
+}
+$("feel-ask").onclick = () => { try { localStorage.setItem(FEEL_ASK, askAfterRide() ? "off" : "on"); } catch {} showFeelAsk(); };
+function closeFeelPop() { $("feel-pop").hidden = true; removeEventListener("keydown", feelKeys, true); }
+function feelKeys(e) { if (e.key === "Escape") { e.preventDefault(); closeFeelPop(); } }
+function openFeelPop() {
+  $("feel-pop-scale").replaceChildren(...Array.from({ length: 10 }, (_, i) => el("button", {
+    class: "feel__n", type: "button", role: "radio", style: `--c:${rpeColor(i + 1)}`, text: String(i + 1),
+    title: `${i + 1}${FEEL_WORDS[i + 1] ? ` · ${FEEL_WORDS[i + 1]}` : ""}`,
+    onclick: () => { feel.set(i + 1); closeFeelPop(); } })));
+  $("feel-pop").hidden = false;
+  addEventListener("keydown", feelKeys, true);
+  $("feel-pop-scale").firstChild.focus();
+}
+$("feel-pop-skip").onclick = closeFeelPop;
+$("feel-pop-never").onclick = () => { try { localStorage.setItem(FEEL_ASK, "off"); } catch {} closeFeelPop(); showFeelAsk(); };
 const FEEL_WORDS = { 1: "very easy", 3: "easy", 5: "steady", 7: "hard", 9: "very hard", 10: "all out" };
 async function renderFeel(s) {
   const notes = await fetch(`/api/rides/${s.id}/notes`).then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
@@ -687,10 +723,58 @@ async function renderFeel(s) {
   const show = () => buttons.forEach((b, i) => b.setAttribute("aria-checked", String(rpe === i + 1)));
   $("feel-scale").replaceChildren(...buttons);
   show();
+  feel.rated = rpe != null;
+  feel.set = (n) => { rpe = n; show(); save(); };
   $("feel-note").value = notes.note ?? "";
   let timer = null;
   $("feel-note").oninput = () => { clearTimeout(timer); $("feel-saved").textContent = ""; timer = setTimeout(save, 600); };
 }
+
+// The ride in one sentence, before any numbers: how long, how much on target, against last time, and new bests.
+async function renderHeadline(s) {
+  const parts = [];
+  const mins = Math.round((s.duration ?? 0) / 60);
+  const est = s.ftp_estimate;
+  if (s.workout?.test && est?.ftp) parts.push(`FTP test: ${Math.round(est.ftp)} W`);
+  else if (s.climb?.top) parts.push(`To the top in ${fmtClock(s.climb.seconds)}`);
+  else parts.push((s.duration ?? 0) < 60 ? `${s.duration ?? 0} s` : `${mins} min`);
+  const onTarget = s.nerd?.on_target_pct;
+  if (onTarget != null && !s.workout?.open && !s.climb && !s.workout?.test) parts.push(`${Math.round(onTarget)} % on target`);
+  const avg = s.basic?.avg_power;
+  try {
+    const rows = await (await fetch("/api/rides")).json();
+    const before = rows.filter((r) => r.workout_id === s.workout_id && r.id !== s.id && r.started < s.started && r.avg_power != null)
+      .sort((a, b) => (a.started < b.started ? 1 : -1))[0];
+    if (before && avg != null) {
+      const d = Math.round(avg - before.avg_power);
+      parts.push(d === 0 ? "the same average power as last time" : `${Math.abs(d)} W ${d > 0 ? "more" : "less"} on average than last time`);
+    }
+  } catch { /* no comparison */ }
+  if (!s.sim) {
+    try {
+      const curve = (await (await fetch("/api/progress")).json()).curve.all;
+      const LABEL = { 5: "5 s", 60: "1 min", 300: "5 min", 1200: "20 min" };
+      const bests = curve.filter((p) => p.ride === s.id && LABEL[p.seconds]).map((p) => LABEL[p.seconds]);
+      if (bests.length) parts.push(`new best ${bests.join(", ")} ★`);
+    } catch { /* no records */ }
+  }
+  const text = parts.join(" · ");
+  $("headline").textContent = text.charAt(0).toUpperCase() + text.slice(1);
+  $("headline").hidden = !text;
+}
+
+// Strava, next to the date: on Strava (a link), uploading, failed, or not uploaded.
+function renderStravaChip(upload) {
+  const chip = $("strava-chip");
+  const state = upload?.state ?? "none";
+  const done = state === "done" || state === "duplicate";
+  chip.textContent = done ? "✓ On Strava" : state === "uploading" ? "Uploading to Strava…" : state === "error" ? "Strava upload failed" : "Not on Strava";
+  chip.className = `strava-chip mono strava-chip--${done ? "done" : state === "error" ? "error" : "none"}`;
+  if (done && upload.url) Object.assign(chip, { href: upload.url, target: "_blank", rel: "noopener" });
+  else chip.href = `/upload.html?ride=${encodeURIComponent(summaryId())}`;
+  chip.hidden = false;
+}
+const summaryId = () => new URLSearchParams(location.search).get("ride") ?? "";
 
 // What this ride did for the training plan: the session it ticked off, or why it did not count.
 async function renderPlan(s) {
@@ -854,9 +938,11 @@ if (summary) {
   renderPlan(summary);
   renderEfforts(summary);
   renderClimbTimes(summary);
-  renderFeel(summary);
+  feel.ready = renderFeel(summary);
   renderAet(summary);
   renderDrift(summary);
+  renderHeadline(summary);
+  renderStravaChip(upload);
   setupCompare(summary);
 
   const VIEWS = ["basic", "nerd", "compare"];
@@ -886,6 +972,11 @@ if (summary) {
   // TRAIN comes back here after a ride until it is discarded, uploaded, or the rider moves on.
   fetch("/api/state").then((r) => r.json()).then((st) => {
     $("next-ride").hidden = st.ride?.review_id !== summary.id;
+    // straight after the ride (it waits for review) and not rated yet: ask once how it felt
+    Promise.resolve(feel.ready).then(() => {
+      if (st.ride?.review_id === summary.id && !feel.rated && askAfterRide()) setTimeout(openFeelPop, 500);
+    });
+    showFeelAsk();
   }).catch(() => {});
   $("next-ride").addEventListener("click", async () => {
     await fetch("/api/ride/review/done", { method: "POST" }).catch(() => null);

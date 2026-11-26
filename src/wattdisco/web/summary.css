@@ -478,3 +478,26 @@
 .panel.is-zoomed { padding-top: 52px !important; }
 .panel.is-zoomed > .zoom-btn { top: 12px; right: 14px; }
 .panel.is-zoomed .panel__title { font-size: 14px; padding-right: 0; }
+
+/* the ride in one sentence, under its title */
+.headline { margin: 2px 0 0; color: var(--white); font-size: clamp(14px, 1.4vw, 17px); line-height: 1.4; max-width: 60ch; }
+/* Strava next to the date: plain text, never styled like Strava's logo */
+.when-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.strava-chip { padding: 1px 9px; border: 1px solid var(--line-strong); border-radius: 10px; font-size: 10px; letter-spacing: .1em;
+  color: var(--muted); text-decoration: none; text-transform: uppercase; }
+.strava-chip--done { border-color: var(--teal); color: var(--teal); }
+.strava-chip--error { border-color: #FF2D55; color: #FF8FA6; }
+a.strava-chip:hover { color: var(--white); }
+/* how it felt, asked once after the ride */
+.feel-pop { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(7, 11, 10, .78); backdrop-filter: blur(4px); }
+.feel-pop[hidden] { display: none; }
+.feel-pop__card { width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.feel-pop__card .neon-title { font-size: clamp(24px, 3vw, 34px); margin: 0; }
+.feel-pop .feel__scale { justify-content: center; }
+.feel-pop .feel__n { width: 44px; height: 44px; font-size: 16px; }
+.feel-pop__actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.feel__ask { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--muted); font-size: 11px; letter-spacing: .06em;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.feel__ask:hover { color: var(--white); }
+.feel__ask[hidden] { display: none; }

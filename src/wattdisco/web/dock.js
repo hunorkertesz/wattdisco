@@ -83,6 +83,54 @@ export function confirmTwice(button, { confirm, busy, action }) {
   });
 }
 
+// A button that acts only when held (End ride): it fills up over `ms` while pressed, and letting go early does
+// nothing, so a gloved tap or a brush against the screen never ends a ride. From the keyboard (Enter, Space) it asks
+// for a second press within 3 s instead, as before.
+export function holdToConfirm(button, { hold = "Hold to end", confirm, busy, action, ms = 1200 }) {
+  const html = button.innerHTML;
+  let timer = null;
+  let armed = null;
+  let done = false;
+  button.classList.add("hold-btn");
+  button.title = `${hold} (keyboard: press twice)`;
+  const reset = () => { button.innerHTML = html; button.style.setProperty("--hold", "0"); button.classList.remove("is-holding"); };
+  const run = async () => {
+    done = true;
+    button.disabled = true;
+    button.textContent = busy;
+    try { await action(); } finally { button.disabled = false; done = false; reset(); }
+  };
+  const start = (e) => {
+    if (e.button > 0 || done) return;
+    e.preventDefault();
+    try { button.setPointerCapture(e.pointerId); } catch { /* some pointers cannot be captured */ }
+    button.classList.add("is-holding");
+    button.textContent = hold;
+    const t0 = performance.now();
+    const tick = () => {
+      const p = Math.min(1, (performance.now() - t0) / ms);
+      button.style.setProperty("--hold", String(p));
+      if (p >= 1) { timer = null; run(); return; }
+      timer = requestAnimationFrame(tick);
+    };
+    timer = requestAnimationFrame(tick);
+  };
+  const stop = () => { if (timer) { cancelAnimationFrame(timer); timer = null; reset(); } };
+  button.addEventListener("pointerdown", start);
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(type, stop);
+  button.addEventListener("click", (e) => {
+    if (e.detail !== 0 || done) return; // a pointer: the hold decides
+    if (!armed) {
+      button.textContent = confirm;
+      armed = setTimeout(() => { armed = null; reset(); }, 3000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    run();
+  });
+}
+
 // End the ride and open its summary.
 export async function endRide() {
   const r = await fetch("/api/ride/stop", { method: "POST" });
