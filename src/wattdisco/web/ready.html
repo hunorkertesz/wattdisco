@@ -17,6 +17,18 @@
   .ride-kind .chip { height: 38px; padding: 0 22px; font-size: 13px; letter-spacing: .12em; }
   .pick-workout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .pick-workout.is-open-ride { display: none; } /* just riding: nothing to pick */
+  .pick-workout .chip-group[hidden], .pick-workout .nsel[hidden] { display: none; }
+  /* a climb's own settings (difficulty, ghost): only for climbs, never for an interval workout */
+  .climb-row { display: flex; flex-direction: column; gap: 8px; }
+  /* the filters in their own colours, apart from the WORKOUTS / CLIMBS / JUST RIDE switch:
+     length in teal, workout type in yellow */
+  .filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-basis: 100%; }
+  .filters[hidden] { display: none; }
+  .filter-label { font-size: 11px; color: var(--muted); }
+  .segmented.ride-kind { width: fit-content; align-self: flex-start; }
+  .pick-workout .chip-group .chip[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); box-shadow: 0 0 6px var(--teal), inset 0 0 6px rgba(54, 227, 196, .3); text-shadow: 0 0 6px var(--teal); }
+  .type-pick .nsel__button { border-color: var(--yellow); color: var(--yellow-soft); box-shadow: 0 0 8px var(--yellow), inset 0 0 8px rgba(255, 201, 60, .3); text-shadow: 0 0 6px var(--yellow); }
+  .climb-row[hidden] { display: none; }
   .title .neon-title { font-size: clamp(28px, min(4.4vw, 6vh), 52px); }
   .preview { width: 100%; flex: 1; min-height: 110px; max-height: 300px; display: block; }
   .stats { display: flex; flex-wrap: wrap; gap: 16px 48px; }
@@ -109,7 +121,11 @@
         <button class="btn btn--sm" type="button" id="import-gpx" hidden title="A route or ride from a .gpx file: only its distance and gradients are kept">Import GPX</button>
         <button class="btn btn--sm" type="button" id="delete-climb" hidden>Delete</button>
         <input type="file" id="gpx-file" accept=".gpx" hidden>
-        <span id="length"></span>
+        <span class="filters" id="filters">
+          <span class="mono filter-label">Filter</span>
+          <span id="length"></span>
+          <span id="type"></span>
+        </span>
       </div>
       <div class="plan-next" id="plan-next" hidden>
         <span class="mono" id="plan-where">Plan</span>
@@ -160,7 +176,7 @@
           </button>
         </div>
         <!-- a climb: the road's gradient sets the trainer's resistance; the rider picks how much of it -->
-        <div id="climb-row" hidden style="display: flex; flex-direction: column; gap: 8px">
+        <div class="climb-row" id="climb-row" hidden>
           <p class="hint">The trainer gets harder as the road gets steeper. You choose your power, cadence and gears,
             as on a real climb. Downhills feel lighter. The ride ends at the top.</p>
           <div class="ease"><span class="mono" id="difficulty-label">Difficulty</span><div id="difficulty"></div></div>
@@ -283,12 +299,17 @@ const kindOf = (w) => (w.open ? "ride" : w.climb ? "climb" : "workout");
 let kind = kindOf(selected);
 const ofKind = (k) => workouts.filter((w) => kindOf(w) === k);
 const lastKey = (k) => (k === "climb" ? "wd.lastClimb" : "wd.lastWorkout");
+// Workout type (endurance, sweet spot, VO2 max, …): only the types that have workouts, remembered per browser.
+const types = library.categories.filter((c) => ofKind("workout").some((w) => (w.category ?? "custom") === c.id));
+let type = "all";
+try { type = localStorage.getItem("wd.type") ?? "all"; } catch {}
+if (type !== "all" && !types.some((c) => c.id === type)) type = "all";
 const options = () => workoutOptions(ofKind(kind), library.categories,
-  { favourites, length: kind === "climb" ? "all" : length, keep: selected?.id });
+  { favourites, length: kind === "climb" ? "all" : length, type: kind === "workout" ? type : "all", keep: selected?.id });
 const kindGroup = chipGroup([{ value: "workout", label: "WORKOUTS" }, { value: "climb", label: "CLIMBS" }, { value: "ride", label: "JUST RIDE" }],
   { value: kind, label: "Workouts, climbs or just ride", onChange: (k) => switchKind(k) });
 $("ride-kind").replaceWith(kindGroup);
-kindGroup.classList.add("ride-kind");
+kindGroup.classList.add("ride-kind", "segmented");
 function switchKind(k) {
   if (k === kind) return;
   let id = null;
@@ -302,7 +323,7 @@ function showKind() {
   const changed = k !== kind;
   kind = k;
   kindGroup.set(k);
-  lengthGroup.hidden = k !== "workout"; // a few climbs: no length filter; just riding: nothing to pick
+  lengthGroup.hidden = typePicker.hidden = $("filters").hidden = k !== "workout"; // a few climbs: no filters; just riding: nothing to pick
   document.querySelector(".pick-workout").classList.toggle("is-open-ride", k === "ride");
   $("pick-label").textContent = k === "climb" ? "Climb" : "Workout";
   $("ready-line").textContent = k === "climb" ? "Ready to climb" : "Ready to ride";
@@ -321,6 +342,15 @@ const lengthGroup = chipGroup(LENGTHS.map(({ value, label }) => ({ value, label 
   onChange: (v) => { length = v; try { localStorage.setItem("wd.length", v); } catch {} picker.setOptions(options()); },
 });
 $("length").replaceWith(lengthGroup);
+const typePicker = neonSelect({
+  label: "Workout type", compact: true,
+  options: [{ value: "all", label: "All types" }, ...types.map((c) => ({ value: c.id, label: c.label }))],
+  value: type,
+  onChange: (v) => { type = v; try { localStorage.setItem("wd.type", v); } catch {} picker.setOptions(options()); },
+});
+typePicker.classList.add("type-pick");
+$("type").replaceWith(typePicker);
+typePicker.hidden = kind !== "workout";
 function showFav() {
   const on = favourites.includes(selected.id);
   $("fav").setAttribute("aria-pressed", String(on));

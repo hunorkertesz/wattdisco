@@ -193,11 +193,13 @@ export const LENGTHS = [
   { value: "long", label: "75+", test: (s) => s > 75 * 60 },
 ];
 
-/** Picker options: ★ favourites first, then by category. `length` narrows by duration; `keep` always stays. */
-export function workoutOptions(workouts, categories, { favourites = [], length = "all", keep = null } = {}) {
+/** Picker options: ★ favourites first, then by category. `length` narrows by duration, `type` to one category;
+ *  `keep` always stays. */
+export function workoutOptions(workouts, categories, { favourites = [], length = "all", type = "all", keep = null } = {}) {
   const fav = new Set(favourites);
   const fits = LENGTHS.find((l) => l.value === length)?.test ?? (() => true);
-  const shown = workouts.filter((w) => w.id === keep || fits(w.seconds ?? 0));
+  const ofType = (w) => type === "all" || (w.category ?? "custom") === type;
+  const shown = workouts.filter((w) => w.id === keep || (fits(w.seconds ?? 0) && ofType(w)));
   const option = (w, group) => ({ value: w.id, label: `${w.name} · ${Math.round((w.seconds ?? 0) / 60)} min`, group });
   return [
     ...shown.filter((w) => fav.has(w.id)).map((w) => option(w, "★ Favourites")),
