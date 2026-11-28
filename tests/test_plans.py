@@ -91,6 +91,27 @@ def test_skip_elsewhere_undo_and_finish():
         plans.skip(s)
 
 
+def test_undo_after_fewer_days_a_week_goes_on_with_the_next_week():
+    s = plans.new_state("comeback-6", 250)  # 4 sessions in week 1
+    plans.skip(s)
+    plans.skip(s)
+    plans.skip(s)
+    plans.set_options(s, 2, None)  # week 1 now has 2 sessions, 3 are done: on with week 2
+    assert plans.current(s) == (1, 0)
+    plans.undo(s)  # the third session of week 1 is gone from the shorter week
+    assert plans.current(s) == (1, 0) and len(s["log"]) == 2
+    assert plans.next_workout(s) is not None and plans.view(s, 250)["next"]["week"] == 2
+
+
+def test_a_plan_saved_past_the_end_of_its_week_loads(tmp_path):
+    s = plans.new_state("comeback-6", 250, days=2)
+    s["session"] = 3  # saved by a version before undo settled itself
+    store = plans.PlanStore(tmp_path)
+    store.save(s)
+    loaded = store.load()
+    assert plans.current(loaded) == (1, 0) and plans.next_workout(loaded) is not None
+
+
 def test_a_bad_week_suggests_repeating_it():
     s = state()
     plans.skip(s)

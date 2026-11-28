@@ -394,9 +394,13 @@ def set_options(state: dict, days: int | None, minutes: int | None) -> None:
     week = state["week"]
     state["options"] = [o for o in state.get("options", []) if o["from_week"] < week]
     state["options"].append({"from_week": week, "days": days, "minutes": minutes})
-    sessions = weeks_of(state)[week]["sessions"]
-    if state["session"] >= len(sessions):  # this week is now shorter than what's done of it
-        state["week"], state["session"] = week + 1, 0
+    _settle(state)
+
+
+def _settle(state: dict) -> None:
+    """A week now shorter than what's done of it (fewer days a week): go on with the next week."""
+    if current(state) is not None and state["session"] >= len(weeks_of(state)[state["week"]]["sessions"]):
+        state["week"], state["session"] = state["week"] + 1, 0
 
 
 def current(state: dict) -> tuple[int, int] | None:
@@ -466,6 +470,7 @@ def undo(state: dict) -> None:
         raise ValueError("nothing to undo")
     last = state["log"].pop()
     state["week"], state["session"] = last["week"], last["session"]
+    _settle(state)  # the session it ticked off may be gone from a week made shorter since
 
 
 def repeat_week(state: dict) -> None:
@@ -574,7 +579,10 @@ class PlanStore:
             state = json.loads(self.path.read_text())
         except (OSError, ValueError):
             return None
-        return state if isinstance(state, dict) and state.get("plan") in PLANS else None
+        if not (isinstance(state, dict) and state.get("plan") in PLANS):
+            return None
+        _settle(state)  # a plan saved before undo settled itself
+        return state
 
     def save(self, state: dict) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
