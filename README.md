@@ -73,8 +73,8 @@ Not sure what a number means? **?** explains them all.
 
 | | |
 |---|---|
-| <img src="docs/images/compare.jpg" alt="A ride next to the last time the same workout was ridden: every number and its change, both power curves, interval by interval, and power and heart rate laid over each other"><br>**Compare** a ride with the last time you rode the same workout | <img src="docs/images/progress.jpg" alt="Progress: fitness, fatigue and form, the power curve, FTP history and the difference between two power sources across rides"><br>**Progress:** fitness, power curve, FTP and power sources over time |
-| <img src="docs/images/plan.jpg" alt="A six-week FTP Builder training plan with the next session lined up"><br>**Training plans** that fit your days and hours | <img src="docs/images/ready.jpg" alt="The ready screen: this week, form and last ride, the chosen workout and the ride options"><br>**Ready to ride:** pick a workout, start on your first pedal stroke |
+| <img src="docs/images/compare.jpg" alt="A ride against the last time the same workout was ridden, as a dashboard: the biggest changes in words, a chart of every number's change in percent, and a card per number with both rides as bars"><br>**Compare** a ride with the last time you rode the same workout: what changed most, at a glance | <img src="docs/images/progress.jpg" alt="Progress: fitness, fatigue and form, the power curve, FTP history and the difference between two power sources across rides"><br>**Progress:** fitness, power curve, FTP and power sources over time; every chart zooms |
+| <img src="docs/images/plan.jpg" alt="A six-week FTP Builder training plan with the next session lined up"><br>**Training plans** that fit your days and hours | <img src="docs/images/ready.jpg" alt="The ready screen: this week, form and last ride, the Workouts / Climbs / Just ride switch, filters and search, the chosen workout, and the ride options summed up in one line"><br>**Ready to ride:** find a workout, see your options in one line, start on your first pedal stroke |
 
 ## Features
 
